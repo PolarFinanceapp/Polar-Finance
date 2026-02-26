@@ -4,25 +4,63 @@ import { Alert, Linking, Modal, ScrollView, Switch, Text, TouchableOpacity, View
 import { ThemeColors, themes, useTheme } from '../../context/ThemeContext';
 import { supabase } from '../../lib/supabase';
 
+const LAST_UPDATED = '26 February 2026';
+
 const notifSettings = [
   { key: 'budget',      label: 'Budget Alerts',      sub: 'When you approach or exceed a budget',  icon: '⚠️' },
   { key: 'goals',       label: 'Goal Milestones',    sub: 'Progress updates on saving goals',       icon: '🎯' },
   { key: 'tips',        label: 'Savings Tips',       sub: 'Personalised money-saving suggestions',  icon: '💡' },
   { key: 'investments', label: 'Investment Updates', sub: 'Daily portfolio changes',                icon: '📈' },
   { key: 'bills',       label: 'Bill Reminders',     sub: 'Upcoming bill due dates',                icon: '🔔' },
-  { key: 'credit',      label: 'Credit Score',       sub: 'Monthly credit score changes',           icon: '💳' },
   { key: 'unusual',     label: 'Unusual Spending',   sub: 'When spending is above your average',    icon: '🔍' },
   { key: 'summary',     label: 'Monthly Summary',    sub: 'End of month financial report',          icon: '📊' },
 ];
 
 const privacySections = [
-  { title: '1. Who We Are',              body: `FinTrack is a personal finance management application. We are committed to protecting your personal data.\n\nContact: privacy@polarfinance.app` },
-  { title: '2. What Data We Collect',    body: `• Account information (name, email)\n• Financial data you manually enter\n• Device information\n• Anonymised usage analytics\n• Crash reports\n\nWe do NOT collect banking credentials.` },
-  { title: '3. How We Use Your Data',    body: `Your data is used to:\n• Provide and improve Polar Finance\n• Personalise your experience\n• Send notifications you opted into\n• Analyse performance\n\nWe never sell your data to third parties.` },
-  { title: '4. Data Storage & Security', body: `Data is stored using AES-256 encryption in transit and at rest. Our infrastructure is based in the UK and EU. Only you can access your financial information.` },
-  { title: '5. Your Rights',             body: `Under UK GDPR you have the right to:\n• Access your data\n• Correct inaccurate data\n• Request deletion\n• Data portability\n• Withdraw consent\n\nContact: privacy@polarfinance.app` },
-  { title: '6. Children\'s Privacy',     body: `Polar Finance is not intended for children under 13. If you believe a child has provided data, contact us immediately.` },
-  { title: '7. Contact Us',              body: `Email: privacy@polarfinance.app\nAddress: Polar Finance Ltd, London, UK\n\nYou may also contact the ICO at ico.org.uk.` },
+  {
+    title: '1. Who We Are',
+    body: `Polar Finance is a personal finance application developed by James McGee ("we", "us", or "our").\n\nContact: polarfinanceinsta@gmail.com`,
+  },
+  {
+    title: '2. What Data We Collect',
+    body: `We collect only what's necessary to provide the service:\n\n• Account information: email address and password (stored securely via Supabase)\n• Financial data you manually enter: transactions, card balances, investments and assets\n• Receipt images: temporarily processed by Claude AI — images are not stored after processing\n• Basic device information for crash reporting`,
+  },
+  {
+    title: '3. How We Use Your Data',
+    body: `Your data is used solely to:\n\n• Power the Polar Finance app and display your financial information\n• Process receipt scans using Claude AI (Anthropic) — image data is sent to Anthropic's API and immediately discarded\n• Provide live market data via Alpha Vantage and Finnhub\n• Maintain your account and provide customer support\n\nWe never sell your data to third parties.`,
+  },
+  {
+    title: '4. Data Storage & Security',
+    body: `Your data is stored securely using Supabase, hosted on AWS with industry-standard encryption. We use Row Level Security (RLS) to ensure only you can access your data. Passwords are never stored in plain text.`,
+  },
+  {
+    title: '5. Third Party Services',
+    body: `Polar Finance uses:\n\n• Supabase — database & authentication\n• Anthropic (Claude AI) — receipt scanning\n• Alpha Vantage — stock market data\n• Finnhub — trading signals\n• CoinGecko — cryptocurrency prices\n• ClearScore, Experian, Credit Karma — external links only, we do not share your data with these services`,
+  },
+  {
+    title: '6. Bank Linking',
+    body: `Bank account linking is currently not available in this version. When introduced, it will use Plaid, an FCA-regulated Open Banking provider. We will update this policy before that feature launches.\n\nWe will never store your bank login credentials.`,
+  },
+  {
+    title: '7. Your Rights (UK GDPR)',
+    body: `You have the right to:\n\n• Access the personal data we hold about you\n• Request correction of inaccurate data\n• Request deletion of your account and all data\n• Object to processing of your data\n• Data portability\n\nTo exercise any right, email polarfinanceinsta@gmail.com and we will respond within 30 days.`,
+  },
+  {
+    title: '8. Data Retention',
+    body: `We retain your data for as long as your account is active. If you delete your account, all personal data and financial records will be permanently deleted within 30 days.`,
+  },
+  {
+    title: '9. Children',
+    body: `Polar Finance is not intended for anyone under 18. We do not knowingly collect data from children. If you believe a child has provided data, please contact us immediately.`,
+  },
+  {
+    title: '10. Changes to This Policy',
+    body: `We may update this policy from time to time. We will notify you of significant changes via the app or email. Continued use after changes constitutes acceptance of the updated policy.`,
+  },
+  {
+    title: '11. Contact Us',
+    body: `Email: polarfinanceinsta@gmail.com\nDeveloper: James McGee\nLocation: Newcastle upon Tyne, United Kingdom\n\nYou may also contact the ICO at ico.org.uk if you have concerns about how we handle your data.`,
+  },
 ];
 
 export default function SettingsScreen() {
@@ -30,7 +68,7 @@ export default function SettingsScreen() {
   const { hasFeature, plan } = usePlan();
   const canUseThemes = hasFeature('customTheme') || hasFeature('themes');
 
-  const [notifs, setNotifs] = useState<Record<string, boolean>>(Object.fromEntries(notifSettings.map(n => [n.key, true])));
+  const [notifs, setNotifs]           = useState<Record<string, boolean>>(Object.fromEntries(notifSettings.map(n => [n.key, true])));
   const [openSection, setOpenSection] = useState<string | null>(null);
   const [openPrivacy, setOpenPrivacy] = useState<number | null>(null);
   const [showThemePicker, setShowThemePicker] = useState(false);
@@ -39,7 +77,6 @@ export default function SettingsScreen() {
 
   const toggleNotif = (key: string, value: boolean) => {
     setNotifs(prev => ({ ...prev, [key]: value }));
-    // Show confirmation
     const setting = notifSettings.find(n => n.key === key);
     if (setting) {
       Alert.alert(
@@ -130,7 +167,7 @@ export default function SettingsScreen() {
       <Text style={{ color: c.muted, fontSize: 12, fontWeight: '700', letterSpacing: .8, textTransform: 'uppercase', marginBottom: 12 }}>General</Text>
       <View style={{ backgroundColor: c.card, borderRadius: 20, marginBottom: 20, borderWidth: 1, borderColor: c.border, overflow: 'hidden' }}>
 
-        {/* Notifications Dropdown */}
+        {/* Notifications */}
         <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: c.border, gap: 12 }} onPress={() => toggle('notifs')}>
           <Text style={{ fontSize: 20, width: 28 }}>🔔</Text>
           <View style={{ flex: 1 }}>
@@ -159,25 +196,69 @@ export default function SettingsScreen() {
           </View>
         )}
 
-        {/* Privacy Policy Dropdown */}
+        {/* Privacy Policy */}
         <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: c.border, gap: 12 }} onPress={() => toggle('privacy')}>
           <Text style={{ fontSize: 20, width: 28 }}>📄</Text>
           <View style={{ flex: 1 }}>
             <Text style={{ color: c.text, fontSize: 14, fontWeight: '600' }}>Privacy Policy</Text>
-            <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>Last updated 19 Feb 2026</Text>
+            <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>Last updated {LAST_UPDATED}</Text>
           </View>
           <Text style={{ color: c.muted, fontSize: 16 }}>{openSection === 'privacy' ? '▲' : '▼'}</Text>
         </TouchableOpacity>
         {openSection === 'privacy' && (
           <View style={{ backgroundColor: c.card2, padding: 16 }}>
-            <Text style={{ color: c.muted, fontSize: 12, lineHeight: 18, marginBottom: 12 }}>At Polar Finance, your privacy is our priority. We never sell your data. All financial data is encrypted.</Text>
+            <Text style={{ color: c.muted, fontSize: 12, lineHeight: 18, marginBottom: 12 }}>
+              Your privacy matters. Polar Finance never sells your data. All financial data is encrypted and only accessible by you.
+            </Text>
             {privacySections.map((s, i) => (
               <TouchableOpacity key={i} style={{ marginBottom: 8, borderRadius: 12, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, overflow: 'hidden' }} onPress={() => setOpenPrivacy(openPrivacy === i ? null : i)}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12 }}>
                   <Text style={{ color: c.text, fontSize: 13, fontWeight: '700', flex: 1 }}>{s.title}</Text>
                   <Text style={{ color: c.muted, fontSize: 12 }}>{openPrivacy === i ? '▲' : '▼'}</Text>
                 </View>
-                {openPrivacy === i && <View style={{ padding: 12, paddingTop: 0 }}><Text style={{ color: c.muted, fontSize: 12, lineHeight: 20 }}>{s.body}</Text></View>}
+                {openPrivacy === i && (
+                  <View style={{ padding: 12, paddingTop: 0 }}>
+                    <Text style={{ color: c.muted, fontSize: 12, lineHeight: 20 }}>{s.body}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            ))}
+            <Text style={{ color: c.muted, fontSize: 11, textAlign: 'center', marginTop: 8 }}>
+              © 2026 Polar Finance. Not financial advice.
+            </Text>
+          </View>
+        )}
+
+        {/* Terms of Service */}
+        <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: c.border, gap: 12 }} onPress={() => toggle('terms')}>
+          <Text style={{ fontSize: 20, width: 28 }}>📋</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: c.text, fontSize: 14, fontWeight: '600' }}>Terms of Service</Text>
+            <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>App usage terms and conditions</Text>
+          </View>
+          <Text style={{ color: c.muted, fontSize: 16 }}>{openSection === 'terms' ? '▲' : '▼'}</Text>
+        </TouchableOpacity>
+        {openSection === 'terms' && (
+          <View style={{ backgroundColor: c.card2, padding: 16 }}>
+            {[
+              { title: '1. Acceptance', body: 'By using Polar Finance, you agree to these terms. If you do not agree, please stop using the app.' },
+              { title: '2. Not Financial Advice', body: 'Polar Finance provides tools to track and visualise your finances. Nothing in the app constitutes financial, investment or legal advice. Always consult a qualified professional.' },
+              { title: '3. Market Data', body: 'Live market data, trading signals and forecasts are provided for informational purposes only. Past performance does not indicate future results. Capital is at risk.' },
+              { title: '4. Account Responsibility', body: 'You are responsible for maintaining the security of your account credentials. Do not share your password with anyone.' },
+              { title: '5. Acceptable Use', body: 'You agree not to misuse the app, attempt to reverse engineer it, or use it for any unlawful purpose.' },
+              { title: '6. Changes', body: 'We may update these terms at any time. Continued use of the app after changes constitutes acceptance.' },
+              { title: '7. Contact', body: 'polarfinanceinsta@gmail.com' },
+            ].map((s, i) => (
+              <TouchableOpacity key={i} style={{ marginBottom: 8, borderRadius: 12, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, overflow: 'hidden' }} onPress={() => setOpenPrivacy(openPrivacy === i + 100 ? null : i + 100)}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12 }}>
+                  <Text style={{ color: c.text, fontSize: 13, fontWeight: '700', flex: 1 }}>{s.title}</Text>
+                  <Text style={{ color: c.muted, fontSize: 12 }}>{openPrivacy === i + 100 ? '▲' : '▼'}</Text>
+                </View>
+                {openPrivacy === i + 100 && (
+                  <View style={{ padding: 12, paddingTop: 0 }}>
+                    <Text style={{ color: c.muted, fontSize: 12, lineHeight: 20 }}>{s.body}</Text>
+                  </View>
+                )}
               </TouchableOpacity>
             ))}
           </View>
@@ -204,11 +285,11 @@ export default function SettingsScreen() {
       <Text style={{ color: c.muted, fontSize: 12, fontWeight: '700', letterSpacing: .8, textTransform: 'uppercase', marginBottom: 12 }}>About</Text>
       <View style={{ backgroundColor: c.card, borderRadius: 20, marginBottom: 20, borderWidth: 1, borderColor: c.border, overflow: 'hidden' }}>
         {[
-          { icon: '📋', label: 'Version',      sub: '1.0.0 (Beta)', onPress: undefined },
-          { icon: '⭐', label: 'Rate the App', sub: 'Leave a review', onPress: undefined },
-          { icon: '💬', label: 'Feedback',     sub: 'Send us your thoughts', onPress: undefined },
+          { icon: '📋', label: 'Version',      sub: '1.0.0 (Beta)'         },
+          { icon: '⭐', label: 'Rate the App', sub: 'Leave a review'        },
+          { icon: '💬', label: 'Feedback',     sub: 'Send us your thoughts' },
         ].map((item, i, arr) => (
-          <TouchableOpacity key={i} onPress={item.onPress} style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: i < arr.length - 1 ? 1 : 0, borderBottomColor: c.border, gap: 12 }}>
+          <TouchableOpacity key={i} style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: i < arr.length - 1 ? 1 : 0, borderBottomColor: c.border, gap: 12 }}>
             <Text style={{ fontSize: 20, width: 28 }}>{item.icon}</Text>
             <View style={{ flex: 1 }}>
               <Text style={{ color: c.text, fontSize: 14, fontWeight: '600' }}>{item.label}</Text>
@@ -218,11 +299,8 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         ))}
 
-        {/* Instagram */}
         <TouchableOpacity onPress={openInstagram} style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderTopWidth: 1, borderTopColor: c.border, gap: 12 }}>
-          <View style={{ width: 28, height: 28, borderRadius: 8, justifyContent: 'center', alignItems: 'center' }}>
-            <Text style={{ fontSize: 20 }}>📸</Text>
-          </View>
+          <Text style={{ fontSize: 20, width: 28 }}>📸</Text>
           <View style={{ flex: 1 }}>
             <Text style={{ color: c.text, fontSize: 14, fontWeight: '600' }}>Instagram</Text>
             <Text style={{ color: '#E1306C', fontSize: 12, marginTop: 2, fontWeight: '600' }}>@polarfinance.app</Text>
@@ -231,9 +309,17 @@ export default function SettingsScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Disclaimer */}
+      <View style={{ backgroundColor: '#FFD70018', borderRadius: 16, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: '#FFD70044' }}>
+        <Text style={{ color: '#FFD700', fontSize: 12, fontWeight: '700', marginBottom: 4 }}>⚠️ Financial Disclaimer</Text>
+        <Text style={{ color: c.muted, fontSize: 12, lineHeight: 18 }}>
+          Polar Finance is not a financial advisor. Market data, trading signals and investment information are for informational purposes only. Always do your own research. Capital is at risk.
+        </Text>
+      </View>
+
       {/* Log Out */}
       <TouchableOpacity
-        style={{ backgroundColor: '#FF6B6B18', borderRadius: 16, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: '#FF6B6B44', marginBottom: 40 }}
+        style={{ backgroundColor: '#FF6B6B18', borderRadius: 16, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: '#FF6B6B44', marginBottom: 24 }}
         onPress={handleLogout}>
         <Text style={{ color: '#FF6B6B', fontSize: 15, fontWeight: '800' }}>🚪 Log Out</Text>
       </TouchableOpacity>
@@ -241,7 +327,8 @@ export default function SettingsScreen() {
       {/* Footer */}
       <View style={{ alignItems: 'center', marginBottom: 40 }}>
         <Text style={{ color: c.muted, fontSize: 12 }}>Polar Finance v1.0.0 (Beta)</Text>
-        <Text style={{ color: c.muted, fontSize: 11, marginTop: 4 }}>Made with ❤️ in London</Text>
+        <Text style={{ color: c.muted, fontSize: 11, marginTop: 4 }}>Made with ❤️ in Newcastle</Text>
+        <Text style={{ color: c.muted, fontSize: 11, marginTop: 2 }}>© 2026 James McGee. All rights reserved.</Text>
       </View>
 
     </ScrollView>

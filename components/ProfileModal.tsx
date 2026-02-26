@@ -1,12 +1,14 @@
+import { useEffect, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Plan, planFeatures, usePlan } from '../context/PlanContext';
+import { supabase } from '../lib/supabase';
 
 const plans: { key: Plan; label: string; price: string; color: string; emoji: string }[] = [
-  { key: 'free',     label: 'Free',             price: '£0',        color: '#7B7B9E', emoji: '🆓' },
-  { key: 'pro',      label: 'Pro',              price: '£3.99/mo',  color: '#00D4AA', emoji: '⚡' },
-  { key: 'premium',  label: 'Premium',          price: '£7.99/mo',  color: '#6C63FF', emoji: '👑' },
-  { key: 'lifetime', label: 'Lifetime',         price: '£99.99',    color: '#FFD700', emoji: '♾️' },
-  { key: 'family',   label: 'Lifetime Family',  price: '£129.99',   color: '#FF9F43', emoji: '👨‍👩‍👧‍👦' },
+  { key: 'free',     label: 'Free',            price: '£0',       color: '#7B7B9E', emoji: '🆓' },
+  { key: 'pro',      label: 'Pro',             price: '£3.99/mo', color: '#00D4AA', emoji: '⚡' },
+  { key: 'premium',  label: 'Premium',         price: '£7.99/mo', color: '#6C63FF', emoji: '👑' },
+  { key: 'lifetime', label: 'Lifetime',        price: '£99.99',   color: '#FFD700', emoji: '♾️' },
+  { key: 'family',   label: 'Lifetime Family', price: '£129.99',  color: '#FF9F43', emoji: '👨‍👩‍👧‍👦' },
 ];
 
 const featureLabels: { key: keyof typeof planFeatures['free']; label: string }[] = [
@@ -27,11 +29,33 @@ const featureLabels: { key: keyof typeof planFeatures['free']; label: string }[]
   { key: 'familyView',            label: 'Family overview' },
 ];
 
+const AVATAR_ICONS = ['🐻‍❄️','🦁','🐯','🦊','🐺','🦅','🐬','🦋','🐲','🌟','💎','🔥','⚡','🎯','🚀','🌈','🍀','👑'];
+
 type Props = { visible: boolean; onClose: () => void };
 
 export default function ProfileModal({ visible, onClose }: Props) {
   const { plan, setPlan } = usePlan();
   const current = plans.find(p => p.key === plan)!;
+
+  const [userName, setUserName]   = useState('');
+  const [userEmail, setUserEmail] = useState('');
+  const [avatar, setAvatar]       = useState('');
+  const [pickingAvatar, setPickingAvatar] = useState(false);
+
+  useEffect(() => {
+    if (!visible) return;
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      const name = user.user_metadata?.full_name || user.email?.split('@')[0] || 'User';
+      setUserName(name);
+      setUserEmail(user.email || '');
+      // Default avatar is first letter of name
+      if (!avatar) setAvatar('');
+    });
+  }, [visible]);
+
+  const displayAvatar = avatar || userName.charAt(0).toUpperCase();
+  const isEmoji = avatar.length > 0;
 
   return (
     <Modal visible={visible} transparent animationType="slide">
@@ -41,21 +65,48 @@ export default function ProfileModal({ visible, onClose }: Props) {
 
           {/* Profile Header */}
           <View style={styles.profileHeader}>
-            <View style={[styles.avatar, { backgroundColor: current.color + '33', borderColor: current.color }]}>
-              <Text style={styles.avatarText}>J</Text>
-            </View>
+            <TouchableOpacity
+              style={[styles.avatar, { backgroundColor: current.color + '33', borderColor: current.color }]}
+              onPress={() => setPickingAvatar(!pickingAvatar)}>
+              <Text style={isEmoji ? { fontSize: 28 } : styles.avatarText}>{displayAvatar}</Text>
+              <View style={styles.avatarEdit}>
+                <Text style={{ fontSize: 10 }}>✏️</Text>
+              </View>
+            </TouchableOpacity>
             <View style={styles.profileInfo}>
-              <Text style={styles.profileName}>James</Text>
-              <Text style={styles.profileEmail}>james@example.com</Text>
+              <Text style={styles.profileName}>{userName || 'Loading...'}</Text>
+              <Text style={styles.profileEmail}>{userEmail || '...'}</Text>
               <View style={[styles.planBadge, { backgroundColor: current.color + '22', borderColor: current.color }]}>
                 <Text style={[styles.planBadgeText, { color: current.color }]}>{current.emoji} {current.label}</Text>
               </View>
             </View>
           </View>
 
+          {/* Avatar Picker */}
+          {pickingAvatar && (
+            <View style={styles.avatarPicker}>
+              <Text style={styles.avatarPickerTitle}>Choose your icon</Text>
+              <View style={styles.avatarGrid}>
+                <TouchableOpacity
+                  style={[styles.avatarOption, !avatar && styles.avatarOptionActive]}
+                  onPress={() => { setAvatar(''); setPickingAvatar(false); }}>
+                  <Text style={styles.avatarOptionText}>{userName.charAt(0).toUpperCase()}</Text>
+                </TouchableOpacity>
+                {AVATAR_ICONS.map(ic => (
+                  <TouchableOpacity
+                    key={ic}
+                    style={[styles.avatarOption, avatar === ic && styles.avatarOptionActive]}
+                    onPress={() => { setAvatar(ic); setPickingAvatar(false); }}>
+                    <Text style={{ fontSize: 22 }}>{ic}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          )}
+
           <ScrollView showsVerticalScrollIndicator={false}>
 
-            {/* Plan Switcher — dev only */}
+            {/* Plan Switcher */}
             <Text style={styles.sectionTitle}>🔧 Switch Plan (Demo)</Text>
             <View style={styles.planGrid}>
               {plans.map(p => (
@@ -87,7 +138,6 @@ export default function ProfileModal({ visible, onClose }: Props) {
               })}
             </View>
 
-            {/* Upgrade CTA */}
             {plan === 'free' && (
               <TouchableOpacity style={styles.upgradeBtn} onPress={() => setPlan('pro')}>
                 <Text style={styles.upgradeBtnText}>⚡ Upgrade to Pro — £3.99/mo</Text>
@@ -111,14 +161,22 @@ const styles = StyleSheet.create({
   sheet: { backgroundColor: '#13132A', borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 20, maxHeight: '90%', borderWidth: 1, borderColor: 'rgba(108,99,255,0.2)' },
   handle: { width: 40, height: 4, backgroundColor: '#7B7B9E', borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
 
-  profileHeader: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 24 },
-  avatar: { width: 60, height: 60, borderRadius: 30, justifyContent: 'center', alignItems: 'center', borderWidth: 2 },
-  avatarText: { color: '#fff', fontSize: 24, fontWeight: '800' },
+  profileHeader: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 16 },
+  avatar: { width: 64, height: 64, borderRadius: 32, justifyContent: 'center', alignItems: 'center', borderWidth: 2, position: 'relative' },
+  avatarText: { color: '#fff', fontSize: 26, fontWeight: '800' },
+  avatarEdit: { position: 'absolute', bottom: -2, right: -2, backgroundColor: '#1A1A35', borderRadius: 10, width: 20, height: 20, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(108,99,255,0.3)' },
   profileInfo: { flex: 1 },
   profileName: { color: '#E8E8F0', fontSize: 20, fontWeight: '800' },
   profileEmail: { color: '#7B7B9E', fontSize: 13, marginBottom: 6 },
   planBadge: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 3, borderRadius: 50, borderWidth: 1 },
   planBadgeText: { fontSize: 12, fontWeight: '700' },
+
+  avatarPicker: { backgroundColor: '#1A1A35', borderRadius: 16, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: 'rgba(108,99,255,0.2)' },
+  avatarPickerTitle: { color: '#7B7B9E', fontSize: 12, fontWeight: '700', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.8 },
+  avatarGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  avatarOption: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#13132A', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(108,99,255,0.15)' },
+  avatarOptionActive: { borderColor: '#6C63FF', backgroundColor: 'rgba(108,99,255,0.2)' },
+  avatarOptionText: { color: '#E8E8F0', fontSize: 18, fontWeight: '800' },
 
   sectionTitle: { color: '#7B7B9E', fontSize: 12, fontWeight: '700', letterSpacing: .8, textTransform: 'uppercase', marginBottom: 12, marginTop: 8 },
 

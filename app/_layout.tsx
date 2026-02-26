@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import PolarLogo from '../components/PolarLogo';
 import { FinanceProvider } from '../context/FinanceContext';
+import { LocaleProvider } from '../context/LocaleContext';
 import { PlanProvider } from '../context/PlanContext';
 import { ThemeProvider } from '../context/ThemeContext';
 import { supabase } from '../lib/supabase';
@@ -49,15 +50,17 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider>
-      <PlanProvider>
-        <FinanceProvider>
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="(tabs)"      options={{ headerShown: false }} />
-            <Stack.Screen name="login"       options={{ headerShown: false }} />
-            <Stack.Screen name="onboarding"  options={{ headerShown: false }} />
-          </Stack>
-        </FinanceProvider>
-      </PlanProvider>
+      <LocaleProvider>
+        <PlanProvider>
+          <FinanceProvider>
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="(tabs)"      options={{ headerShown: false }} />
+              <Stack.Screen name="login"       options={{ headerShown: false }} />
+              <Stack.Screen name="onboarding"  options={{ headerShown: false }} />
+            </Stack>
+          </FinanceProvider>
+        </PlanProvider>
+      </LocaleProvider>
     </ThemeProvider>
   );
 }

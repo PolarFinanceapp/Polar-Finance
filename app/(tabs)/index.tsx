@@ -1,7 +1,9 @@
 import { CAT_ICONS, useFinance } from '@/context/FinanceContext';
+import { useLocale } from '@/context/LocaleContext';
 import { usePlan } from '@/context/PlanContext';
+import { supabase } from '@/lib/supabase';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import ProfileModal from '../../components/ProfileModal';
 import ReceiptScanner from '../../components/ReceiptScanner';
@@ -37,6 +39,21 @@ export default function HomeScreen() {
   const showInvest      = hasFeature('investmentTracking');
 
   const { cards, setCards, investments, setInvestments, transactions, setTransactions } = useFinance();
+  const { formatAmount, currencySymbol, t } = useLocale();
+
+  // User info
+  const [userName, setUserName]   = useState('');
+  const [userInitial, setUserInitial] = useState('?');
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      const name = user.user_metadata?.full_name || user.email?.split('@')[0] || 'User';
+      const firstName = name.split(' ')[0];
+      setUserName(firstName);
+      setUserInitial(firstName.charAt(0).toUpperCase());
+    });
+  }, []);
 
   // Cards
   const [showAddCard, setShowAddCard]   = useState(false);
@@ -131,11 +148,11 @@ export default function HomeScreen() {
           </View>
           <View>
             <Text style={{ color: c.muted, fontSize: 12 }}>{greeting} 👋</Text>
-            <Text style={{ color: c.text, fontSize: 20, fontWeight: '900' }}>James</Text>
+            <Text style={{ color: c.text, fontSize: 20, fontWeight: '900' }}>{userName || '...'}</Text>
           </View>
         </View>
         <TouchableOpacity style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: c.accent, justifyContent: 'center', alignItems: 'center' }} onPress={() => setShowProfile(true)}>
-          <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>J</Text>
+          <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>{userInitial}</Text>
         </TouchableOpacity>
       </View>
 
@@ -149,22 +166,22 @@ export default function HomeScreen() {
         <Text style={{ color: c.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1.5 }}>
           NET WORTH  {showCardsOk ? (showCards ? '▲' : '▼') : ''}
         </Text>
-        <Text style={{ color: c.text, fontSize: 36, fontWeight: '900', marginVertical: 6 }}>£{netWorth.toFixed(2)}</Text>
+        <Text style={{ color: c.text, fontSize: 36, fontWeight: '900', marginVertical: 6 }}>{formatAmount(netWorth)}</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
           <View style={{ flex: 1, alignItems: 'center' }}>
             <Text style={{ color: c.muted, fontSize: 11 }}>↑ Income</Text>
-            <Text style={{ color: '#00D4AA', fontSize: 14, fontWeight: '700', marginTop: 2 }}>£{totalIncome.toFixed(2)}</Text>
+            <Text style={{ color: '#00D4AA', fontSize: 14, fontWeight: '700', marginTop: 2 }}>{formatAmount(totalIncome)}</Text>
           </View>
           <View style={{ width: 1, height: 30, backgroundColor: 'rgba(255,255,255,0.1)' }} />
           <View style={{ flex: 1, alignItems: 'center' }}>
-            <Text style={{ color: c.muted, fontSize: 11 }}>↓ Expenses</Text>
-            <Text style={{ color: '#FF6B6B', fontSize: 14, fontWeight: '700', marginTop: 2 }}>£{totalExpense.toFixed(2)}</Text>
+            <Text style={{ color: c.muted, fontSize: 11 }}>↓ {t('expenses')}</Text>
+            <Text style={{ color: '#FF6B6B', fontSize: 14, fontWeight: '700', marginTop: 2 }}>{formatAmount(totalExpense)}</Text>
           </View>
           {showCardsOk && <>
             <View style={{ width: 1, height: 30, backgroundColor: 'rgba(255,255,255,0.1)' }} />
             <View style={{ flex: 1, alignItems: 'center' }}>
               <Text style={{ color: c.muted, fontSize: 11 }}>📈 Invested</Text>
-              <Text style={{ color: '#a89fff', fontSize: 14, fontWeight: '700', marginTop: 2 }}>£{totalInvest.toFixed(2)}</Text>
+              <Text style={{ color: '#a89fff', fontSize: 14, fontWeight: '700', marginTop: 2 }}>{formatAmount(totalInvest)}</Text>
             </View>
           </>}
         </View>

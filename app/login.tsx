@@ -12,6 +12,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [name, setName]         = useState('');
   const [loading, setLoading]   = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleLogin = async () => {
     if (!email || !password) return;
@@ -102,14 +103,19 @@ export default function LoginScreen() {
 
         <View style={{ marginBottom: 24 }}>
           <Text style={{ color: '#7B7B9E', fontSize: 13, fontWeight: '600', marginBottom: 8 }}>Password</Text>
-          <TextInput
-            style={{ backgroundColor: '#13132A', borderRadius: 16, padding: 16, color: '#E8E8F0', fontSize: 15, borderWidth: 1, borderColor: 'rgba(108,99,255,0.2)' }}
-            placeholder="••••••••"
-            placeholderTextColor="#7B7B9E"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-          />
+          <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#13132A', borderRadius: 16, borderWidth: 1, borderColor: 'rgba(108,99,255,0.2)' }}>
+            <TextInput
+              style={{ flex: 1, padding: 16, color: '#E8E8F0', fontSize: 15 }}
+              placeholder="••••••••"
+              placeholderTextColor="#7B7B9E"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPassword}
+            />
+            <TouchableOpacity onPress={() => setShowPassword(p => !p)} style={{ paddingHorizontal: 16 }}>
+              <Text style={{ fontSize: 18 }}>{showPassword ? '🙈' : '👁️'}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Submit */}

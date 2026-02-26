@@ -29,8 +29,9 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (loading) return;
-    const inTabsGroup = segments[0] === '(tabs)';
-    if (session && !inTabsGroup) {
+    const inTabsGroup   = segments[0] === '(tabs)';
+    const inOnboarding  = segments[0] === 'onboarding';
+    if (session && !inTabsGroup && !inOnboarding) {
       router.replace('/(tabs)' as any);
     } else if (!session) {
       router.replace('/login' as any);
@@ -51,8 +52,9 @@ export default function RootLayout() {
       <PlanProvider>
         <FinanceProvider>
           <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="login" options={{ headerShown: false }} />
+            <Stack.Screen name="(tabs)"      options={{ headerShown: false }} />
+            <Stack.Screen name="login"       options={{ headerShown: false }} />
+            <Stack.Screen name="onboarding"  options={{ headerShown: false }} />
           </Stack>
         </FinanceProvider>
       </PlanProvider>

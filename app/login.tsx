@@ -1,15 +1,17 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import PolarLogo from '../components/PolarLogo';
 import { supabase } from '../lib/supabase';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const [mode, setMode] = useState<'login' | 'signup'>('login');
-  const [email, setEmail] = useState('');
+  const [mode, setMode]         = useState<'login' | 'signup'>('login');
+  const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [name, setName]         = useState('');
+  const [loading, setLoading]   = useState(false);
 
   const handleLogin = async () => {
     if (!email || !password) return;
@@ -19,7 +21,13 @@ export default function LoginScreen() {
     if (error) {
       Alert.alert('Login Failed', error.message);
     } else {
-      router.replace('/(tabs)');
+      // Check if they've done onboarding
+      const done = await AsyncStorage.getItem('onboarding_complete');
+      if (done) {
+        router.replace('/(tabs)' as any);
+      } else {
+        router.replace('/onboarding' as any);
+      }
     }
   };
 
@@ -35,9 +43,11 @@ export default function LoginScreen() {
     if (error) {
       Alert.alert('Sign Up Failed', error.message);
     } else {
-      Alert.alert('Check your email!', 'We sent you a confirmation link. Please verify your email then log in.', [
-        { text: 'OK', onPress: () => setMode('login') }
-      ]);
+      Alert.alert(
+        'Check your email!',
+        'We sent you a confirmation link. Please verify your email then log in.',
+        [{ text: 'OK', onPress: () => setMode('login') }]
+      );
     }
   };
 
@@ -45,10 +55,10 @@ export default function LoginScreen() {
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, backgroundColor: '#0D0D1A' }}>
       <View style={{ flex: 1, paddingHorizontal: 28, justifyContent: 'center' }}>
 
-        {/* Logo & Title */}
+        {/* Logo */}
         <View style={{ alignItems: 'center', marginBottom: 48 }}>
-          <Text style={{ fontSize: 64, marginBottom: 12 }}>🐻‍❄️</Text>
-          <Text style={{ color: '#E8E8F0', fontSize: 32, fontWeight: '900', letterSpacing: -0.5 }}>Polar Finance</Text>
+          <PolarLogo size={100} />
+          <Text style={{ color: '#E8E8F0', fontSize: 32, fontWeight: '900', letterSpacing: -0.5, marginTop: 16 }}>Polar Finance</Text>
           <Text style={{ color: '#7B7B9E', fontSize: 15, marginTop: 6 }}>Your money, under control</Text>
         </View>
 

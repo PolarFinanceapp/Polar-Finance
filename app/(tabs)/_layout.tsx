@@ -30,7 +30,6 @@ function ThemedTabs() {
       <Tabs.Screen name="calendar" options={{ href: null, tabBarItemStyle: { display: 'none' } }} />
       <Tabs.Screen name="goals"    options={{ href: null, tabBarItemStyle: { display: 'none' } }} />
       <Tabs.Screen name="assets"   options={{ href: null, tabBarItemStyle: { display: 'none' } }} />
-      <Tabs.Screen name="family"   options={{ href: null, tabBarItemStyle: { display: 'none' } }} />
       <Tabs.Screen name="add"      options={{ href: null, tabBarItemStyle: { display: 'none' } }} />
     </Tabs>
   );

@@ -1,7 +1,8 @@
+import { useLocale } from '@/context/LocaleContext';
 import { usePlan } from '@/context/PlanContext';
-import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import Paywall from '../../components/Paywall';
 import { useTheme } from '../../context/ThemeContext';
 
 const ICONS = ['🏠','✈️','🚗','🛡️','📱','💻','🎓','👶','💍','🏋️','🎸','🐶'];
@@ -19,22 +20,22 @@ const initialGoals: Goal[] = [
 
 export default function GoalsScreen() {
   const { theme: c } = useTheme();
-  const { hasFeature } = usePlan();
-  const router = useRouter();
-  const [goals, setGoals]       = useState<Goal[]>(initialGoals);
+  const { maxGoals } = usePlan();
+  const { formatAmount, currencySymbol, t } = useLocale();
+
+  const [showPaywall, setShowPaywall] = useState(false);
+  const [goals, setGoals] = useState<Goal[]>(initialGoals);
   const [modalVisible, setModalVisible] = useState(false);
-  const [newName, setNewName]   = useState('');
+  const [newName, setNewName] = useState('');
   const [newTarget, setNewTarget] = useState('');
   const [newSaved, setNewSaved] = useState('');
-  const [newIcon, setNewIcon]   = useState('🏠');
+  const [newIcon, setNewIcon] = useState('🏠');
   const [newColor, setNewColor] = useState('#6C63FF');
 
-  const maxGoals = hasFeature('unlimitedGoals') ? Infinity : hasFeature('advancedCharts') ? 3 : 1;
   const canAddGoal = goals.length < maxGoals;
-
-  const totalSaved  = goals.reduce((s, g) => s + g.saved, 0);
+  const totalSaved = goals.reduce((s, g) => s + g.saved, 0);
   const totalTarget = goals.reduce((s, g) => s + g.target, 0);
-  const overallPct  = Math.round((totalSaved / totalTarget) * 100);
+  const overallPct = totalTarget > 0 ? Math.round((totalSaved / totalTarget) * 100) : 0;
 
   const handleAdd = () => {
     if (!newName || !newTarget) return;
@@ -45,20 +46,18 @@ export default function GoalsScreen() {
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: c.dark, paddingHorizontal: 20 }} showsVerticalScrollIndicator={false}>
-      <Text style={{ color: c.text, fontSize: 26, fontWeight: '900', marginTop: 60, marginBottom: 20 }}>Saving Goals 🎯</Text>
+      <Text style={{ color: c.text, fontSize: 26, fontWeight: '900', marginTop: 60, marginBottom: 20 }}>{t('savingGoals')} 🎯</Text>
 
-      {/* Summary */}
       <View style={{ backgroundColor: c.card, borderRadius: 24, padding: 20, borderWidth: 1, borderColor: c.border, marginBottom: 24 }}>
-        <Text style={{ color: c.muted, fontSize: 10, fontWeight: '700', letterSpacing: 1.2 }}>TOTAL SAVED ACROSS ALL GOALS</Text>
-        <Text style={{ color: c.text, fontSize: 32, fontWeight: '900', marginTop: 4 }}>£{totalSaved.toLocaleString()}</Text>
-        <Text style={{ color: c.muted, fontSize: 13, marginBottom: 12 }}>of £{totalTarget.toLocaleString()} target</Text>
+        <Text style={{ color: c.muted, fontSize: 10, fontWeight: '700', letterSpacing: 1.2 }}>{t('totalSaved')}</Text>
+        <Text style={{ color: c.text, fontSize: 32, fontWeight: '900', marginTop: 4 }}>{formatAmount(totalSaved)}</Text>
+        <Text style={{ color: c.muted, fontSize: 13, marginBottom: 12 }}>{t('of') || 'of'} {formatAmount(totalTarget)} {t('target').toLowerCase()}</Text>
         <View style={{ backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 50, height: 10, overflow: 'hidden' }}>
           <View style={{ height: '100%', width: `${overallPct}%`, borderRadius: 50, backgroundColor: c.accent }} />
         </View>
-        <Text style={{ color: c.accent, fontSize: 12, fontWeight: '700', marginTop: 6, textAlign: 'right' }}>{overallPct}% overall</Text>
+        <Text style={{ color: c.accent, fontSize: 12, fontWeight: '700', marginTop: 6, textAlign: 'right' }}>{overallPct}% {t('overall')}</Text>
       </View>
 
-      {/* Goal Cards */}
       {goals.map((g, i) => {
         const pct = Math.min(Math.round((g.saved / g.target) * 100), 100);
         return (
@@ -69,7 +68,7 @@ export default function GoalsScreen() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={{ color: c.text, fontSize: 15, fontWeight: '700' }}>{g.name}</Text>
-                <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>£{(g.target - g.saved).toLocaleString()} to go</Text>
+                <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>{formatAmount(g.target - g.saved)} {t('toGo')}</Text>
               </View>
               <View style={{ alignItems: 'flex-end', gap: 4 }}>
                 <Text style={{ color: g.color, fontSize: 18, fontWeight: '900' }}>{pct}%</Text>
@@ -82,46 +81,40 @@ export default function GoalsScreen() {
               <View style={{ height: '100%', width: `${pct}%`, borderRadius: 50, backgroundColor: g.color }} />
             </View>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              <Text style={{ color: c.muted, fontSize: 12 }}>Saved: <Text style={{ color: '#00D4AA', fontWeight: '700' }}>£{g.saved.toLocaleString()}</Text></Text>
-              <Text style={{ color: c.muted, fontSize: 12 }}>Target: <Text style={{ color: c.text, fontWeight: '700' }}>£{g.target.toLocaleString()}</Text></Text>
+              <Text style={{ color: c.muted, fontSize: 12 }}>{t('saved')}: <Text style={{ color: '#00D4AA', fontWeight: '700' }}>{formatAmount(g.saved)}</Text></Text>
+              <Text style={{ color: c.muted, fontSize: 12 }}>{t('target')}: <Text style={{ color: c.text, fontWeight: '700' }}>{formatAmount(g.target)}</Text></Text>
             </View>
           </View>
         );
       })}
 
-      {/* Add Button */}
       {canAddGoal ? (
-        <TouchableOpacity
-          style={{ backgroundColor: c.card, borderRadius: 16, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: c.accent + '4D', marginBottom: 40, borderStyle: 'dashed' }}
-          onPress={() => setModalVisible(true)}>
-          <Text style={{ color: c.accent, fontSize: 15, fontWeight: '700' }}>＋  Add New Goal</Text>
+        <TouchableOpacity style={{ backgroundColor: c.card, borderRadius: 16, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: c.accent + '4D', marginBottom: 40, borderStyle: 'dashed' }} onPress={() => setModalVisible(true)}>
+          <Text style={{ color: c.accent, fontSize: 15, fontWeight: '700' }}>＋ {t('addNewGoal')}</Text>
         </TouchableOpacity>
       ) : (
-        <TouchableOpacity onPress={() => router.push('/(tabs)/settings' as any)} style={{ backgroundColor: c.card, borderRadius: 16, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: c.border, marginBottom: 40 }}>
+        <TouchableOpacity onPress={() => setShowPaywall(true)} style={{ backgroundColor: c.card, borderRadius: 16, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: c.border, marginBottom: 40 }}>
           <Text style={{ color: c.muted, fontSize: 13, textAlign: 'center' }}>
-            🔒 {hasFeature('advancedCharts') ? 'Upgrade to Premium for unlimited goals' : 'Upgrade to Pro for up to 3 goals'} — tap to view plans
+            🔒 {maxGoals <= 1 ? t('upgradeProGoals') : t('upgradePremiumGoals')}
           </Text>
         </TouchableOpacity>
       )}
 
-      {/* Modal */}
       <Modal visible={modalVisible} transparent animationType="slide">
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
           <View style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, borderWidth: 1, borderColor: c.border }}>
-            <Text style={{ color: c.text, fontSize: 20, fontWeight: '900', marginBottom: 20, textAlign: 'center' }}>New Saving Goal</Text>
-
+            <Text style={{ color: c.text, fontSize: 20, fontWeight: '900', marginBottom: 20, textAlign: 'center' }}>{t('newSavingGoal')}</Text>
             {[
-              { label: 'Goal Name', val: newName, set: setNewName, ph: 'e.g. Holiday Fund', kb: 'default' as const },
-              { label: 'Target Amount (£)', val: newTarget, set: setNewTarget, ph: 'e.g. 2000', kb: 'decimal-pad' as const },
-              { label: 'Already Saved (£)', val: newSaved, set: setNewSaved, ph: 'e.g. 500', kb: 'decimal-pad' as const },
+              { label: t('goalName'), val: newName, set: setNewName, ph: 'e.g. Holiday Fund', kb: 'default' as const },
+              { label: `${t('targetAmount')} (${currencySymbol})`, val: newTarget, set: setNewTarget, ph: 'e.g. 2000', kb: 'decimal-pad' as const },
+              { label: `${t('alreadySaved')} (${currencySymbol})`, val: newSaved, set: setNewSaved, ph: 'e.g. 500', kb: 'decimal-pad' as const },
             ].map((f, i) => (
               <View key={i} style={{ marginBottom: 12 }}>
                 <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 6 }}>{f.label}</Text>
                 <TextInput style={{ backgroundColor: c.card2, borderRadius: 12, padding: 14, color: c.text, fontSize: 15, borderWidth: 1, borderColor: c.border }} placeholder={f.ph} placeholderTextColor={c.muted} value={f.val} onChangeText={f.set} keyboardType={f.kb} />
               </View>
             ))}
-
-            <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 8 }}>Pick Icon</Text>
+            <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 8 }}>{t('pickIcon')}</Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
               {ICONS.map(ic => (
                 <TouchableOpacity key={ic} style={{ width: 42, height: 42, borderRadius: 10, backgroundColor: c.card2, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: newIcon === ic ? c.accent : 'transparent' }} onPress={() => setNewIcon(ic)}>
@@ -129,26 +122,25 @@ export default function GoalsScreen() {
                 </TouchableOpacity>
               ))}
             </View>
-
-            <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 8 }}>Pick Colour</Text>
+            <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 8 }}>{t('pickColour')}</Text>
             <View style={{ flexDirection: 'row', gap: 10, marginBottom: 20 }}>
               {COLORS.map(col => (
                 <TouchableOpacity key={col} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: col, borderWidth: 2, borderColor: newColor === col ? '#fff' : 'transparent' }} onPress={() => setNewColor(col)} />
               ))}
             </View>
-
             <View style={{ flexDirection: 'row', gap: 10 }}>
               <TouchableOpacity style={{ flex: 1, backgroundColor: c.card2, borderRadius: 14, padding: 16, alignItems: 'center' }} onPress={() => setModalVisible(false)}>
-                <Text style={{ color: c.muted, fontWeight: '700' }}>Cancel</Text>
+                <Text style={{ color: c.muted, fontWeight: '700' }}>{t('cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={{ flex: 1, backgroundColor: c.accent, borderRadius: 14, padding: 16, alignItems: 'center', opacity: (!newName || !newTarget) ? 0.4 : 1 }} onPress={handleAdd}>
-                <Text style={{ color: '#fff', fontWeight: '700' }}>Add Goal</Text>
+                <Text style={{ color: '#fff', fontWeight: '700' }}>{t('add')}</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
+      <Paywall visible={showPaywall} onClose={() => setShowPaywall(false)} />
     </ScrollView>
   );
 }

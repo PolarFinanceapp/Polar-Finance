@@ -1,6 +1,7 @@
 import { usePlan } from '@/context/PlanContext';
+import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
-import { Alert, Linking, Modal, ScrollView, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Linking, Modal, Platform, ScrollView, Switch, Text, TouchableOpacity, View } from 'react-native';
 import Paywall from '../../components/Paywall';
 import { CURRENCIES, CurrencyKey, LanguageKey, LANGUAGES, useLocale } from '../../context/LocaleContext';
 import { ThemeColors, themes, useTheme } from '../../context/ThemeContext';
@@ -14,58 +15,52 @@ export default function SettingsScreen() {
   const { language, currency, setLanguage, setCurrency, convertPrice, t } = useLocale();
   const canUseThemes = hasFeature('themes');
 
-  const [showPaywall, setShowPaywall] = useState(false);
-  const [notifs, setNotifs] = useState<Record<string, boolean>>({
-    budget: true, goals: true, tips: true, investments: true, bills: true, unusual: true, summary: true,
-  });
-  const [openSection, setOpenSection] = useState<string | null>(null);
-  const [openPrivacy, setOpenPrivacy] = useState<number | null>(null);
-  const [openTerms, setOpenTerms] = useState<number | null>(null);
-  const [showThemePicker, setShowThemePicker] = useState(false);
+  const [showPaywall,        setShowPaywall]        = useState(false);
+  const [notifs,             setNotifs]             = useState<Record<string, boolean>>({ budget: true, goals: true, tips: true, investments: true, bills: true, unusual: true, summary: true });
+  const [openSection,        setOpenSection]        = useState<string | null>(null);
+  const [openPrivacy,        setOpenPrivacy]        = useState<number | null>(null);
+  const [openTerms,          setOpenTerms]          = useState<number | null>(null);
+  const [showThemePicker,    setShowThemePicker]    = useState(false);
   const [showLanguagePicker, setShowLanguagePicker] = useState(false);
   const [showCurrencyPicker, setShowCurrencyPicker] = useState(false);
 
   const toggle = (key: string) => setOpenSection(prev => prev === key ? null : key);
 
   const notifSettings = [
-    { key: 'budget',      label: t('budgetAlerts') || 'Budget Alerts',      icon: '⚠️' },
-    { key: 'goals',       label: t('savingGoals') || 'Goal Milestones',     icon: '🎯' },
-    { key: 'tips',        label: t('tipsToImprove') || 'Savings Tips',      icon: '💡' },
-    { key: 'investments', label: t('investments') || 'Investment Updates',   icon: '📈' },
-    { key: 'bills',       label: t('notifications') || 'Bill Reminders',    icon: '🔔' },
-    { key: 'unusual',     label: 'Unusual Spending',                         icon: '🔍' },
-    { key: 'summary',     label: t('monthly') || 'Monthly Summary',         icon: '📊' },
+    { key: 'budget',      label: t('budgetAlerts') || 'Budget Alerts',      icon: 'warning-outline'       },
+    { key: 'goals',       label: t('savingGoals')  || 'Goal Milestones',    icon: 'flag-outline'          },
+    { key: 'tips',        label: 'Savings Tips',                            icon: 'bulb-outline'          },
+    { key: 'investments', label: t('investments')  || 'Investment Updates', icon: 'trending-up-outline'   },
+    { key: 'bills',       label: 'Bill Reminders',                          icon: 'notifications-outline' },
+    { key: 'unusual',     label: 'Unusual Spending',                         icon: 'search-outline'        },
+    { key: 'summary',     label: 'Monthly Summary',                          icon: 'bar-chart-outline'     },
   ];
 
   const privacySections = [
-    { title: '1. Who We Are',             body: `Polar Finance is a personal finance application ("we", "us", or "our").\n\nContact: polarfinanceinsta@gmail.com` },
-    { title: '2. What Data We Collect',   body: `We collect only what's necessary:\n\n• Account information: email and password (stored securely via Supabase)\n• Financial data you manually enter\n• Receipt images: temporarily processed by Claude AI — not stored\n• Basic device information for crash reporting` },
-    { title: '3. How We Use Your Data',   body: `Your data is used solely to:\n\n• Power the Polar Finance app\n• Process receipt scans via Claude AI (immediately discarded)\n• Provide live market data\n• Maintain your account\n\nWe never sell your data.` },
-    { title: '4. Data Storage & Security',body: `Stored securely via Supabase on AWS with industry-standard encryption. Row Level Security ensures only you can access your data.` },
-    { title: '5. Third Party Services',   body: `• Supabase — database & auth\n• Anthropic (Claude AI) — receipt scanning\n• Alpha Vantage — stock data\n• Finnhub — trading signals\n• CoinGecko — crypto prices\n• ClearScore, Experian, Credit Karma — external links only` },
-    { title: '6. Bank Linking',           body: `Bank linking is not currently available. When introduced it will use Plaid (FCA-regulated). We will never store your bank login credentials.` },
-    { title: '7. Your Rights (UK GDPR)',  body: `You have the right to access, correct, delete, or port your data. Email polarfinanceinsta@gmail.com and we will respond within 30 days.` },
-    { title: '8. Data Retention',         body: `Data is kept while your account is active. On deletion, all data is permanently removed within 30 days.` },
-    { title: '9. Children',              body: `Polar Finance is not intended for anyone under 18.` },
-    { title: '10. Changes',              body: `We may update this policy. Continued use after changes constitutes acceptance.` },
-    { title: '11. Contact Us',           body: `Email: polarfinanceinsta@gmail.com\n\nYou may also contact the ICO at ico.org.uk.` },
+    { title: '1. Who We Are',              body: `Polar Finance is a personal finance application.\n\nContact: contact@polarfinance.app` },
+    { title: '2. What Data We Collect',    body: `• Account info: email & password (via Supabase)\n• Financial data you manually enter\n• Receipt images: processed by Claude AI — not stored\n• Basic device info for crash reporting` },
+    { title: '3. How We Use Your Data',    body: `Your data is used solely to power the app. We never sell your data.` },
+    { title: '4. Data Storage & Security', body: `Stored securely via Supabase on AWS with industry-standard encryption. Row Level Security ensures only you can access your data.` },
+    { title: '5. Third Party Services',    body: `• Supabase — database & auth\n• Anthropic (Claude AI) — receipt scanning\n• Alpha Vantage — stock data\n• Finnhub — trading signals\n• CoinGecko — crypto prices` },
+    { title: '6. Bank Linking',            body: `Not currently available. When introduced it will use Plaid (FCA-regulated).` },
+    { title: '7. Your Rights (UK GDPR)',   body: `You have the right to access, correct, delete or port your data. Email contact@polarfinance.app within 30 days.` },
+    { title: '8. Data Retention',          body: `Data kept while account is active. On deletion, all data removed within 30 days.` },
+    { title: '9. Children',               body: `Polar Finance is not intended for anyone under 18.` },
+    { title: '10. Changes',               body: `We may update this policy. Continued use constitutes acceptance.` },
+    { title: '11. Contact Us',            body: `Email: contact@polarfinance.app\nICO: ico.org.uk` },
   ];
 
   const termsSections = [
     { title: '1. Acceptance',             body: 'By using Polar Finance, you agree to these terms.' },
-    { title: '2. Not Financial Advice',   body: 'Nothing in the app constitutes financial, investment or legal advice. Always consult a qualified professional.' },
-    { title: '3. Market Data',            body: 'Live market data and signals are for informational purposes only. Past performance does not indicate future results. Capital is at risk.' },
-    { title: '4. Account Responsibility', body: 'You are responsible for your account credentials. Do not share your password.' },
-    { title: '5. Acceptable Use',         body: 'You agree not to misuse the app, reverse engineer it, or use it for any unlawful purpose.' },
-    { title: '6. Changes',               body: 'We may update these terms at any time. Continued use constitutes acceptance.' },
-    { title: '7. Contact',               body: 'polarfinanceinsta@gmail.com' },
+    { title: '2. Not Financial Advice',   body: 'Nothing constitutes financial, investment or legal advice.' },
+    { title: '3. Market Data',            body: 'Live data is for informational purposes only. Capital is at risk.' },
+    { title: '4. Account Responsibility', body: 'You are responsible for your account credentials.' },
+    { title: '5. Acceptable Use',         body: 'Do not misuse the app, reverse engineer it, or use it unlawfully.' },
+    { title: '6. Changes',               body: 'We may update these terms. Continued use constitutes acceptance.' },
+    { title: '7. Contact',               body: 'contact@polarfinance.app' },
   ];
 
-  const toggleNotif = (key: string, value: boolean) => {
-    setNotifs(prev => ({ ...prev, [key]: value }));
-    const s = notifSettings.find(n => n.key === key);
-    if (s) Alert.alert(value ? '🔔' : '🔕', `${s.label} ${value ? 'enabled' : 'disabled'}.`, [{ text: 'OK' }]);
-  };
+  const toggleNotif = (key: string, value: boolean) => setNotifs(prev => ({ ...prev, [key]: value }));
 
   const handleLogout = () => {
     Alert.alert(t('logOut'), 'Are you sure?', [
@@ -74,47 +69,87 @@ export default function SettingsScreen() {
     ]);
   };
 
+  const handleRateApp = () => {
+    const url = Platform.OS === 'ios'
+      ? 'https://apps.apple.com/app/idYOUR_APP_ID?action=write-review'
+      : 'https://play.google.com/store/apps/details?id=com.polarfinance.app';
+    Linking.openURL(url).catch(() => Alert.alert('Coming Soon', 'Available once the app launches on the store.'));
+  };
+
+  const handleFeedback = () => {
+    Linking.openURL('mailto:contact@polarfinance.app?subject=Polar Finance Feedback').catch(() =>
+      Alert.alert('Feedback', 'Send your thoughts to contact@polarfinance.app')
+    );
+  };
+
   const planLabel = plan === 'free' ? t('freePlan') : plan === 'trial' ? t('trialPlan') : plan === 'pro' ? t('proPlan') : t('premiumPlan');
   const planEmoji = plan === 'free' ? '🆓' : plan === 'trial' ? '👑' : plan === 'pro' ? '⚡' : '👑';
 
+  // Reusable row component
+  const Row = ({ icon, iconColor, iconBg, label, sub, onPress, right, noBorder }: {
+    icon: string; iconColor?: string; iconBg?: string; label: string; sub?: string;
+    onPress?: () => void; right?: React.ReactNode; noBorder?: boolean;
+  }) => (
+    <TouchableOpacity onPress={onPress} activeOpacity={onPress ? 0.7 : 1}
+      style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: noBorder ? 0 : 1, borderBottomColor: c.border, gap: 14 }}>
+      <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: iconBg || c.accent + '18', justifyContent: 'center', alignItems: 'center' }}>
+        <Ionicons name={icon as any} size={18} color={iconColor || c.accent} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={{ color: c.text, fontSize: 14, fontWeight: '600' }}>{label}</Text>
+        {sub && <Text style={{ color: iconColor && iconColor !== c.accent ? iconColor : c.muted, fontSize: 12, marginTop: 2 }}>{sub}</Text>}
+      </View>
+      {right ?? (onPress && <Ionicons name="chevron-forward" size={18} color={c.muted} />)}
+    </TouchableOpacity>
+  );
+
   return (
     <ScrollView style={{ flex: 1, backgroundColor: c.dark, paddingHorizontal: 20 }} showsVerticalScrollIndicator={false}>
-      <Text style={{ color: c.text, fontSize: 26, fontWeight: '900', marginTop: 60, marginBottom: 20 }}>{t('settings')} ⚙️</Text>
+      <Text style={{ color: c.text, fontSize: 26, fontWeight: '900', marginTop: 60, marginBottom: 20 }}>{t('settings')}</Text>
 
       {/* Your Plan */}
       <Text style={{ color: c.muted, fontSize: 12, fontWeight: '700', letterSpacing: .8, textTransform: 'uppercase', marginBottom: 12 }}>{t('yourPlan')}</Text>
-      <TouchableOpacity onPress={() => (plan === 'free' || plan === 'trial') ? setShowPaywall(true) : null}
-        style={{ backgroundColor: c.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: plan === 'free' ? c.accent + '55' : '#00D4AA44', flexDirection: 'row', alignItems: 'center', marginBottom: 24, gap: 12 }}>
-        <Text style={{ fontSize: 28 }}>{planEmoji}</Text>
-        <View style={{ flex: 1 }}>
-          <Text style={{ color: c.text, fontSize: 16, fontWeight: '800' }}>{planLabel}{plan === 'trial' && trialDaysLeft > 0 ? ` · ${trialDaysLeft}d` : ''}</Text>
-          <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>{(plan === 'free' || plan === 'trial') ? t('tapToUpgrade') : t('allFeaturesUnlocked')}</Text>
+      <TouchableOpacity
+        onPress={() => (plan === 'free' || plan === 'trial' || plan === 'expired') ? setShowPaywall(true) : null}
+        style={{ backgroundColor: c.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: plan === 'free' || plan === 'expired' ? c.accent + '55' : '#00D4AA44', flexDirection: 'row', alignItems: 'center', marginBottom: 24, gap: 14 }}>
+        <View style={{ width: 46, height: 46, borderRadius: 14, backgroundColor: c.accent + '18', justifyContent: 'center', alignItems: 'center' }}>
+          <Text style={{ fontSize: 24 }}>{planEmoji}</Text>
         </View>
-        {(plan === 'free' || plan === 'trial') && <Text style={{ color: c.accent, fontSize: 20 }}>›</Text>}
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: c.text, fontSize: 16, fontWeight: '800' }}>{planLabel}{plan === 'trial' && trialDaysLeft > 0 ? ` · ${trialDaysLeft}d left` : ''}</Text>
+          <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>
+            {(plan === 'free' || plan === 'trial' || plan === 'expired') ? t('tapToUpgrade') : t('allFeaturesUnlocked')}
+          </Text>
+        </View>
+        {(plan === 'free' || plan === 'trial' || plan === 'expired') && <Ionicons name="chevron-forward" size={18} color={c.accent} />}
       </TouchableOpacity>
 
       {/* Theme */}
       <Text style={{ color: c.muted, fontSize: 12, fontWeight: '700', letterSpacing: .8, textTransform: 'uppercase', marginBottom: 12 }}>{t('theme')}</Text>
       {canUseThemes ? (
-        <TouchableOpacity style={{ backgroundColor: c.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: c.border, flexDirection: 'row', alignItems: 'center', marginBottom: 24 }} onPress={() => setShowThemePicker(true)}>
-          <Text style={{ fontSize: 24, marginRight: 12 }}>{themes[themeKey].emoji}</Text>
+        <TouchableOpacity style={{ backgroundColor: c.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: c.border, flexDirection: 'row', alignItems: 'center', marginBottom: 24, gap: 14 }} onPress={() => setShowThemePicker(true)}>
+          <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: c.accent + '18', justifyContent: 'center', alignItems: 'center' }}>
+            <Ionicons name="color-palette" size={18} color={c.accent} />
+          </View>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: c.text, fontSize: 15, fontWeight: '700' }}>{themes[themeKey].name}</Text>
+            <Text style={{ color: c.text, fontSize: 15, fontWeight: '700' }}>{themes[themeKey].emoji} {themes[themeKey].name}</Text>
             <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>{themes[themeKey].description}</Text>
           </View>
-          <View style={{ flexDirection: 'row', gap: 4, marginRight: 10 }}>
+          <View style={{ flexDirection: 'row', gap: 4, marginRight: 6 }}>
             {[c.accent, c.accent2, c.dark].map((col, i) => <View key={i} style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: col }} />)}
           </View>
-          <Text style={{ color: c.muted, fontSize: 16 }}>▼</Text>
+          <Ionicons name="chevron-forward" size={18} color={c.muted} />
         </TouchableOpacity>
       ) : (
-        <TouchableOpacity onPress={() => setShowPaywall(true)} style={{ backgroundColor: c.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: c.border, marginBottom: 24, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-          <Text style={{ fontSize: 24 }}>🔒</Text>
+        <TouchableOpacity onPress={() => setShowPaywall(true)} style={{ backgroundColor: c.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: c.border, marginBottom: 24, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+          <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: c.card2, justifyContent: 'center', alignItems: 'center' }}>
+            <Ionicons name="lock-closed" size={18} color={c.muted} />
+          </View>
           <View style={{ flex: 1 }}>
             <Text style={{ color: c.muted, fontSize: 14, fontWeight: '700' }}>{t('themesLocked')}</Text>
             <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>{t('upgradeProThemes')}</Text>
           </View>
-          <Text style={{ color: c.accent, fontSize: 20 }}>›</Text>
+          <Ionicons name="chevron-forward" size={18} color={c.accent} />
         </TouchableOpacity>
       )}
 
@@ -123,19 +158,21 @@ export default function SettingsScreen() {
       <View style={{ backgroundColor: c.card, borderRadius: 20, marginBottom: 20, borderWidth: 1, borderColor: c.border, overflow: 'hidden' }}>
 
         {/* Notifications */}
-        <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: c.border, gap: 12 }} onPress={() => toggle('notifs')}>
-          <Text style={{ fontSize: 20, width: 28 }}>🔔</Text>
+        <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: c.border, gap: 14 }} onPress={() => toggle('notifs')}>
+          <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: c.accent + '18', justifyContent: 'center', alignItems: 'center' }}>
+            <Ionicons name="notifications" size={18} color={c.accent} />
+          </View>
           <View style={{ flex: 1 }}>
             <Text style={{ color: c.text, fontSize: 14, fontWeight: '600' }}>{t('notifications')}</Text>
             <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>{t('budgetAlerts')}</Text>
           </View>
-          <Text style={{ color: c.muted, fontSize: 16 }}>{openSection === 'notifs' ? '▲' : '▼'}</Text>
+          <Ionicons name={openSection === 'notifs' ? 'chevron-up' : 'chevron-down'} size={18} color={c.muted} />
         </TouchableOpacity>
         {openSection === 'notifs' && (
           <View style={{ backgroundColor: c.card2 }}>
             {notifSettings.map((n, i) => (
-              <View key={n.key} style={{ flexDirection: 'row', alignItems: 'center', padding: 14, paddingLeft: 20, borderBottomWidth: i < notifSettings.length - 1 ? 1 : 0, borderBottomColor: c.border, gap: 10 }}>
-                <Text style={{ fontSize: 18 }}>{n.icon}</Text>
+              <View key={n.key} style={{ flexDirection: 'row', alignItems: 'center', padding: 14, paddingLeft: 20, borderBottomWidth: i < notifSettings.length - 1 ? 1 : 0, borderBottomColor: c.border, gap: 12 }}>
+                <Ionicons name={n.icon as any} size={16} color={c.muted} />
                 <Text style={{ color: c.text, fontSize: 13, fontWeight: '600', flex: 1 }}>{n.label}</Text>
                 <Switch value={notifs[n.key]} onValueChange={v => toggleNotif(n.key, v)} trackColor={{ false: c.card, true: c.accent }} thumbColor={notifs[n.key] ? '#fff' : c.muted} />
               </View>
@@ -143,14 +180,16 @@ export default function SettingsScreen() {
           </View>
         )}
 
-        {/* Privacy */}
-        <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: c.border, gap: 12 }} onPress={() => toggle('privacy')}>
-          <Text style={{ fontSize: 20, width: 28 }}>📄</Text>
+        {/* Privacy Policy */}
+        <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: c.border, gap: 14 }} onPress={() => toggle('privacy')}>
+          <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: c.accent + '18', justifyContent: 'center', alignItems: 'center' }}>
+            <Ionicons name="document-text" size={18} color={c.accent} />
+          </View>
           <View style={{ flex: 1 }}>
             <Text style={{ color: c.text, fontSize: 14, fontWeight: '600' }}>{t('privacyPolicy')}</Text>
             <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>{LAST_UPDATED}</Text>
           </View>
-          <Text style={{ color: c.muted, fontSize: 16 }}>{openSection === 'privacy' ? '▲' : '▼'}</Text>
+          <Ionicons name={openSection === 'privacy' ? 'chevron-up' : 'chevron-down'} size={18} color={c.muted} />
         </TouchableOpacity>
         {openSection === 'privacy' && (
           <View style={{ backgroundColor: c.card2, padding: 16 }}>
@@ -158,7 +197,7 @@ export default function SettingsScreen() {
               <TouchableOpacity key={i} style={{ marginBottom: 8, borderRadius: 12, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, overflow: 'hidden' }} onPress={() => setOpenPrivacy(openPrivacy === i ? null : i)}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12 }}>
                   <Text style={{ color: c.text, fontSize: 13, fontWeight: '700', flex: 1 }}>{s.title}</Text>
-                  <Text style={{ color: c.muted, fontSize: 12 }}>{openPrivacy === i ? '▲' : '▼'}</Text>
+                  <Ionicons name={openPrivacy === i ? 'chevron-up' : 'chevron-down'} size={14} color={c.muted} />
                 </View>
                 {openPrivacy === i && <View style={{ padding: 12, paddingTop: 0 }}><Text style={{ color: c.muted, fontSize: 12, lineHeight: 20 }}>{s.body}</Text></View>}
               </TouchableOpacity>
@@ -167,12 +206,14 @@ export default function SettingsScreen() {
         )}
 
         {/* Terms */}
-        <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: c.border, gap: 12 }} onPress={() => toggle('terms')}>
-          <Text style={{ fontSize: 20, width: 28 }}>📋</Text>
+        <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: c.border, gap: 14 }} onPress={() => toggle('terms')}>
+          <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: c.accent + '18', justifyContent: 'center', alignItems: 'center' }}>
+            <Ionicons name="reader" size={18} color={c.accent} />
+          </View>
           <View style={{ flex: 1 }}>
             <Text style={{ color: c.text, fontSize: 14, fontWeight: '600' }}>{t('termsOfService')}</Text>
           </View>
-          <Text style={{ color: c.muted, fontSize: 16 }}>{openSection === 'terms' ? '▲' : '▼'}</Text>
+          <Ionicons name={openSection === 'terms' ? 'chevron-up' : 'chevron-down'} size={18} color={c.muted} />
         </TouchableOpacity>
         {openSection === 'terms' && (
           <View style={{ backgroundColor: c.card2, padding: 16 }}>
@@ -180,7 +221,7 @@ export default function SettingsScreen() {
               <TouchableOpacity key={i} style={{ marginBottom: 8, borderRadius: 12, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, overflow: 'hidden' }} onPress={() => setOpenTerms(openTerms === i ? null : i)}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12 }}>
                   <Text style={{ color: c.text, fontSize: 13, fontWeight: '700', flex: 1 }}>{s.title}</Text>
-                  <Text style={{ color: c.muted, fontSize: 12 }}>{openTerms === i ? '▲' : '▼'}</Text>
+                  <Ionicons name={openTerms === i ? 'chevron-up' : 'chevron-down'} size={14} color={c.muted} />
                 </View>
                 {openTerms === i && <View style={{ padding: 12, paddingTop: 0 }}><Text style={{ color: c.muted, fontSize: 12, lineHeight: 20 }}>{s.body}</Text></View>}
               </TouchableOpacity>
@@ -188,60 +229,90 @@ export default function SettingsScreen() {
           </View>
         )}
 
-        {/* Currency, Security, Backup, Language */}
-        {[
-          { icon: '💱', label: t('currency'),        sub: `${CURRENCIES[currency].flag} ${CURRENCIES[currency].name}`, onPress: () => setShowCurrencyPicker(true) },
-          { icon: '🔒', label: t('privacySecurity'), sub: 'Face ID, passcode', onPress: undefined },
-          { icon: '☁️', label: t('backupSync'),      sub: 'iCloud sync', onPress: undefined },
-          { icon: '🌍', label: t('language'),        sub: `${LANGUAGES[language].flag} ${LANGUAGES[language].nativeName}`, onPress: () => setShowLanguagePicker(true) },
-        ].map((item, i, arr) => (
-          <TouchableOpacity key={i} onPress={item.onPress} style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: i < arr.length - 1 ? 1 : 0, borderBottomColor: c.border, gap: 12 }}>
-            <Text style={{ fontSize: 20, width: 28 }}>{item.icon}</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: c.text, fontSize: 14, fontWeight: '600' }}>{item.label}</Text>
-              <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>{item.sub}</Text>
+        {/* Currency */}
+        <Row icon="cash" label={t('currency')} sub={`${CURRENCIES[currency].flag} ${CURRENCIES[currency].name}`} onPress={() => setShowCurrencyPicker(true)} />
+
+        {/* Privacy & Security */}
+        <Row icon="shield-checkmark" label={t('privacySecurity')} sub="Face ID, passcode & permissions" onPress={() => Linking.openSettings()} />
+
+        {/* Backup & Sync */}
+        <Row
+          icon="cloud" label={t('backupSync')} sub="Auto-synced via Supabase"
+          onPress={() => Alert.alert(t('backupSync'), 'Your data is automatically backed up to our secure cloud.', [{ text: 'OK' }])}
+          right={
+            <View style={{ backgroundColor: '#00D4AA22', borderRadius: 50, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: '#00D4AA44' }}>
+              <Text style={{ color: '#00D4AA', fontSize: 10, fontWeight: '700' }}>✓ Active</Text>
             </View>
-            <Text style={{ color: c.muted, fontSize: 20 }}>›</Text>
-          </TouchableOpacity>
-        ))}
+          }
+        />
+
+        {/* Language */}
+        <Row icon="language" label={t('language')} sub={`${LANGUAGES[language].flag} ${LANGUAGES[language].nativeName}`} onPress={() => setShowLanguagePicker(true)} noBorder />
       </View>
 
       {/* About */}
       <Text style={{ color: c.muted, fontSize: 12, fontWeight: '700', letterSpacing: .8, textTransform: 'uppercase', marginBottom: 12 }}>{t('about')}</Text>
       <View style={{ backgroundColor: c.card, borderRadius: 20, marginBottom: 20, borderWidth: 1, borderColor: c.border, overflow: 'hidden' }}>
-        {[
-          { icon: '📋', label: t('version'),  sub: '1.0.0 (Beta)' },
-          { icon: '⭐', label: t('rateApp'),  sub: t('leaveReview') },
-          { icon: '💬', label: t('feedback'), sub: t('sendThoughts') },
-        ].map((item, i, arr) => (
-          <TouchableOpacity key={i} style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: i < arr.length - 1 ? 1 : 0, borderBottomColor: c.border, gap: 12 }}>
-            <Text style={{ fontSize: 20, width: 28 }}>{item.icon}</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: c.text, fontSize: 14, fontWeight: '600' }}>{item.label}</Text>
-              <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>{item.sub}</Text>
-            </View>
-            <Text style={{ color: c.muted, fontSize: 20 }}>›</Text>
-          </TouchableOpacity>
-        ))}
-        <TouchableOpacity onPress={() => Linking.openURL('https://www.instagram.com/polarfinance.app').catch(() => {})} style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderTopWidth: 1, borderTopColor: c.border, gap: 12 }}>
-          <Text style={{ fontSize: 20, width: 28 }}>📸</Text>
+        <Row icon="phone-portrait-outline" label={t('version')} sub="1.0.0 (Beta)" />
+        <Row icon="star" label={t('rateApp')} sub={t('leaveReview')} onPress={handleRateApp} />
+        <Row icon="chatbubble" label={t('feedback')} sub="contact@polarfinance.app" onPress={handleFeedback} />
+
+        {/* Instagram */}
+        <TouchableOpacity
+          onPress={() => Linking.openURL('https://www.instagram.com/polarfinance.app?igsh=bGZpY241ZWlkbGVr').catch(() => {})}
+          style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderTopWidth: 1, borderTopColor: c.border, gap: 14 }}>
+          <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: '#E1306C18', justifyContent: 'center', alignItems: 'center' }}>
+            <Ionicons name="logo-instagram" size={18} color="#E1306C" />
+          </View>
           <View style={{ flex: 1 }}>
             <Text style={{ color: c.text, fontSize: 14, fontWeight: '600' }}>Instagram</Text>
             <Text style={{ color: '#E1306C', fontSize: 12, marginTop: 2, fontWeight: '600' }}>@polarfinance.app</Text>
           </View>
-          <Text style={{ color: c.muted, fontSize: 20 }}>›</Text>
+          <Ionicons name="chevron-forward" size={18} color={c.muted} />
+        </TouchableOpacity>
+
+        {/* TikTok */}
+        <TouchableOpacity
+          onPress={() => Linking.openURL('https://www.tiktok.com/@polarfinance.app?_r=1&_t=ZN-94NjuWv6IvW').catch(() => {})}
+          style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderTopWidth: 1, borderTopColor: c.border, gap: 14 }}>
+          <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: '#69C9D018', justifyContent: 'center', alignItems: 'center' }}>
+            <Ionicons name="logo-tiktok" size={18} color="#69C9D0" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: c.text, fontSize: 14, fontWeight: '600' }}>TikTok</Text>
+            <Text style={{ color: '#69C9D0', fontSize: 12, marginTop: 2, fontWeight: '600' }}>@polarfinance.app</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={c.muted} />
+        </TouchableOpacity>
+
+        {/* X (new logo — using a custom SVG-style text since Ionicons doesn't have the new X logo) */}
+        <TouchableOpacity
+          onPress={() => Linking.openURL('https://x.com/polarfinanceapp?s=21&t=6MLXzsUFO0HYhevUrJI7xQ').catch(() => {})}
+          style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderTopWidth: 1, borderTopColor: c.border, gap: 14 }}>
+          <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.08)', justifyContent: 'center', alignItems: 'center' }}>
+            <Text style={{ color: c.text, fontSize: 16, fontWeight: '900', fontStyle: 'italic' }}>𝕏</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: c.text, fontSize: 14, fontWeight: '600' }}>X</Text>
+            <Text style={{ color: c.muted, fontSize: 12, marginTop: 2, fontWeight: '600' }}>@polarfinanceapp</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={c.muted} />
         </TouchableOpacity>
       </View>
 
       {/* Disclaimer */}
-      <View style={{ backgroundColor: '#FFD70018', borderRadius: 16, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: '#FFD70044' }}>
-        <Text style={{ color: '#FFD700', fontSize: 12, fontWeight: '700', marginBottom: 4 }}>⚠️ {t('financialDisclaimer')}</Text>
-        <Text style={{ color: c.muted, fontSize: 12, lineHeight: 18 }}>{t('financialDisclaimerDesc')}</Text>
+      <View style={{ backgroundColor: '#FFD70018', borderRadius: 16, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: '#FFD70044', flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
+        <Ionicons name="warning" size={18} color="#FFD700" style={{ marginTop: 2 }} />
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: '#FFD700', fontSize: 12, fontWeight: '700', marginBottom: 4 }}>{t('financialDisclaimer')}</Text>
+          <Text style={{ color: c.muted, fontSize: 12, lineHeight: 18 }}>{t('financialDisclaimerDesc')}</Text>
+        </View>
       </View>
 
       {/* Log Out */}
-      <TouchableOpacity style={{ backgroundColor: '#FF6B6B18', borderRadius: 16, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: '#FF6B6B44', marginBottom: 24 }} onPress={handleLogout}>
-        <Text style={{ color: '#FF6B6B', fontSize: 15, fontWeight: '800' }}>🚪 {t('logOut')}</Text>
+      <TouchableOpacity style={{ backgroundColor: '#FF6B6B18', borderRadius: 16, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: '#FF6B6B44', marginBottom: 24, flexDirection: 'row', justifyContent: 'center', gap: 10 }} onPress={handleLogout}>
+        <Ionicons name="log-out" size={18} color="#FF6B6B" />
+        <Text style={{ color: '#FF6B6B', fontSize: 15, fontWeight: '800' }}>{t('logOut')}</Text>
       </TouchableOpacity>
 
       <View style={{ alignItems: 'center', marginBottom: 40 }}>
@@ -268,7 +339,7 @@ export default function SettingsScreen() {
                     <View style={{ flexDirection: 'row', gap: 4, marginRight: 8 }}>
                       {[th.accent, th.accent2, th.dark].map((col, i) => <View key={i} style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: col }} />)}
                     </View>
-                    {isActive && <Text style={{ color: th.accent, fontWeight: '700' }}>✓</Text>}
+                    {isActive && <Ionicons name="checkmark-circle" size={20} color={th.accent} />}
                   </TouchableOpacity>
                 );
               })}
@@ -293,7 +364,7 @@ export default function SettingsScreen() {
                     <Text style={{ color: c.text, fontSize: 14, fontWeight: '700' }}>{lang.nativeName}</Text>
                     <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>{lang.name}</Text>
                   </View>
-                  {language === key && <Text style={{ color: c.accent, fontWeight: '700' }}>✓</Text>}
+                  {language === key && <Ionicons name="checkmark-circle" size={20} color={c.accent} />}
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -317,7 +388,7 @@ export default function SettingsScreen() {
                     <Text style={{ color: c.text, fontSize: 14, fontWeight: '700' }}>{curr.name}</Text>
                     <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>{key} · {curr.symbol}</Text>
                   </View>
-                  {currency === key && <Text style={{ color: c.accent, fontWeight: '700' }}>✓</Text>}
+                  {currency === key && <Ionicons name="checkmark-circle" size={20} color={c.accent} />}
                 </TouchableOpacity>
               ))}
             </ScrollView>

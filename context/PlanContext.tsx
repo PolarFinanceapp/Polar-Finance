@@ -1,9 +1,25 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
-export type Plan = 'trial' | 'pro' | 'premium' | 'expired';
+export type Plan = 'free' | 'trial' | 'pro' | 'premium' | 'expired';
 
 export const planFeatures = {
+  free: {
+    unlimitedTransactions: false,
+    yearlyBudget:          false,
+    unlimitedGoals:        false,
+    receiptPhoto:          false,
+    advancedCharts:        false,
+    calendarView:          false,
+    themes:                false,
+    customTheme:           false,
+    investmentTracking:    false,
+    assetGraph:            false,
+    doubleEntry:           false,
+    cardTracking:          false,
+    advancedFiltering:     false,
+    adFree:                false,
+  },
   trial: {
     unlimitedTransactions: true,
     yearlyBudget:          true,
@@ -77,20 +93,17 @@ export type PlanContextType = {
   hasFeature: (feature: FeatureKey) => boolean;
   upgradeTo: (plan: Plan) => Promise<void>;
   resetPlan: () => Promise<void>;
-  /** Days left in trial (0 if expired or not on trial) */
   trialDaysLeft: number;
-  /** Whether user needs to see the paywall (expired trial, no plan) */
   needsPaywall: boolean;
-  /** Whether trial prompt should show (first time user) */
   showTrialPrompt: boolean;
-  /** Dismiss the trial prompt */
   dismissTrialPrompt: () => Promise<void>;
-  /** Start the 3-day trial */
   startTrial: () => Promise<void>;
+  maxTransactions: number;
+  maxGoals: number;
 };
 
 const PlanContext = createContext<PlanContextType>({
-  plan: 'expired',
+  plan: 'free',
   hasFeature: () => false,
   upgradeTo: async () => {},
   resetPlan: async () => {},
@@ -99,15 +112,16 @@ const PlanContext = createContext<PlanContextType>({
   showTrialPrompt: false,
   dismissTrialPrompt: async () => {},
   startTrial: async () => {},
+  maxTransactions: 10,
+  maxGoals: 1,
 });
 
 const TRIAL_DAYS = 3;
 
 export const PlanProvider = ({ children }: { children: React.ReactNode }) => {
-  const [plan, setPlan] = useState<Plan>('expired');
-  const [trialDaysLeft, setTrialDaysLeft] = useState(0);
+  const [plan, setPlan]                     = useState<Plan>('free');
+  const [trialDaysLeft, setTrialDaysLeft]   = useState(0);
   const [showTrialPrompt, setShowTrialPrompt] = useState(false);
-  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -118,51 +132,57 @@ export const PlanProvider = ({ children }: { children: React.ReactNode }) => {
           AsyncStorage.getItem('trial_prompt_seen'),
         ]);
 
-        // If they have a paid plan, use it
+        // Paid plan — use it immediately
         if (savedPlan === 'pro' || savedPlan === 'premium') {
           setPlan(savedPlan as Plan);
-          setLoaded(true);
           return;
         }
 
-        // If trial was started, check if it's still active
+        // Trial started — check if still active
         if (trialStart) {
-          const start = new Date(trialStart).getTime();
-          const now = Date.now();
-          const elapsed = now - start;
-          const daysLeft = Math.max(0, Math.ceil((TRIAL_DAYS * 86400000 - elapsed) / 86400000));
-
+          const start    = new Date(trialStart).getTime();
+          const daysLeft = Math.max(
+            0,
+            Math.ceil((TRIAL_DAYS * 86400000 - (Date.now() - start)) / 86400000)
+          );
           if (daysLeft > 0) {
             setPlan('trial');
             setTrialDaysLeft(daysLeft);
           } else {
+            // Trial expired
             setPlan('expired');
             setTrialDaysLeft(0);
             await AsyncStorage.setItem('user_plan', 'expired');
           }
-        } else {
-          // No trial started and no plan — show trial prompt
-          if (!promptSeen) {
-            setShowTrialPrompt(true);
-          }
-          setPlan('expired');
+          return;
         }
+
+        // Brand new user — show trial prompt once
+        if (!promptSeen) setShowTrialPrompt(true);
+        setPlan('free');
       } catch (e) {
         console.warn('PlanContext load error:', e);
-        setPlan('expired');
+        setPlan('free');
       }
-      setLoaded(true);
     };
     load();
   }, []);
 
-  const hasFeature = (feature: FeatureKey) => planFeatures[plan]?.[feature] ?? false;
+  const hasFeature = (feature: FeatureKey): boolean =>
+    planFeatures[plan]?.[feature] ?? false;
 
   const needsPaywall = plan === 'expired';
 
+  // Free: 1 goal, can add (canAddGoal = goals.length < 1, so first goal is allowed)
+  // Pro: up to 5 goals
+  // Premium/Trial: unlimited
+  const maxTransactions = plan === 'free' ? 10 : Infinity;
+  const maxGoals        = plan === 'free' ? 1
+                        : plan === 'pro'  ? 5
+                        : Infinity;
+
   const startTrial = async () => {
-    const now = new Date().toISOString();
-    await AsyncStorage.setItem('trial_start', now);
+    await AsyncStorage.setItem('trial_start', new Date().toISOString());
     await AsyncStorage.setItem('user_plan', 'trial');
     await AsyncStorage.setItem('trial_prompt_seen', 'true');
     setPlan('trial');
@@ -173,6 +193,7 @@ export const PlanProvider = ({ children }: { children: React.ReactNode }) => {
   const dismissTrialPrompt = async () => {
     await AsyncStorage.setItem('trial_prompt_seen', 'true');
     setShowTrialPrompt(false);
+    // User stays on free plan
   };
 
   const upgradeTo = async (newPlan: Plan) => {
@@ -181,7 +202,7 @@ export const PlanProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const resetPlan = async () => {
-    setPlan('expired');
+    setPlan('free');
     setTrialDaysLeft(0);
     await AsyncStorage.multiRemove(['user_plan', 'trial_start', 'trial_prompt_seen']);
     setShowTrialPrompt(true);
@@ -192,6 +213,7 @@ export const PlanProvider = ({ children }: { children: React.ReactNode }) => {
       plan, hasFeature, upgradeTo, resetPlan,
       trialDaysLeft, needsPaywall, showTrialPrompt,
       dismissTrialPrompt, startTrial,
+      maxTransactions, maxGoals,
     }}>
       {children}
     </PlanContext.Provider>

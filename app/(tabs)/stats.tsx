@@ -28,7 +28,7 @@ export default function StatsScreen() {
   const [period, setPeriod] = useState<'weekly'|'monthly'|'yearly'>('monthly');
   const { theme: c } = useTheme();
   const { transactions } = useFinance();
-  const { formatAmount, t } = useLocale();
+  const { formatAmount, convertPrice, t } = useLocale();
   const { hasFeature } = usePlan();
   const [showPaywall, setShowPaywall] = useState(false);
 
@@ -49,7 +49,7 @@ export default function StatsScreen() {
           ))}
         </View>
         <TouchableOpacity onPress={() => setShowPaywall(true)} style={{ backgroundColor: c.accent, borderRadius: 14, padding: 16, alignItems: 'center', width: '100%' }}>
-          <Text style={{ color: '#fff', fontSize: 14, fontWeight: '800' }}>⚡ {t('upgrade')} — {t('from')} £3.99{t('perMonth')}</Text>
+          <Text style={{ color: '#fff', fontSize: 14, fontWeight: '800' }}>⚡ {t('upgrade')} — {t('from')} {convertPrice(3.99)}{t('perMonth')}</Text>
         </TouchableOpacity>
         <Paywall visible={showPaywall} onClose={() => setShowPaywall(false)} />
       </View>
@@ -81,7 +81,7 @@ export default function StatsScreen() {
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: c.dark, paddingHorizontal: 20 }} showsVerticalScrollIndicator={false}>
-      <Text style={{ color: c.text, fontSize: 26, fontWeight: '900', marginTop: 60, marginBottom: 20 }}>{t('stats')} 📊</Text>
+      <Text style={{ color: c.text, fontSize: 26, fontWeight: '900', marginTop: 60, marginBottom: 20 }}>{t('stats')}</Text>
 
       <View style={{ flexDirection: 'row', backgroundColor: c.card, borderRadius: 50, padding: 4, marginBottom: 20, borderWidth: 1, borderColor: c.border }}>
         {(['weekly','monthly','yearly'] as const).map(p => (

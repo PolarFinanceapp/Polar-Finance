@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
-import { createContext, ReactNode, useContext, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createContext, ReactNode, useContext, useEffect, useState } from 'react';
 
 export type Card = {
   id: string; bank: string; type: string;
@@ -13,7 +14,7 @@ export type Investment = {
 
 export type Transaction = {
   id: string; icon: string; name: string;
-  cat: string; amount: number; type: string;
+  cat: string; amount: number; type: string; date?: string;
 };
 
 const CARD_COLORS = ['#1a1a4e','#1a2a1a','#2a1a00','#1a001a','#0a1428','#000500'];
@@ -26,27 +27,90 @@ export const CAT_ICONS: Record<string, string> = {
   'TRANSFER':'💸','RECREATION':'🎬','HEALTHCARE':'💊','HOME':'🏠',
 };
 
+// Storage keys — scoped per user so multiple accounts work correctly
+const keys = (uid: string) => ({
+  cards:       `polar_cards_${uid}`,
+  investments: `polar_investments_${uid}`,
+  transactions:`polar_transactions_${uid}`,
+});
+
 type FinanceContextType = {
-  cards: Card[];
-  setCards: (c: Card[]) => void;
-  investments: Investment[];
-  setInvestments: (i: Investment[]) => void;
-  transactions: Transaction[];
+  cards:           Card[];
+  setCards:        (c: Card[]) => void;
+  investments:     Investment[];
+  setInvestments:  (i: Investment[]) => void;
+  transactions:    Transaction[];
   setTransactions: (t: Transaction[]) => void;
-  bankLinked: boolean;
-  setBankLinked: (b: boolean) => void;
-  loadPlaidData: (userId: string) => Promise<void>;
+  bankLinked:      boolean;
+  setBankLinked:   (b: boolean) => void;
+  loadPlaidData:   (userId: string) => Promise<void>;
+  loading:         boolean;
 };
 
 const FinanceContext = createContext<FinanceContextType | null>(null);
 
 export function FinanceProvider({ children }: { children: ReactNode }) {
-  const [cards, setCards]               = useState<Card[]>([]);
-  const [investments, setInvestments]   = useState<Investment[]>([]);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [bankLinked, setBankLinked]     = useState(false);
+  const [cards,        setCardsState]       = useState<Card[]>([]);
+  const [investments,  setInvestmentsState] = useState<Investment[]>([]);
+  const [transactions, setTransactionsState]= useState<Transaction[]>([]);
+  const [bankLinked,   setBankLinked]       = useState(false);
+  const [loading,      setLoading]          = useState(true);
+  const [userId,       setUserId]           = useState<string | null>(null);
 
-  const loadPlaidData = async (userId: string) => {
+  // ── Load user ID then load their data ──────────────────────────────────────
+  useEffect(() => {
+    const init = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) { setLoading(false); return; }
+        setUserId(user.id);
+
+        const k = keys(user.id);
+        const [cardsRaw, invRaw, txnRaw] = await Promise.all([
+          AsyncStorage.getItem(k.cards),
+          AsyncStorage.getItem(k.investments),
+          AsyncStorage.getItem(k.transactions),
+        ]);
+
+        if (cardsRaw)       setCardsState(JSON.parse(cardsRaw));
+        if (invRaw)         setInvestmentsState(JSON.parse(invRaw));
+        if (txnRaw)         setTransactionsState(JSON.parse(txnRaw));
+      } catch (e) {
+        console.warn('FinanceContext load error:', e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    init();
+  }, []);
+
+  // ── Persist helpers ─────────────────────────────────────────────────────────
+  const save = async (key: string, data: any) => {
+    try {
+      await AsyncStorage.setItem(key, JSON.stringify(data));
+    } catch (e) {
+      console.warn('FinanceContext save error:', e);
+    }
+  };
+
+  // ── Setters that also persist ───────────────────────────────────────────────
+  const setCards = (data: Card[]) => {
+    setCardsState(data);
+    if (userId) save(keys(userId).cards, data);
+  };
+
+  const setInvestments = (data: Investment[]) => {
+    setInvestmentsState(data);
+    if (userId) save(keys(userId).investments, data);
+  };
+
+  const setTransactions = (data: Transaction[]) => {
+    setTransactionsState(data);
+    if (userId) save(keys(userId).transactions, data);
+  };
+
+  // ── Plaid bank link loader ──────────────────────────────────────────────────
+  const loadPlaidData = async (uid: string) => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch(
@@ -57,14 +121,13 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${session?.access_token}`,
           },
-          body: JSON.stringify({ userId }),
+          body: JSON.stringify({ userId: uid }),
         }
       );
       const data = await res.json();
-      console.log('Plaid data:', JSON.stringify(data).slice(0, 300));
 
       if (data.accounts) {
-        setCards(data.accounts.map((acc: any, i: number) => ({
+        const newCards: Card[] = data.accounts.map((acc: any, i: number) => ({
           id: acc.account_id,
           bank: acc.name,
           type: acc.subtype,
@@ -72,18 +135,21 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
           number: acc.mask || '0000',
           color: CARD_COLORS[i % CARD_COLORS.length],
           positive: (acc.balances.current ?? 0) >= 0,
-        })));
+        }));
+        setCards(newCards);
       }
 
       if (data.transactions) {
-        setTransactions(data.transactions.slice(0, 50).map((txn: any) => ({
+        const newTxns: Transaction[] = data.transactions.slice(0, 50).map((txn: any) => ({
           id: txn.transaction_id,
           icon: CAT_ICONS[txn.personal_finance_category?.primary] || '💳',
           name: txn.merchant_name || txn.name,
           cat: txn.personal_finance_category?.primary || 'Other',
           amount: -txn.amount,
           type: txn.amount > 0 ? 'expense' : 'income',
-        })));
+          date: txn.date || new Date().toLocaleDateString('en-GB'),
+        }));
+        setTransactions(newTxns);
       }
     } catch (err) {
       console.error('Failed to load Plaid data:', err);
@@ -91,7 +157,13 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <FinanceContext.Provider value={{ cards, setCards, investments, setInvestments, transactions, setTransactions, bankLinked, setBankLinked, loadPlaidData }}>
+    <FinanceContext.Provider value={{
+      cards, setCards,
+      investments, setInvestments,
+      transactions, setTransactions,
+      bankLinked, setBankLinked,
+      loadPlaidData, loading,
+    }}>
       {children}
     </FinanceContext.Provider>
   );

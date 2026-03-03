@@ -1,3 +1,4 @@
+import { useLocale } from '@/context/LocaleContext';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -5,17 +6,11 @@ import { ActivityIndicator, Image, Modal, Text, TouchableOpacity, View } from 'r
 import { useTheme } from '../context/ThemeContext';
 
 interface Transaction {
-  name: string;
-  amount: number;
-  cat: string;
-  type: 'expense' | 'income';
-  icon: string;
+  name: string; amount: number; cat: string; type: 'expense' | 'income'; icon: string;
 }
 
 interface Props {
-  visible: boolean;
-  onClose: () => void;
-  onAdd: (transactions: Transaction[]) => void;
+  visible: boolean; onClose: () => void; onAdd: (transactions: Transaction[]) => void;
 }
 
 const CAT_ICONS: Record<string, string> = {
@@ -26,15 +21,15 @@ const CAT_ICONS: Record<string, string> = {
 
 export default function ReceiptScanner({ visible, onClose, onAdd }: Props) {
   const { theme: c } = useTheme();
+  const { formatAmount } = useLocale();
   const [permission, requestPermission] = useCameraPermissions();
-  const [image, setImage]           = useState<string | null>(null);
-  const [loading, setLoading]       = useState(false);
-  const [error, setError]           = useState<string | null>(null);
-  const [results, setResults]       = useState<Transaction[]>([]);
-  const [selected, setSelected]     = useState<number[]>([]);
-  const [autoMode, setAutoMode]     = useState(true);
-  const [capturing, setCapturing]   = useState(false);
-  const [countdown, setCountdown]   = useState<number | null>(null);
+  const [image, setImage]         = useState<string | null>(null);
+  const [loading, setLoading]     = useState(false);
+  const [error, setError]         = useState<string | null>(null);
+  const [results, setResults]     = useState<Transaction[]>([]);
+  const [selected, setSelected]   = useState<number[]>([]);
+  const [capturing, setCapturing] = useState(false);
+  const [countdown, setCountdown] = useState<number | null>(null);
   const cameraRef = useRef<CameraView>(null);
   const autoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const countdownTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -48,12 +43,10 @@ export default function ReceiptScanner({ visible, onClose, onAdd }: Props) {
 
   const handleClose = () => { reset(); onClose(); };
 
-  // Start auto-capture countdown when camera is ready
   const startAutoCapture = useCallback(() => {
     if (capturing || loading || image) return;
     setCapturing(true);
     setCountdown(3);
-
     let count = 3;
     countdownTimer.current = setInterval(() => {
       count -= 1;
@@ -69,14 +62,10 @@ export default function ReceiptScanner({ visible, onClose, onAdd }: Props) {
     if (!cameraRef.current) return;
     try {
       const photo = await cameraRef.current.takePictureAsync({ base64: true, quality: 0.8 });
-      if (photo?.base64) {
-        setImage(photo.uri);
-        analyseReceipt(photo.base64);
-      }
-    } catch (err) {
+      if (photo?.base64) { setImage(photo.uri); analyseReceipt(photo.base64); }
+    } catch {
       setError('Failed to take photo. Please try again.');
-      setCapturing(false);
-      setCountdown(null);
+      setCapturing(false); setCountdown(null);
     }
   };
 
@@ -91,12 +80,7 @@ export default function ReceiptScanner({ visible, onClose, onAdd }: Props) {
   };
 
   const analyseReceipt = async (base64: string) => {
-    setLoading(true);
-    setError(null);
-    setResults([]);
-    setCapturing(false);
-    setCountdown(null);
-
+    setLoading(true); setError(null); setResults([]); setCapturing(false); setCountdown(null);
     try {
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -110,45 +94,31 @@ export default function ReceiptScanner({ visible, onClose, onAdd }: Props) {
               { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64 } },
               {
                 type: 'text',
-                text: `You are a receipt and ticket scanner. Look carefully at this image and extract any payment or transaction information.
-
-This could be a receipt, till receipt, bus ticket, train ticket, parking ticket, cinema ticket, invoice, or any other payment document.
-
-Return ONLY a valid JSON array with no markdown, no backticks, no explanation. Just raw JSON like this:
+                text: `You are a receipt and ticket scanner. Extract any payment or transaction information.
+Return ONLY a valid JSON array with no markdown, no backticks, no explanation:
 [{"name":"Arriva Bus","amount":2.50,"cat":"Transport","type":"expense","icon":"🚌"}]
-
 Rules:
-- name: the merchant, service or description
-- amount: a positive number (look for total, fare, price, cost, amount paid)
-- cat: must be exactly one of: Housing, Groceries, Transport, Entertainment, Health, Clothing, Utilities, Subscriptions, Food, Income, Savings, Shopping, Other
-- type: always "expense" for any purchase or ticket
-- icon: a relevant emoji
-
-For transport tickets use cat "Transport" and icons like 🚌 🚂 🚇 🚕 ✈️
-For food use cat "Food" and icon 🍕 ☕
-For shopping use cat "Shopping" and icon 🛍️
-For cinema/events use cat "Entertainment" and icon 🎬
-
-If you can see any price or amount on the image, include it even if the image is blurry.
-If you truly cannot find any amount at all, return [].`,
+- name: merchant or description
+- amount: positive number (total/fare/price paid)
+- cat: one of: Housing, Groceries, Transport, Entertainment, Health, Clothing, Utilities, Subscriptions, Food, Income, Savings, Shopping, Other
+- type: "expense" for any purchase
+- icon: relevant emoji
+If no amount found, return [].`,
               },
             ],
           }],
         }),
       });
-
       const data = await response.json();
       const text = data.content?.[0]?.text || '[]';
-      const clean = text.replace(/```json|```/g, '').trim();
-      const parsed: Transaction[] = JSON.parse(clean);
-
+      const parsed: Transaction[] = JSON.parse(text.replace(/```json|```/g, '').trim());
       if (parsed.length === 0) {
-        setError('Could not find any transaction amount. Try holding the ticket closer or in better light.');
+        setError('Could not find any transaction amount. Try holding the receipt closer or in better light.');
       } else {
         setResults(parsed);
         setSelected(parsed.map((_: Transaction, i: number) => i));
       }
-    } catch (err: any) {
+    } catch {
       setError('Failed to analyse. Please try again.');
     } finally {
       setLoading(false);
@@ -159,12 +129,10 @@ If you truly cannot find any amount at all, return [].`,
     setSelected(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i]);
 
   const confirmAdd = () => {
-    const toAdd = results.filter((_: Transaction, i: number) => selected.includes(i));
-    onAdd(toAdd);
+    onAdd(results.filter((_: Transaction, i: number) => selected.includes(i)));
     handleClose();
   };
 
-  // Request permission on mount
   useEffect(() => {
     if (visible && !permission?.granted) requestPermission();
   }, [visible]);
@@ -188,25 +156,16 @@ If you truly cannot find any amount at all, return [].`,
           </TouchableOpacity>
         </View>
 
-        {/* Camera / Image Preview */}
+        {/* Camera */}
         {!image && !loading && (
           <>
             {permission?.granted ? (
               <View style={{ flex: 1, position: 'relative' }}>
-                <CameraView
-                  ref={cameraRef}
-                  style={{ flex: 1 }}
-                  facing="back"
-                  onCameraReady={startAutoCapture}
-                />
-
-                {/* Overlay frame */}
+                <CameraView ref={cameraRef} style={{ flex: 1 }} facing="back" onCameraReady={startAutoCapture} />
                 <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center' }}>
                   <View style={{ width: '85%', height: '55%', borderWidth: 2, borderColor: capturing ? '#00D4AA' : '#fff', borderRadius: 12, opacity: 0.8 }} />
                   <Text style={{ color: '#fff', fontSize: 13, marginTop: 12, textAlign: 'center', opacity: 0.8 }}>Align receipt within the frame</Text>
                 </View>
-
-                {/* Countdown */}
                 {countdown !== null && countdown > 0 && (
                   <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center' }}>
                     <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(0,212,170,0.85)', justifyContent: 'center', alignItems: 'center' }}>
@@ -214,8 +173,6 @@ If you truly cannot find any amount at all, return [].`,
                     </View>
                   </View>
                 )}
-
-                {/* Bottom controls */}
                 <View style={{ position: 'absolute', bottom: 40, left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', paddingHorizontal: 30 }}>
                   <TouchableOpacity onPress={pickFromGallery} style={{ backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 50, padding: 14 }}>
                     <Text style={{ fontSize: 24 }}>🖼️</Text>
@@ -278,7 +235,6 @@ If you truly cannot find any amount at all, return [].`,
               Found {results.length} transaction{results.length > 1 ? 's' : ''}
             </Text>
             <Text style={{ color: '#aaa', fontSize: 13, marginBottom: 16 }}>Tap to deselect any you don't want</Text>
-
             {results.map((txn: Transaction, i: number) => {
               const isSel = selected.includes(i);
               return (
@@ -292,26 +248,22 @@ If you truly cannot find any amount at all, return [].`,
                     <Text style={{ color: '#aaa', fontSize: 12, marginTop: 2 }}>{txn.cat}</Text>
                   </View>
                   <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={{ color: '#FF6B6B', fontSize: 15, fontWeight: '700' }}>-£{txn.amount.toFixed(2)}</Text>
+                    <Text style={{ color: '#FF6B6B', fontSize: 15, fontWeight: '700' }}>-{formatAmount(txn.amount)}</Text>
                     {isSel && <Text style={{ color: c.accent, fontSize: 10, marginTop: 2 }}>✓ Selected</Text>}
                   </View>
                 </TouchableOpacity>
               );
             })}
-
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
               <TouchableOpacity style={{ flex: 1, backgroundColor: '#222', borderRadius: 14, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: '#333' }} onPress={reset}>
                 <Text style={{ color: '#aaa', fontWeight: '700' }}>Scan Another</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={{ flex: 2, backgroundColor: c.accent, borderRadius: 14, padding: 16, alignItems: 'center', opacity: selected.length === 0 ? 0.4 : 1 }}
-                onPress={confirmAdd} disabled={selected.length === 0}>
+              <TouchableOpacity style={{ flex: 2, backgroundColor: c.accent, borderRadius: 14, padding: 16, alignItems: 'center', opacity: selected.length === 0 ? 0.4 : 1 }} onPress={confirmAdd} disabled={selected.length === 0}>
                 <Text style={{ color: '#fff', fontWeight: '800' }}>Add {selected.length} Transaction{selected.length !== 1 ? 's' : ''}</Text>
               </TouchableOpacity>
             </View>
           </View>
         )}
-
       </View>
     </Modal>
   );

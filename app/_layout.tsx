@@ -3,6 +3,7 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import PolarLogo from '../components/PolarLogo';
+import { BillsProvider } from '../context/BillsContext';
 import { FinanceProvider } from '../context/FinanceContext';
 import { LocaleProvider } from '../context/LocaleContext';
 import { PlanProvider } from '../context/PlanContext';
@@ -20,18 +21,16 @@ export default function RootLayout() {
       setSession(session);
       setLoading(false);
     });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: any, session: Session | null) => {
       setSession(session);
     });
-
     return () => subscription.unsubscribe();
   }, []);
 
   useEffect(() => {
     if (loading) return;
-    const inTabsGroup   = segments[0] === '(tabs)';
-    const inOnboarding  = segments[0] === 'onboarding';
+    const inTabsGroup  = segments[0] === '(tabs)';
+    const inOnboarding = segments[0] === 'onboarding';
     if (session && !inTabsGroup && !inOnboarding) {
       router.replace('/(tabs)' as any);
     } else if (!session) {
@@ -53,11 +52,13 @@ export default function RootLayout() {
       <LocaleProvider>
         <PlanProvider>
           <FinanceProvider>
-            <Stack screenOptions={{ headerShown: false }}>
-              <Stack.Screen name="(tabs)"      options={{ headerShown: false }} />
-              <Stack.Screen name="login"       options={{ headerShown: false }} />
-              <Stack.Screen name="onboarding"  options={{ headerShown: false }} />
-            </Stack>
+            <BillsProvider>
+              <Stack screenOptions={{ headerShown: false }}>
+                <Stack.Screen name="(tabs)"     options={{ headerShown: false }} />
+                <Stack.Screen name="login"      options={{ headerShown: false }} />
+                <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+              </Stack>
+            </BillsProvider>
           </FinanceProvider>
         </PlanProvider>
       </LocaleProvider>

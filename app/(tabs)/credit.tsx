@@ -38,7 +38,7 @@ export default function CreditScreen() {
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: c.dark, paddingHorizontal: 20 }} showsVerticalScrollIndicator={false}>
-      <Text style={{ color: c.text, fontSize: 26, fontWeight: '900', marginTop: 60, marginBottom: 6 }}>{t('creditScore')} 💳</Text>
+      <Text style={{ color: c.text, fontSize: 26, fontWeight: '900', marginTop: 60, marginBottom: 6 }}>{t('creditScore')}</Text>
       <Text style={{ color: c.muted, fontSize: 13, marginBottom: 24 }}>{t('checkFreeScore')}</Text>
 
       <View style={{ backgroundColor: c.card2, borderRadius: 16, padding: 16, marginBottom: 24, borderWidth: 1, borderColor: c.border, flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>

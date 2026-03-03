@@ -10,8 +10,8 @@ import { Image, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } fro
 import Paywall from '../../components/Paywall';
 import ProfileModal from '../../components/ProfileModal';
 import ReceiptScanner from '../../components/ReceiptScanner';
+import RecurringBills from '../../components/RecurringBills';
 import TrialPrompt from '../../components/TrialPrompt';
-import { Bill, Frequency, useBills } from '../../context/BillsContext';
 import { useTheme } from '../../context/ThemeContext';
 
 const ALL_TABS = [
@@ -24,19 +24,12 @@ const ALL_TABS = [
 ] as const;
 
 const CARD_COLORS = [
-  '#1a1a4e', '#1a2a1a', '#2a1a00', '#1a001a', '#0a1428', '#000500',
-  '#0a2a4a', '#0d1b4b', '#1a3a5c', '#0a3d62',
-  '#2d1b69', '#4a1942', '#3d0066', '#1a0533',
-  '#0d3b2e', '#1a4a1a', '#003322', '#1b4332',
-  '#4a1010', '#3d1a00', '#2a0a00', '#4a2000',
-  '#1a1a2e', '#2d2d2d', '#1c1c1c', '#0f0f1a',
-];
-
-const BILL_ICONS  = ['💡','💧','🔥','📱','🌐','🏠','🚗','🎬','💪','🎵','📺','🛒','🏥','✈️','🎮'];
-const BILL_COLORS = ['#6C63FF','#00D4AA','#FF9F43','#FF6B6B','#a89fff','#FFD700'];
-const FREQUENCIES: { key: Frequency; label: string }[] = [
-  { key: 'weekly', label: 'Weekly' }, { key: 'fortnightly', label: 'Fortnightly' },
-  { key: 'monthly', label: 'Monthly' }, { key: 'yearly', label: 'Yearly' },
+  '#1a1a4e','#1a2a1a','#2a1a00','#1a001a','#0a1428','#000500',
+  '#0a2a4a','#0d1b4b','#1a3a5c','#0a3d62',
+  '#2d1b69','#4a1942','#3d0066','#1a0533',
+  '#0d3b2e','#1a4a1a','#003322','#1b4332',
+  '#4a1010','#3d1a00','#2a0a00','#4a2000',
+  '#1a1a2e','#2d2d2d','#1c1c1c','#0f0f1a',
 ];
 
 export default function HomeScreen() {
@@ -44,7 +37,6 @@ export default function HomeScreen() {
   const { theme: c } = useTheme();
   const router = useRouter();
   const { formatAmount, currencySymbol, t } = useLocale();
-  const { bills, addBill, deleteBill, payBill } = useBills();
 
   const showCardsOk = hasFeature('cardTracking');
   const showInvest  = hasFeature('investmentTracking');
@@ -91,7 +83,6 @@ export default function HomeScreen() {
   const [showTabPicker,      setShowTabPicker]      = useState(false);
   const [showSearch,         setShowSearch]         = useState(false);
   const [showBills,          setShowBills]          = useState(false);
-  const [showAddBill,        setShowAddBill]        = useState(false);
 
   // ── Card form ─────────────────────────────────────────────────────────────────
   const [newBank,            setNewBank]            = useState('');
@@ -122,15 +113,6 @@ export default function HomeScreen() {
   const [newTxnCat,  setNewTxnCat]  = useState('Groceries');
   const [newTxnAmt,  setNewTxnAmt]  = useState('');
   const [newTxnType, setNewTxnType] = useState<'income'|'expense'>('expense');
-
-  // ── Bill form ─────────────────────────────────────────────────────────────────
-  const [billName,   setBillName]   = useState('');
-  const [billAmount, setBillAmount] = useState('');
-  const [billFreq,   setBillFreq]   = useState<Frequency>('monthly');
-  const [billDue,    setBillDue]    = useState('');
-  const [billCardId, setBillCardId] = useState<string | null>(null);
-  const [billIcon,   setBillIcon]   = useState('💡');
-  const [billColor,  setBillColor]  = useState('#6C63FF');
 
   // ── Quick actions ─────────────────────────────────────────────────────────────
   const [selectedTabs, setSelectedTabs] = useState<typeof ALL_TABS[number][]>([ALL_TABS[0], ALL_TABS[1], ALL_TABS[2]]);
@@ -169,15 +151,6 @@ export default function HomeScreen() {
   const displayTxns = showSearch
     ? filtered
     : filtered.slice(0, maxTransactions === Infinity ? filtered.length : maxTransactions);
-
-  const totalMonthlyBills = bills.reduce((s, b) => {
-    switch (b.frequency) {
-      case 'weekly':      return s + b.amount * 4.33;
-      case 'fortnightly': return s + b.amount * 2.17;
-      case 'monthly':     return s + b.amount;
-      case 'yearly':      return s + b.amount / 12;
-    }
-  }, 0);
 
   // ── Actions ───────────────────────────────────────────────────────────────────
   const addCard = () => {
@@ -223,704 +196,492 @@ export default function HomeScreen() {
     setShowAddTxn(false);
   };
 
-  const handleAddBill = async () => {
-    if (!billName || !billAmount) return;
-    const due = billDue || new Date().toLocaleDateString('en-GB');
-    await addBill({ name: billName, amount: parseFloat(billAmount), frequency: billFreq, nextDue: due, cardId: billCardId, icon: billIcon, color: billColor, active: true });
-    setBillName(''); setBillAmount(''); setBillFreq('monthly'); setBillDue('');
-    setBillCardId(null); setBillIcon('💡'); setBillColor('#6C63FF');
-    setShowAddBill(false);
-  };
-
-  const handlePayBill = (bill: Bill) => {
-    if (bill.cardId) {
-      setCards(cards.map(card =>
-        card.id === bill.cardId
-          ? { ...card, balance: card.balance - bill.amount, positive: (card.balance - bill.amount) >= 0 }
-          : card
-      ));
-    }
-    setTransactions([{
-      id: Date.now().toString(), icon: bill.icon, name: bill.name,
-      cat: 'Subscriptions', amount: -Math.abs(bill.amount),
-      type: 'expense', date: new Date().toLocaleDateString('en-GB'),
-    } as any, ...transactions]);
-    payBill(bill.id);
-  };
-
   // ── Render ────────────────────────────────────────────────────────────────────
+  // FIX: Wrap in a root View so ProfileModal and RecurringBills sit OUTSIDE the
+  // ScrollView — prevents iOS gesture conflicts and nested-modal issues.
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: c.dark, paddingHorizontal: 20 }} showsVerticalScrollIndicator={false}>
+    <View style={{ flex: 1, backgroundColor: c.dark }}>
+      <ScrollView style={{ flex: 1, paddingHorizontal: 20 }} showsVerticalScrollIndicator={false}>
 
-      {/* Header */}
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 60, marginBottom: 24 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: c.accent, justifyContent: 'center', alignItems: 'center' }}>
-            <Text style={{ fontSize: 20 }}>🐻‍❄️</Text>
+        {/* Header */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 60, marginBottom: 24 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: c.accent, justifyContent: 'center', alignItems: 'center' }}>
+              <Text style={{ fontSize: 20 }}>🐻‍❄️</Text>
+            </View>
+            <View>
+              <Text style={{ color: c.muted, fontSize: 12 }}>{greeting} 👋</Text>
+              <Text style={{ color: c.text, fontSize: 20, fontWeight: '900' }}>{userName || '...'}</Text>
+            </View>
           </View>
-          <View>
-            <Text style={{ color: c.muted, fontSize: 12 }}>{greeting} 👋</Text>
-            <Text style={{ color: c.text, fontSize: 20, fontWeight: '900' }}>{userName || '...'}</Text>
-          </View>
+          <TouchableOpacity activeOpacity={0.7}
+            style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: c.accent, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }}
+            onPress={() => setShowProfile(true)}>
+            {profilePhoto
+              ? <Image source={{ uri: profilePhoto }} style={{ width: 44, height: 44, borderRadius: 22 }} />
+              : <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>{userInitial}</Text>}
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity activeOpacity={0.7}
-          style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: c.accent, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }}
-          onPress={() => setShowProfile(true)}>
-          {profilePhoto
-            ? <Image source={{ uri: profilePhoto }} style={{ width: 44, height: 44, borderRadius: 22 }} />
-            : <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>{userInitial}</Text>}
-        </TouchableOpacity>
-      </View>
 
+        {/* Balance Card */}
+        <TouchableOpacity
+          style={{ backgroundColor: c.card, borderRadius: 24, padding: 24, borderWidth: 1, borderColor: c.border, marginBottom: 16 }}
+          onPress={() => showCardsOk && setShowCards(!showCards)}
+          activeOpacity={showCardsOk ? 0.85 : 1}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Text style={{ color: c.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1.5 }}>
+              {t('netWorth')}  {showCardsOk ? (showCards ? '▲' : '▼') : ''}
+            </Text>
+            {plan === 'trial' && trialDaysLeft > 0 && (
+              <View style={{ backgroundColor: '#FFD70022', borderRadius: 50, paddingHorizontal: 10, paddingVertical: 3, borderWidth: 1, borderColor: '#FFD70044' }}>
+                <Text style={{ color: '#FFD700', fontSize: 10, fontWeight: '700' }}>👑 {t('trialPlan')} · {trialDaysLeft}d</Text>
+              </View>
+            )}
+            {(plan === 'pro' || plan === 'premium') && (
+              <View style={{ backgroundColor: plan === 'premium' ? '#FFD70022' : '#6C63FF22', borderRadius: 50, paddingHorizontal: 10, paddingVertical: 3, borderWidth: 1, borderColor: plan === 'premium' ? '#FFD70044' : '#6C63FF44' }}>
+                <Text style={{ color: plan === 'premium' ? '#FFD700' : '#6C63FF', fontSize: 10, fontWeight: '700' }}>
+                  {plan === 'premium' ? '👑' : '⚡'} {plan === 'premium' ? t('premiumPlan') : t('proPlan')}
+                </Text>
+              </View>
+            )}
+          </View>
+          <Text style={{ color: netWorth < 0 ? '#FF6B6B' : c.text, fontSize: 36, fontWeight: '900', marginVertical: 6 }}>
+            {netWorth < 0 ? '-' : ''}{formatAmount(Math.abs(netWorth))}
+          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
+            <View style={{ flex: 1, alignItems: 'center' }}>
+              <Text style={{ color: c.muted, fontSize: 11 }}>↑ {t('income')}</Text>
+              <Text style={{ color: '#00D4AA', fontSize: 14, fontWeight: '700', marginTop: 2 }}>{formatAmount(totalIncome)}</Text>
+            </View>
+            <View style={{ width: 1, height: 30, backgroundColor: 'rgba(255,255,255,0.1)' }} />
+            <View style={{ flex: 1, alignItems: 'center' }}>
+              <Text style={{ color: c.muted, fontSize: 11 }}>↓ {t('expenses')}</Text>
+              <Text style={{ color: '#FF6B6B', fontSize: 14, fontWeight: '700', marginTop: 2 }}>{formatAmount(totalExpense)}</Text>
+            </View>
+            {showCardsOk && (
+              <>
+                <View style={{ width: 1, height: 30, backgroundColor: 'rgba(255,255,255,0.1)' }} />
+                <View style={{ flex: 1, alignItems: 'center' }}>
+                  <Text style={{ color: c.muted, fontSize: 11 }}>📈 {t('invested')}</Text>
+                  <Text style={{ color: '#a89fff', fontSize: 14, fontWeight: '700', marginTop: 2 }}>{formatAmount(totalInvest)}</Text>
+                </View>
+              </>
+            )}
+          </View>
+          {showCardsOk
+            ? <Text style={{ color: c.accent, fontSize: 11, fontWeight: '600', marginTop: 12, textAlign: 'center' }}>{showCards ? t('tapToHide') : t('tapToView')}</Text>
+            : <TouchableOpacity onPress={() => setShowPaywall(true)}><Text style={{ color: c.muted, fontSize: 11, marginTop: 10, textAlign: 'center' }}>🔒 {t('upgradeProCards')}</Text></TouchableOpacity>
+          }
+        </TouchableOpacity>
+
+        {/* Cards & Investments */}
+        {showCards && showCardsOk && (
+          <View style={{ backgroundColor: c.card, borderRadius: 20, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: c.border }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <Text style={{ color: c.muted, fontSize: 12, fontWeight: '700', textTransform: 'uppercase' }}>💳 {t('cards')}</Text>
+              <TouchableOpacity style={{ backgroundColor: c.accent + '22', borderRadius: 50, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: c.accent + '55' }} onPress={() => setShowAddCard(true)}>
+                <Text style={{ color: c.accent, fontSize: 11, fontWeight: '700' }}>＋ {t('add')}</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
+              {cards.length === 0 && (
+                <View style={{ justifyContent: 'center', alignItems: 'center', padding: 20, width: 220 }}>
+                  <Text style={{ color: c.muted, fontSize: 13, textAlign: 'center' }}>{t('noCards')}</Text>
+                </View>
+              )}
+              {cards.map(card => (
+                <TouchableOpacity key={card.id} onLongPress={() => setCards(cards.filter(item => item.id !== card.id))}
+                  style={{ width: 220, borderRadius: 18, padding: 16, marginRight: 12, height: 120, justifyContent: 'space-between', backgroundColor: card.color }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                    <Text style={{ color: '#fff', fontSize: 13, fontWeight: '800' }}>{card.bank}</Text>
+                    <View style={{ width: 24, height: 18, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.3)' }} />
+                  </View>
+                  <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 10 }}>{card.type}</Text>
+                  <Text style={{ fontSize: 18, fontWeight: '900', color: card.positive ? '#fff' : '#FF6B6B' }}>
+                    {card.positive ? '' : '-'}{formatAmount(Math.abs(card.balance))}
+                  </Text>
+                  <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10, letterSpacing: 1 }}>•••• •••• •••• {card.number}</Text>
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity onPress={() => setShowAddCard(true)} style={{ width: 100, borderRadius: 18, height: 120, justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, borderColor: c.accent + '55', borderStyle: 'dashed' }}>
+                <Ionicons name="add" size={28} color={c.accent} />
+                <Text style={{ color: c.accent, fontSize: 11, marginTop: 4, fontWeight: '600' }}>{t('addCard')}</Text>
+              </TouchableOpacity>
+            </ScrollView>
+
+            {showInvest ? (
+              <>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <Text style={{ color: c.muted, fontSize: 12, fontWeight: '700', textTransform: 'uppercase' }}>📈 {t('investments')}</Text>
+                  <TouchableOpacity style={{ backgroundColor: c.accent + '22', borderRadius: 50, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: c.accent + '55' }} onPress={() => setShowAddInv(true)}>
+                    <Text style={{ color: c.accent, fontSize: 11, fontWeight: '700' }}>＋ {t('add')}</Text>
+                  </TouchableOpacity>
+                </View>
+                {investments.length === 0 && <View style={{ alignItems: 'center', padding: 20 }}><Text style={{ color: c.muted, fontSize: 13, textAlign: 'center' }}>{t('noInvestments')}</Text></View>}
+                {investments.map(inv => (
+                  <View key={inv.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: c.border }}>
+                    <TouchableOpacity onLongPress={() => setInvestments(investments.filter(i => i.id !== inv.id))} style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                      <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: c.card2, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                        <Text style={{ fontSize: 20 }}>{inv.icon}</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: c.text, fontSize: 14, fontWeight: '700' }}>{inv.name}</Text>
+                        <Text style={{ color: c.muted, fontSize: 11, marginTop: 2 }}>{inv.sub}</Text>
+                      </View>
+                      <View style={{ alignItems: 'flex-end', marginRight: 10 }}>
+                        <Text style={{ color: c.text, fontSize: 14, fontWeight: '800' }}>{formatAmount(inv.value)}</Text>
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: inv.up ? '#00D4AA' : '#FF6B6B' }}>{inv.up ? '▲' : '▼'} {inv.change}%</Text>
+                      </View>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => openEditInv(inv)} style={{ backgroundColor: c.card2, borderRadius: 8, padding: 6, borderWidth: 1, borderColor: c.border }}>
+                      <Ionicons name="create-outline" size={16} color={c.accent} />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+                <TouchableOpacity onPress={() => setShowAddInv(true)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12 }}>
+                  <Ionicons name="add-circle-outline" size={16} color={c.accent} />
+                  <Text style={{ color: c.accent, fontSize: 13, fontWeight: '600' }}>{t('addInvestment')}</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <TouchableOpacity onPress={() => setShowPaywall(true)} style={{ backgroundColor: c.card2, borderRadius: 14, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: c.border, flexDirection: 'row', justifyContent: 'center', gap: 8 }}>
+                <Ionicons name="lock-closed" size={14} color={c.muted} />
+                <Text style={{ color: c.muted, fontSize: 13 }}>{t('upgradePremiumInvest')}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+        {/* Quick Actions */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20, gap: 8 }}>
+          {selectedTabs.map(action => (
+            <TouchableOpacity key={action.label}
+              style={{ alignItems: 'center', backgroundColor: c.card, borderRadius: 16, padding: 14, flex: 1, borderWidth: 1, borderColor: c.border }}
+              onPress={() => router.push(action.route as any)}>
+              <Ionicons name={action.icon as any} size={22} color={c.accent} />
+              <Text style={{ color: c.muted, fontSize: 10, marginTop: 6, fontWeight: '600', textAlign: 'center' }}>{action.display}</Text>
+            </TouchableOpacity>
+          ))}
+          <TouchableOpacity
+            style={{ alignItems: 'center', backgroundColor: c.card, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: c.accent + '55', justifyContent: 'center' }}
+            onPress={() => setShowTabPicker(true)}>
+            <Ionicons name="create" size={22} color={c.accent} />
+            <Text style={{ color: c.accent, fontSize: 10, marginTop: 6, fontWeight: '600', textAlign: 'center' }}>Edit</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Search */}
+        <TouchableOpacity
+          style={{ backgroundColor: c.card, borderRadius: 14, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: showSearch ? c.accent : c.border, flexDirection: 'row', alignItems: 'center', gap: 10 }}
+          onPress={() => setShowSearch(!showSearch)}>
+          <Ionicons name="search" size={18} color={showSearch ? c.accent : c.muted} />
+          <Text style={{ color: showSearch ? c.accent : c.muted, fontSize: 14, fontWeight: '600' }}>{t('searchTransactions')}</Text>
+        </TouchableOpacity>
+
+        {showSearch && (
+          <View style={{ backgroundColor: c.card, borderRadius: 20, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: c.accent + '4D' }}>
+            <TextInput style={{ color: c.text, fontSize: 15, paddingVertical: 4, marginBottom: 10 }} placeholder={t('searchTransactions')} placeholderTextColor={c.muted} value={search} onChangeText={setSearch} autoFocus />
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {(['all','income','expense'] as const).map(f => (
+                <TouchableOpacity key={f} style={{ paddingHorizontal: 14, paddingVertical: 6, borderRadius: 50, backgroundColor: filter === f ? c.accent : c.card2, borderWidth: 1, borderColor: filter === f ? c.accent : c.border }} onPress={() => setFilter(f)}>
+                  <Text style={{ color: filter === f ? '#fff' : c.muted, fontSize: 12, fontWeight: '600' }}>
+                    {t(f === 'all' ? 'all' : f === 'income' ? 'income' : 'expense')}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* Ad banner */}
+        {!hasFeature('adFree') && (
+          <TouchableOpacity onPress={() => setShowPaywall(true)} style={{ backgroundColor: c.card2, borderRadius: 12, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: c.border, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <Ionicons name="megaphone-outline" size={16} color={c.muted} />
+            <Text style={{ color: c.muted, fontSize: 12, flex: 1 }}>{t('advertisement')} — {t('upgradeRemoveAds')}</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Recurring Bills bar — FIX: just sets showBills=true, modal handled outside ScrollView */}
+        <TouchableOpacity
+          onPress={() => setShowBills(true)}
+          style={{ backgroundColor: c.card, borderRadius: 14, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: c.border, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: '#FF6B6B18', justifyContent: 'center', alignItems: 'center' }}>
+            <Ionicons name="repeat" size={18} color="#FF6B6B" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: c.text, fontSize: 14, fontWeight: '700' }}>Recurring Bills</Text>
+            <Text style={{ color: c.muted, fontSize: 12, marginTop: 1 }}>
+              Tap to manage recurring bills
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={c.muted} />
+        </TouchableOpacity>
+
+        {/* Transactions */}
+        <View style={{ marginBottom: 30 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <Text style={{ color: c.text, fontSize: 17, fontWeight: '800' }}>{t('recentTransactions')}</Text>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity style={{ backgroundColor: c.card2, borderRadius: 50, paddingHorizontal: 12, paddingVertical: 5, borderWidth: 1, borderColor: c.border, flexDirection: 'row', alignItems: 'center', gap: 5 }} onPress={() => setShowScanner(true)}>
+                <Ionicons name="scan-outline" size={13} color={c.text} />
+                <Text style={{ color: c.text, fontSize: 12, fontWeight: '700' }}>Scan</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ backgroundColor: c.accent + '22', borderRadius: 50, paddingHorizontal: 12, paddingVertical: 5, borderWidth: 1, borderColor: c.accent + '55', flexDirection: 'row', alignItems: 'center', gap: 5 }} onPress={() => setShowAddTxn(true)}>
+                <Ionicons name="add" size={14} color={c.accent} />
+                <Text style={{ color: c.accent, fontSize: 12, fontWeight: '700' }}>{t('add')}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {filtered.length === 0 && (
+            <View style={{ alignItems: 'center', padding: 30 }}>
+              <Ionicons name="receipt-outline" size={48} color={c.muted} style={{ marginBottom: 10 }} />
+              <Text style={{ color: c.muted, fontSize: 14, textAlign: 'center' }}>{t('noTransactions')}</Text>
+            </View>
+          )}
+
+          {displayTxns.map(txn => (
+            <TouchableOpacity key={txn.id} onLongPress={() => setTransactions(transactions.filter(tx => tx.id !== txn.id))}
+              style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: c.card, borderRadius: 16, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: c.border }}>
+              <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: c.card2, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                <Text style={{ fontSize: 18 }}>{txn.icon}</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: c.text, fontSize: 15, fontWeight: '600' }}>{txn.name}</Text>
+                <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>{txn.cat}</Text>
+              </View>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: txn.amount > 0 ? '#00D4AA' : '#FF6B6B' }}>
+                {txn.amount > 0 ? '+' : '-'}{formatAmount(Math.abs(txn.amount))}
+              </Text>
+            </TouchableOpacity>
+          ))}
+
+          {!hasFeature('unlimitedTransactions') && transactions.length > maxTransactions && (
+            <TouchableOpacity onPress={() => setShowPaywall(true)} style={{ backgroundColor: c.accent + '18', borderRadius: 14, padding: 14, alignItems: 'center', marginTop: 8, borderWidth: 1, borderColor: c.accent + '44', flexDirection: 'row', justifyContent: 'center', gap: 8 }}>
+              <Ionicons name="lock-closed" size={14} color={c.accent} />
+              <Text style={{ color: c.accent, fontSize: 13, fontWeight: '700' }}>{t('upgradeProCards')} — {transactions.length - maxTransactions} more hidden</Text>
+            </TouchableOpacity>
+          )}
+          <Text style={{ color: c.muted, fontSize: 11, textAlign: 'center', marginTop: 4 }}>{t('longPressDelete')}</Text>
+        </View>
+
+        {/* ── Modals (transparent ones only — pageSheet modals are outside ScrollView) ── */}
+
+        {/* Tab Picker */}
+        <Modal visible={showTabPicker} transparent animationType="slide">
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
+            <View style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, borderWidth: 1, borderColor: c.border }}>
+              <Text style={{ color: c.text, fontSize: 18, fontWeight: '900', marginBottom: 6 }}>{t('customiseQuickActions')}</Text>
+              <Text style={{ color: c.muted, fontSize: 13, marginBottom: 20 }}>{t('chooseShortcuts')} ({selectedTabs.length}/3)</Text>
+              {ALL_TABS.map(tab => {
+                const isSel = !!selectedTabs.find(t => t.label === tab.label);
+                const isDis = !isSel && selectedTabs.length >= 3;
+                return (
+                  <TouchableOpacity key={tab.label}
+                    style={{ flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 14, marginBottom: 8, backgroundColor: isSel ? c.accent + '22' : c.card2, borderWidth: 1, borderColor: isSel ? c.accent : c.border, opacity: isDis ? 0.4 : 1 }}
+                    onPress={() => !isDis && toggleTab(tab)} disabled={isDis}>
+                    <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: isSel ? c.accent + '33' : c.card, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                      <Ionicons name={tab.icon as any} size={18} color={isSel ? c.accent : c.muted} />
+                    </View>
+                    <Text style={{ color: c.text, fontSize: 14, fontWeight: '600', flex: 1 }}>{tab.display}</Text>
+                    {isSel && <Ionicons name="checkmark-circle" size={20} color={c.accent} />}
+                  </TouchableOpacity>
+                );
+              })}
+              <TouchableOpacity style={{ backgroundColor: c.accent, borderRadius: 14, padding: 16, alignItems: 'center', marginTop: 8 }} onPress={() => setShowTabPicker(false)}>
+                <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15 }}>{t('done')}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Add Card */}
+        <Modal visible={showAddCard} transparent animationType="slide">
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
+            <View style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, borderWidth: 1, borderColor: c.border }}>
+              <Text style={{ color: c.text, fontSize: 18, fontWeight: '900', marginBottom: 20 }}>{t('addCard')}</Text>
+              {[
+                { label: t('bankName'),       val: newBank,     set: setNewBank,     ph: 'e.g. Barclays',     kb: 'default'     as const },
+                { label: t('cardType'),       val: newCardType, set: setNewCardType, ph: 'e.g. Debit · Visa', kb: 'default'     as const },
+                { label: `${t('balance')} (${currencySymbol})`, val: newBalance, set: setNewBalance, ph: 'e.g. 1500.00', kb: 'decimal-pad' as const },
+                { label: t('lastFourDigits'), val: newNumber,   set: setNewNumber,   ph: 'e.g. 1234',         kb: 'number-pad'  as const },
+              ].map((f, i) => (
+                <View key={i} style={{ marginBottom: 12 }}>
+                  <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 6 }}>{f.label}</Text>
+                  <TextInput style={{ backgroundColor: c.card2, borderRadius: 12, padding: 14, color: c.text, fontSize: 15, borderWidth: 1, borderColor: c.border }} placeholder={f.ph} placeholderTextColor={c.muted} value={f.val} onChangeText={f.set} keyboardType={f.kb} />
+                </View>
+              ))}
+              <TouchableOpacity onPress={() => setNewBalanceNegative(!newBalanceNegative)}
+                style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: c.card2, borderRadius: 12, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: newBalanceNegative ? '#FF6B6B' : c.border, gap: 12 }}>
+                <Ionicons name="card-outline" size={20} color={newBalanceNegative ? '#FF6B6B' : c.muted} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: c.text, fontSize: 14, fontWeight: '700' }}>Negative Balance</Text>
+                  <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>Overdraft or credit card debt</Text>
+                </View>
+                <View style={{ width: 46, height: 26, borderRadius: 50, backgroundColor: newBalanceNegative ? '#FF6B6B' : c.card, borderWidth: 1, borderColor: newBalanceNegative ? '#FF6B6B' : c.border, position: 'relative' }}>
+                  <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: newBalanceNegative ? '#fff' : c.muted, position: 'absolute', top: 2, left: newBalanceNegative ? 22 : 2 }} />
+                </View>
+              </TouchableOpacity>
+              <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 8 }}>{t('cardColour')}</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20 }}>
+                <View style={{ flexDirection: 'row', gap: 10, paddingVertical: 4 }}>
+                  {CARD_COLORS.map(col => (
+                    <TouchableOpacity key={col} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: col, borderWidth: 2.5, borderColor: newCardColor === col ? '#fff' : 'transparent' }} onPress={() => setNewCardColor(col)} />
+                  ))}
+                </View>
+              </ScrollView>
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity style={{ flex: 1, backgroundColor: c.card2, borderRadius: 14, padding: 16, alignItems: 'center' }} onPress={() => setShowAddCard(false)}>
+                  <Text style={{ color: c.muted, fontWeight: '700' }}>{t('cancel')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={{ flex: 1, backgroundColor: c.accent, borderRadius: 14, padding: 16, alignItems: 'center', opacity: (!newBank || !newBalance) ? 0.4 : 1 }} onPress={addCard}>
+                  <Text style={{ color: '#fff', fontWeight: '700' }}>{t('addCard')}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Add Investment */}
+        <Modal visible={showAddInv} transparent animationType="slide">
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
+            <View style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, borderWidth: 1, borderColor: c.border }}>
+              <Text style={{ color: c.text, fontSize: 18, fontWeight: '900', marginBottom: 20 }}>{t('addInvestment')}</Text>
+              {[
+                { label: t('name'),    val: newInvName,   set: setNewInvName,   ph: 'e.g. Apple Inc.',       kb: 'default'     as const },
+                { label: t('details'), val: newInvSub,    set: setNewInvSub,    ph: 'e.g. AAPL · 10 shares', kb: 'default'     as const },
+                { label: `${t('currentValue')} (${currencySymbol})`, val: newInvValue, set: setNewInvValue, ph: 'e.g. 1500.00', kb: 'decimal-pad' as const },
+                { label: t('changePercent'), val: newInvChange, set: setNewInvChange, ph: 'e.g. 2.5', kb: 'decimal-pad' as const },
+              ].map((f, i) => (
+                <View key={i} style={{ marginBottom: 12 }}>
+                  <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 6 }}>{f.label}</Text>
+                  <TextInput style={{ backgroundColor: c.card2, borderRadius: 12, padding: 14, color: c.text, fontSize: 15, borderWidth: 1, borderColor: c.border }} placeholder={f.ph} placeholderTextColor={c.muted} value={f.val} onChangeText={f.set} keyboardType={f.kb} />
+                </View>
+              ))}
+              <View style={{ flexDirection: 'row', gap: 10, marginBottom: 20 }}>
+                <TouchableOpacity style={{ flex: 1, backgroundColor: newInvUp ? '#00D4AA22' : c.card2, borderRadius: 12, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: newInvUp ? '#00D4AA' : c.border }} onPress={() => setNewInvUp(true)}>
+                  <Text style={{ color: newInvUp ? '#00D4AA' : c.muted, fontWeight: '700' }}>▲ Up</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={{ flex: 1, backgroundColor: !newInvUp ? '#FF6B6B22' : c.card2, borderRadius: 12, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: !newInvUp ? '#FF6B6B' : c.border }} onPress={() => setNewInvUp(false)}>
+                  <Text style={{ color: !newInvUp ? '#FF6B6B' : c.muted, fontWeight: '700' }}>▼ Down</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity style={{ flex: 1, backgroundColor: c.card2, borderRadius: 14, padding: 16, alignItems: 'center' }} onPress={() => setShowAddInv(false)}>
+                  <Text style={{ color: c.muted, fontWeight: '700' }}>{t('cancel')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={{ flex: 1, backgroundColor: c.accent, borderRadius: 14, padding: 16, alignItems: 'center', opacity: (!newInvName || !newInvValue) ? 0.4 : 1 }} onPress={addInvestment}>
+                  <Text style={{ color: '#fff', fontWeight: '700' }}>{t('add')}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Edit Investment */}
+        <Modal visible={!!editInv} transparent animationType="slide">
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
+            <View style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, borderWidth: 1, borderColor: c.border }}>
+              <Text style={{ color: c.text, fontSize: 18, fontWeight: '900', marginBottom: 20 }}>✏️ Edit Investment</Text>
+              {[
+                { label: t('name'),    val: editInvName,   set: setEditInvName,   ph: 'e.g. Apple Inc.',       kb: 'default'     as const },
+                { label: t('details'), val: editInvSub,    set: setEditInvSub,    ph: 'e.g. AAPL · 10 shares', kb: 'default'     as const },
+                { label: `${t('currentValue')} (${currencySymbol})`, val: editInvValue, set: setEditInvValue, ph: 'e.g. 1500.00', kb: 'decimal-pad' as const },
+                { label: t('changePercent'), val: editInvChange, set: setEditInvChange, ph: 'e.g. 2.5', kb: 'decimal-pad' as const },
+              ].map((f, i) => (
+                <View key={i} style={{ marginBottom: 12 }}>
+                  <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 6 }}>{f.label}</Text>
+                  <TextInput style={{ backgroundColor: c.card2, borderRadius: 12, padding: 14, color: c.text, fontSize: 15, borderWidth: 1, borderColor: c.border }} placeholder={f.ph} placeholderTextColor={c.muted} value={f.val} onChangeText={f.set} keyboardType={f.kb} />
+                </View>
+              ))}
+              <View style={{ flexDirection: 'row', gap: 10, marginBottom: 20 }}>
+                <TouchableOpacity style={{ flex: 1, backgroundColor: editInvUp ? '#00D4AA22' : c.card2, borderRadius: 12, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: editInvUp ? '#00D4AA' : c.border }} onPress={() => setEditInvUp(true)}>
+                  <Text style={{ color: editInvUp ? '#00D4AA' : c.muted, fontWeight: '700' }}>▲ Up</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={{ flex: 1, backgroundColor: !editInvUp ? '#FF6B6B22' : c.card2, borderRadius: 12, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: !editInvUp ? '#FF6B6B' : c.border }} onPress={() => setEditInvUp(false)}>
+                  <Text style={{ color: !editInvUp ? '#FF6B6B' : c.muted, fontWeight: '700' }}>▼ Down</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity style={{ flex: 1, backgroundColor: c.card2, borderRadius: 14, padding: 16, alignItems: 'center' }} onPress={() => setEditInv(null)}>
+                  <Text style={{ color: c.muted, fontWeight: '700' }}>{t('cancel')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={{ flex: 1, backgroundColor: c.accent, borderRadius: 14, padding: 16, alignItems: 'center' }} onPress={saveEditInv}>
+                  <Text style={{ color: '#fff', fontWeight: '700' }}>{t('save')}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Add Transaction */}
+        <Modal visible={showAddTxn} transparent animationType="slide">
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
+            <View style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, borderWidth: 1, borderColor: c.border }}>
+              <Text style={{ color: c.text, fontSize: 18, fontWeight: '900', marginBottom: 20 }}>{t('addTransaction')}</Text>
+              <View style={{ flexDirection: 'row', backgroundColor: c.card2, borderRadius: 50, padding: 4, marginBottom: 16, borderWidth: 1, borderColor: c.border }}>
+                <TouchableOpacity style={{ flex: 1, paddingVertical: 8, borderRadius: 50, alignItems: 'center', backgroundColor: newTxnType === 'expense' ? '#FF6B6B' : 'transparent' }} onPress={() => setNewTxnType('expense')}>
+                  <Text style={{ color: newTxnType === 'expense' ? '#fff' : c.muted, fontWeight: '700' }}>↓ {t('expense')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={{ flex: 1, paddingVertical: 8, borderRadius: 50, alignItems: 'center', backgroundColor: newTxnType === 'income' ? '#00D4AA' : 'transparent' }} onPress={() => setNewTxnType('income')}>
+                  <Text style={{ color: newTxnType === 'income' ? '#fff' : c.muted, fontWeight: '700' }}>↑ {t('income')}</Text>
+                </TouchableOpacity>
+              </View>
+              {[
+                { label: t('name'),   val: newTxnName, set: setNewTxnName, ph: 'e.g. Tesco',   kb: 'default'     as const },
+                { label: `${t('amount')} (${currencySymbol})`, val: newTxnAmt, set: setNewTxnAmt, ph: 'e.g. 42.80', kb: 'decimal-pad' as const },
+              ].map((f, i) => (
+                <View key={i} style={{ marginBottom: 12 }}>
+                  <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 6 }}>{f.label}</Text>
+                  <TextInput style={{ backgroundColor: c.card2, borderRadius: 12, padding: 14, color: c.text, fontSize: 15, borderWidth: 1, borderColor: c.border }} placeholder={f.ph} placeholderTextColor={c.muted} value={f.val} onChangeText={f.set} keyboardType={f.kb} />
+                </View>
+              ))}
+              <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 8 }}>{t('category')}</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
+                {Object.keys(CAT_ICONS).slice(0, 13).map(cat => (
+                  <TouchableOpacity key={cat} style={{ backgroundColor: newTxnCat === cat ? c.accent : c.card2, borderRadius: 50, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: newTxnCat === cat ? c.accent : c.border }} onPress={() => setNewTxnCat(cat)}>
+                    <Text style={{ color: newTxnCat === cat ? '#fff' : c.muted, fontSize: 12, fontWeight: '600' }}>{CAT_ICONS[cat]} {cat}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity style={{ flex: 1, backgroundColor: c.card2, borderRadius: 14, padding: 16, alignItems: 'center' }} onPress={() => setShowAddTxn(false)}>
+                  <Text style={{ color: c.muted, fontWeight: '700' }}>{t('cancel')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={{ flex: 1, backgroundColor: c.accent, borderRadius: 14, padding: 16, alignItems: 'center', opacity: (!newTxnName || !newTxnAmt) ? 0.4 : 1 }} onPress={addTransaction}>
+                  <Text style={{ color: '#fff', fontWeight: '700' }}>{t('add')}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Receipt Scanner */}
+        <ReceiptScanner visible={showScanner} onClose={() => setShowScanner(false)}
+          onAdd={txns => {
+            const mapped = txns.map(tx => ({
+              id: Date.now().toString() + Math.random(),
+              icon: tx.icon || CAT_ICONS[tx.cat] || '💳',
+              name: tx.name, cat: tx.cat,
+              amount: -Math.abs(tx.amount), type: 'expense' as const,
+              date: new Date().toLocaleDateString('en-GB'),
+            }));
+            setTransactions([...mapped, ...transactions]);
+          }}
+        />
+
+        <TrialPrompt />
+        <Paywall visible={showPaywall} onClose={() => setShowPaywall(false)} />
+        <Paywall visible={showExpiredPaywall} onClose={() => setShowExpiredPaywall(false)} required={true} />
+
+      </ScrollView>
+
+      {/* FIX 1: ProfileModal outside ScrollView — no more gesture conflicts */}
       <ProfileModal visible={showProfile} onClose={handleProfileClose} />
 
-      {/* Balance Card */}
-      <TouchableOpacity
-        style={{ backgroundColor: c.card, borderRadius: 24, padding: 24, borderWidth: 1, borderColor: c.border, marginBottom: 16 }}
-        onPress={() => showCardsOk && setShowCards(!showCards)}
-        activeOpacity={showCardsOk ? 0.85 : 1}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Text style={{ color: c.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1.5 }}>
-            {t('netWorth')}  {showCardsOk ? (showCards ? '▲' : '▼') : ''}
-          </Text>
-          {plan === 'trial' && trialDaysLeft > 0 && (
-            <View style={{ backgroundColor: '#FFD70022', borderRadius: 50, paddingHorizontal: 10, paddingVertical: 3, borderWidth: 1, borderColor: '#FFD70044' }}>
-              <Text style={{ color: '#FFD700', fontSize: 10, fontWeight: '700' }}>👑 {t('trialPlan')} · {trialDaysLeft}d</Text>
-            </View>
-          )}
-          {(plan === 'pro' || plan === 'premium') && (
-            <View style={{ backgroundColor: plan === 'premium' ? '#FFD70022' : '#6C63FF22', borderRadius: 50, paddingHorizontal: 10, paddingVertical: 3, borderWidth: 1, borderColor: plan === 'premium' ? '#FFD70044' : '#6C63FF44' }}>
-              <Text style={{ color: plan === 'premium' ? '#FFD700' : '#6C63FF', fontSize: 10, fontWeight: '700' }}>
-                {plan === 'premium' ? '👑' : '⚡'} {plan === 'premium' ? t('premiumPlan') : t('proPlan')}
-              </Text>
-            </View>
-          )}
-        </View>
-        <Text style={{ color: netWorth < 0 ? '#FF6B6B' : c.text, fontSize: 36, fontWeight: '900', marginVertical: 6 }}>
-          {netWorth < 0 ? '-' : ''}{formatAmount(Math.abs(netWorth))}
-        </Text>
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
-          <View style={{ flex: 1, alignItems: 'center' }}>
-            <Text style={{ color: c.muted, fontSize: 11 }}>↑ {t('income')}</Text>
-            <Text style={{ color: '#00D4AA', fontSize: 14, fontWeight: '700', marginTop: 2 }}>{formatAmount(totalIncome)}</Text>
-          </View>
-          <View style={{ width: 1, height: 30, backgroundColor: 'rgba(255,255,255,0.1)' }} />
-          <View style={{ flex: 1, alignItems: 'center' }}>
-            <Text style={{ color: c.muted, fontSize: 11 }}>↓ {t('expenses')}</Text>
-            <Text style={{ color: '#FF6B6B', fontSize: 14, fontWeight: '700', marginTop: 2 }}>{formatAmount(totalExpense)}</Text>
-          </View>
-          {showCardsOk && (
-            <>
-              <View style={{ width: 1, height: 30, backgroundColor: 'rgba(255,255,255,0.1)' }} />
-              <View style={{ flex: 1, alignItems: 'center' }}>
-                <Text style={{ color: c.muted, fontSize: 11 }}>📈 {t('invested')}</Text>
-                <Text style={{ color: '#a89fff', fontSize: 14, fontWeight: '700', marginTop: 2 }}>{formatAmount(totalInvest)}</Text>
-              </View>
-            </>
-          )}
-        </View>
-        {showCardsOk
-          ? <Text style={{ color: c.accent, fontSize: 11, fontWeight: '600', marginTop: 12, textAlign: 'center' }}>{showCards ? t('tapToHide') : t('tapToView')}</Text>
-          : <TouchableOpacity onPress={() => setShowPaywall(true)}><Text style={{ color: c.muted, fontSize: 11, marginTop: 10, textAlign: 'center' }}>🔒 {t('upgradeProCards')}</Text></TouchableOpacity>
-        }
-      </TouchableOpacity>
+      {/* FIX 2: RecurringBills outside ScrollView — no more nested pageSheet issue */}
+      <RecurringBills visible={showBills} onClose={() => setShowBills(false)} />
 
-      {/* Cards & Investments */}
-      {showCards && showCardsOk && (
-        <View style={{ backgroundColor: c.card, borderRadius: 20, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: c.border }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <Text style={{ color: c.muted, fontSize: 12, fontWeight: '700', textTransform: 'uppercase' }}>💳 {t('cards')}</Text>
-            <TouchableOpacity style={{ backgroundColor: c.accent + '22', borderRadius: 50, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: c.accent + '55' }} onPress={() => setShowAddCard(true)}>
-              <Text style={{ color: c.accent, fontSize: 11, fontWeight: '700' }}>＋ {t('add')}</Text>
-            </TouchableOpacity>
-          </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
-            {cards.length === 0 && (
-              <View style={{ justifyContent: 'center', alignItems: 'center', padding: 20, width: 220 }}>
-                <Text style={{ color: c.muted, fontSize: 13, textAlign: 'center' }}>{t('noCards')}</Text>
-              </View>
-            )}
-            {cards.map(card => (
-              <TouchableOpacity key={card.id} onLongPress={() => setCards(cards.filter(item => item.id !== card.id))}
-                style={{ width: 220, borderRadius: 18, padding: 16, marginRight: 12, height: 120, justifyContent: 'space-between', backgroundColor: card.color }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                  <Text style={{ color: '#fff', fontSize: 13, fontWeight: '800' }}>{card.bank}</Text>
-                  <View style={{ width: 24, height: 18, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.3)' }} />
-                </View>
-                <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 10 }}>{card.type}</Text>
-                <Text style={{ fontSize: 18, fontWeight: '900', color: card.positive ? '#fff' : '#FF6B6B' }}>
-                  {card.positive ? '' : '-'}{formatAmount(Math.abs(card.balance))}
-                </Text>
-                <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10, letterSpacing: 1 }}>•••• •••• •••• {card.number}</Text>
-              </TouchableOpacity>
-            ))}
-            <TouchableOpacity onPress={() => setShowAddCard(true)} style={{ width: 100, borderRadius: 18, height: 120, justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, borderColor: c.accent + '55', borderStyle: 'dashed' }}>
-              <Ionicons name="add" size={28} color={c.accent} />
-              <Text style={{ color: c.accent, fontSize: 11, marginTop: 4, fontWeight: '600' }}>{t('addCard')}</Text>
-            </TouchableOpacity>
-          </ScrollView>
-
-          {showInvest ? (
-            <>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <Text style={{ color: c.muted, fontSize: 12, fontWeight: '700', textTransform: 'uppercase' }}>📈 {t('investments')}</Text>
-                <TouchableOpacity style={{ backgroundColor: c.accent + '22', borderRadius: 50, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: c.accent + '55' }} onPress={() => setShowAddInv(true)}>
-                  <Text style={{ color: c.accent, fontSize: 11, fontWeight: '700' }}>＋ {t('add')}</Text>
-                </TouchableOpacity>
-              </View>
-              {investments.length === 0 && <View style={{ alignItems: 'center', padding: 20 }}><Text style={{ color: c.muted, fontSize: 13, textAlign: 'center' }}>{t('noInvestments')}</Text></View>}
-              {investments.map(inv => (
-                <View key={inv.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: c.border }}>
-                  <TouchableOpacity onLongPress={() => setInvestments(investments.filter(i => i.id !== inv.id))} style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-                    <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: c.card2, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-                      <Text style={{ fontSize: 20 }}>{inv.icon}</Text>
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ color: c.text, fontSize: 14, fontWeight: '700' }}>{inv.name}</Text>
-                      <Text style={{ color: c.muted, fontSize: 11, marginTop: 2 }}>{inv.sub}</Text>
-                    </View>
-                    <View style={{ alignItems: 'flex-end', marginRight: 10 }}>
-                      <Text style={{ color: c.text, fontSize: 14, fontWeight: '800' }}>{formatAmount(inv.value)}</Text>
-                      <Text style={{ fontSize: 11, fontWeight: '700', color: inv.up ? '#00D4AA' : '#FF6B6B' }}>{inv.up ? '▲' : '▼'} {inv.change}%</Text>
-                    </View>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => openEditInv(inv)} style={{ backgroundColor: c.card2, borderRadius: 8, padding: 6, borderWidth: 1, borderColor: c.border }}>
-                    <Ionicons name="create-outline" size={16} color={c.accent} />
-                  </TouchableOpacity>
-                </View>
-              ))}
-              <TouchableOpacity onPress={() => setShowAddInv(true)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12 }}>
-                <Ionicons name="add-circle-outline" size={16} color={c.accent} />
-                <Text style={{ color: c.accent, fontSize: 13, fontWeight: '600' }}>{t('addInvestment')}</Text>
-              </TouchableOpacity>
-            </>
-          ) : (
-            <TouchableOpacity onPress={() => setShowPaywall(true)} style={{ backgroundColor: c.card2, borderRadius: 14, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: c.border, flexDirection: 'row', justifyContent: 'center', gap: 8 }}>
-              <Ionicons name="lock-closed" size={14} color={c.muted} />
-              <Text style={{ color: c.muted, fontSize: 13 }}>{t('upgradePremiumInvest')}</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      )}
-
-      {/* Quick Actions */}
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20, gap: 8 }}>
-        {selectedTabs.map(action => (
-          <TouchableOpacity key={action.label}
-            style={{ alignItems: 'center', backgroundColor: c.card, borderRadius: 16, padding: 14, flex: 1, borderWidth: 1, borderColor: c.border }}
-            onPress={() => router.push(action.route as any)}>
-            <Ionicons name={action.icon as any} size={22} color={c.accent} />
-            <Text style={{ color: c.muted, fontSize: 10, marginTop: 6, fontWeight: '600', textAlign: 'center' }}>{action.display}</Text>
-          </TouchableOpacity>
-        ))}
-        <TouchableOpacity
-          style={{ alignItems: 'center', backgroundColor: c.card, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: c.accent + '55', justifyContent: 'center' }}
-          onPress={() => setShowTabPicker(true)}>
-          <Ionicons name="create" size={22} color={c.accent} />
-          <Text style={{ color: c.accent, fontSize: 10, marginTop: 6, fontWeight: '600', textAlign: 'center' }}>Edit</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Search */}
-      <TouchableOpacity
-        style={{ backgroundColor: c.card, borderRadius: 14, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: showSearch ? c.accent : c.border, flexDirection: 'row', alignItems: 'center', gap: 10 }}
-        onPress={() => setShowSearch(!showSearch)}>
-        <Ionicons name="search" size={18} color={showSearch ? c.accent : c.muted} />
-        <Text style={{ color: showSearch ? c.accent : c.muted, fontSize: 14, fontWeight: '600' }}>{t('searchTransactions')}</Text>
-      </TouchableOpacity>
-
-      {showSearch && (
-        <View style={{ backgroundColor: c.card, borderRadius: 20, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: c.accent + '4D' }}>
-          <TextInput style={{ color: c.text, fontSize: 15, paddingVertical: 4, marginBottom: 10 }} placeholder={t('searchTransactions')} placeholderTextColor={c.muted} value={search} onChangeText={setSearch} autoFocus />
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            {(['all','income','expense'] as const).map(f => (
-              <TouchableOpacity key={f} style={{ paddingHorizontal: 14, paddingVertical: 6, borderRadius: 50, backgroundColor: filter === f ? c.accent : c.card2, borderWidth: 1, borderColor: filter === f ? c.accent : c.border }} onPress={() => setFilter(f)}>
-                <Text style={{ color: filter === f ? '#fff' : c.muted, fontSize: 12, fontWeight: '600' }}>
-                  {t(f === 'all' ? 'all' : f === 'income' ? 'income' : 'expense')}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-      )}
-
-      {/* Ad banner */}
-      {!hasFeature('adFree') && (
-        <TouchableOpacity onPress={() => setShowPaywall(true)} style={{ backgroundColor: c.card2, borderRadius: 12, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: c.border, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          <Ionicons name="megaphone-outline" size={16} color={c.muted} />
-          <Text style={{ color: c.muted, fontSize: 12, flex: 1 }}>{t('advertisement')} — {t('upgradeRemoveAds')}</Text>
-        </TouchableOpacity>
-      )}
-
-      {/* Recurring Bills bar */}
-      <TouchableOpacity
-        onPress={() => setShowBills(true)}
-        style={{ backgroundColor: c.card, borderRadius: 14, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: c.border, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-        <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: '#FF6B6B18', justifyContent: 'center', alignItems: 'center' }}>
-          <Ionicons name="repeat" size={18} color="#FF6B6B" />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={{ color: c.text, fontSize: 14, fontWeight: '700' }}>Recurring Bills</Text>
-          <Text style={{ color: c.muted, fontSize: 12, marginTop: 1 }}>
-            {bills.length > 0 ? `${bills.length} bill${bills.length !== 1 ? 's' : ''} · ${formatAmount(totalMonthlyBills)}/mo` : 'Tap to manage recurring bills'}
-          </Text>
-        </View>
-        <Ionicons name="chevron-forward" size={18} color={c.muted} />
-      </TouchableOpacity>
-
-      {/* Transactions */}
-      <View style={{ marginBottom: 30 }}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-          <Text style={{ color: c.text, fontSize: 17, fontWeight: '800' }}>{t('recentTransactions')}</Text>
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            <TouchableOpacity style={{ backgroundColor: c.card2, borderRadius: 50, paddingHorizontal: 12, paddingVertical: 5, borderWidth: 1, borderColor: c.border, flexDirection: 'row', alignItems: 'center', gap: 5 }} onPress={() => setShowScanner(true)}>
-              <Ionicons name="scan-outline" size={13} color={c.text} />
-              <Text style={{ color: c.text, fontSize: 12, fontWeight: '700' }}>Scan</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={{ backgroundColor: c.accent + '22', borderRadius: 50, paddingHorizontal: 12, paddingVertical: 5, borderWidth: 1, borderColor: c.accent + '55', flexDirection: 'row', alignItems: 'center', gap: 5 }} onPress={() => setShowAddTxn(true)}>
-              <Ionicons name="add" size={14} color={c.accent} />
-              <Text style={{ color: c.accent, fontSize: 12, fontWeight: '700' }}>{t('add')}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {filtered.length === 0 && (
-          <View style={{ alignItems: 'center', padding: 30 }}>
-            <Ionicons name="receipt-outline" size={48} color={c.muted} style={{ marginBottom: 10 }} />
-            <Text style={{ color: c.muted, fontSize: 14, textAlign: 'center' }}>{t('noTransactions')}</Text>
-          </View>
-        )}
-
-        {displayTxns.map(txn => (
-          <TouchableOpacity key={txn.id} onLongPress={() => setTransactions(transactions.filter(tx => tx.id !== txn.id))}
-            style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: c.card, borderRadius: 16, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: c.border }}>
-            <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: c.card2, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-              <Text style={{ fontSize: 18 }}>{txn.icon}</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: c.text, fontSize: 15, fontWeight: '600' }}>{txn.name}</Text>
-              <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>{txn.cat}</Text>
-            </View>
-            <Text style={{ fontSize: 15, fontWeight: '700', color: txn.amount > 0 ? '#00D4AA' : '#FF6B6B' }}>
-              {txn.amount > 0 ? '+' : '-'}{formatAmount(Math.abs(txn.amount))}
-            </Text>
-          </TouchableOpacity>
-        ))}
-
-        {!hasFeature('unlimitedTransactions') && transactions.length > maxTransactions && (
-          <TouchableOpacity onPress={() => setShowPaywall(true)} style={{ backgroundColor: c.accent + '18', borderRadius: 14, padding: 14, alignItems: 'center', marginTop: 8, borderWidth: 1, borderColor: c.accent + '44', flexDirection: 'row', justifyContent: 'center', gap: 8 }}>
-            <Ionicons name="lock-closed" size={14} color={c.accent} />
-            <Text style={{ color: c.accent, fontSize: 13, fontWeight: '700' }}>{t('upgradeProCards')} — {transactions.length - maxTransactions} more hidden</Text>
-          </TouchableOpacity>
-        )}
-        <Text style={{ color: c.muted, fontSize: 11, textAlign: 'center', marginTop: 4 }}>{t('longPressDelete')}</Text>
-      </View>
-
-      {/* ── Modals ──────────────────────────────────────────────────────────────── */}
-
-      {/* Recurring Bills Modal */}
-      <Modal visible={showBills} animationType="slide" presentationStyle="pageSheet">
-        <View style={{ flex: 1, backgroundColor: c.dark }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: c.border }}>
-            <Text style={{ color: c.text, fontSize: 22, fontWeight: '900' }}>Recurring Bills</Text>
-            <TouchableOpacity onPress={() => setShowBills(false)} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: c.card, justifyContent: 'center', alignItems: 'center' }}>
-              <Ionicons name="close" size={20} color={c.muted} />
-            </TouchableOpacity>
-          </View>
-          <ScrollView style={{ flex: 1, paddingHorizontal: 20 }} showsVerticalScrollIndicator={false}>
-            <View style={{ backgroundColor: c.card, borderRadius: 20, padding: 18, borderWidth: 1, borderColor: c.border, marginTop: 20, marginBottom: 20 }}>
-              <Text style={{ color: c.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1.2 }}>MONTHLY OUTGOINGS</Text>
-              <Text style={{ color: '#FF6B6B', fontSize: 30, fontWeight: '900', marginTop: 4 }}>{formatAmount(totalMonthlyBills)}</Text>
-              <Text style={{ color: c.muted, fontSize: 13 }}>{bills.length} recurring bill{bills.length !== 1 ? 's' : ''}</Text>
-            </View>
-
-            {bills.length === 0 && (
-              <View style={{ alignItems: 'center', padding: 40 }}>
-                <Ionicons name="repeat-outline" size={48} color={c.muted} style={{ marginBottom: 12 }} />
-                <Text style={{ color: c.text, fontSize: 18, fontWeight: '800', marginBottom: 8 }}>No bills yet</Text>
-                <Text style={{ color: c.muted, fontSize: 13, textAlign: 'center' }}>Track your recurring bills and pay them with one tap</Text>
-              </View>
-            )}
-
-            {bills.map(bill => {
-              const linkedCard = cards.find(card => card.id === bill.cardId);
-              return (
-                <View key={bill.id} style={{ backgroundColor: c.card, borderRadius: 20, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: c.border }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-                    <View style={{ width: 46, height: 46, borderRadius: 14, backgroundColor: bill.color + '22', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-                      <Text style={{ fontSize: 22 }}>{bill.icon}</Text>
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ color: c.text, fontSize: 15, fontWeight: '700' }}>{bill.name}</Text>
-                      <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>
-                        {FREQUENCIES.find(f => f.key === bill.frequency)?.label} · Due {bill.nextDue}
-                      </Text>
-                      {linkedCard && (
-                        <Text style={{ color: c.accent, fontSize: 11, marginTop: 2 }}>💳 {linkedCard.bank} ···· {linkedCard.number}</Text>
-                      )}
-                    </View>
-                    <View style={{ alignItems: 'flex-end', gap: 8 }}>
-                      <Text style={{ color: '#FF6B6B', fontSize: 16, fontWeight: '800' }}>{formatAmount(bill.amount)}</Text>
-                      <TouchableOpacity onPress={() => deleteBill(bill.id)}>
-                        <Ionicons name="trash-outline" size={16} color={c.muted} />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                  <TouchableOpacity onPress={() => handlePayBill(bill)}
-                    style={{ backgroundColor: '#00D4AA22', borderRadius: 12, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: '#00D4AA44', flexDirection: 'row', justifyContent: 'center', gap: 8 }}>
-                    <Ionicons name="checkmark-circle-outline" size={18} color="#00D4AA" />
-                    <Text style={{ color: '#00D4AA', fontSize: 13, fontWeight: '700' }}>Mark as Paid</Text>
-                  </TouchableOpacity>
-                </View>
-              );
-            })}
-
-            <TouchableOpacity onPress={() => setShowAddBill(true)}
-              style={{ backgroundColor: c.card, borderRadius: 16, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: c.accent + '4D', marginBottom: 40, borderStyle: 'dashed', flexDirection: 'row', justifyContent: 'center', gap: 8 }}>
-              <Ionicons name="add-circle-outline" size={18} color={c.accent} />
-              <Text style={{ color: c.accent, fontSize: 15, fontWeight: '700' }}>Add Recurring Bill</Text>
-            </TouchableOpacity>
-          </ScrollView>
-        </View>
-      </Modal>
-
-      {/* Add Bill Modal */}
-      <Modal visible={showAddBill} transparent animationType="slide">
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
-          <ScrollView style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, borderColor: c.border }} showsVerticalScrollIndicator={false}>
-            <View style={{ padding: 24 }}>
-              <Text style={{ color: c.text, fontSize: 20, fontWeight: '900', marginBottom: 20, textAlign: 'center' }}>Add Recurring Bill</Text>
-              {[
-                { label: 'Bill Name', val: billName, set: setBillName, ph: 'e.g. Netflix', kb: 'default' as const },
-                { label: `Amount (${currencySymbol})`, val: billAmount, set: setBillAmount, ph: 'e.g. 9.99', kb: 'decimal-pad' as const },
-                { label: 'Next Due (DD/MM/YYYY)', val: billDue, set: setBillDue, ph: new Date().toLocaleDateString('en-GB'), kb: 'default' as const },
-              ].map((f, i) => (
-                <View key={i} style={{ marginBottom: 12 }}>
-                  <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 6 }}>{f.label}</Text>
-                  <TextInput style={{ backgroundColor: c.card2, borderRadius: 12, padding: 14, color: c.text, fontSize: 15, borderWidth: 1, borderColor: c.border }} placeholder={f.ph} placeholderTextColor={c.muted} value={f.val} onChangeText={f.set} keyboardType={f.kb} />
-                </View>
-              ))}
-              <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 8 }}>Frequency</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-                {FREQUENCIES.map(f => (
-                  <TouchableOpacity key={f.key} onPress={() => setBillFreq(f.key)}
-                    style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 50, backgroundColor: billFreq === f.key ? c.accent : c.card2, borderWidth: 1, borderColor: billFreq === f.key ? c.accent : c.border }}>
-                    <Text style={{ color: billFreq === f.key ? '#fff' : c.muted, fontSize: 13, fontWeight: '600' }}>{f.label}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 8 }}>Link to Card (optional)</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
-                <TouchableOpacity onPress={() => setBillCardId(null)}
-                  style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 50, backgroundColor: billCardId === null ? c.accent : c.card2, borderWidth: 1, borderColor: billCardId === null ? c.accent : c.border, marginRight: 8 }}>
-                  <Text style={{ color: billCardId === null ? '#fff' : c.muted, fontSize: 12, fontWeight: '600' }}>None</Text>
-                </TouchableOpacity>
-                {cards.map(card => (
-                  <TouchableOpacity key={card.id} onPress={() => setBillCardId(card.id)}
-                    style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 50, backgroundColor: billCardId === card.id ? c.accent : c.card2, borderWidth: 1, borderColor: billCardId === card.id ? c.accent : c.border, marginRight: 8 }}>
-                    <Text style={{ color: billCardId === card.id ? '#fff' : c.muted, fontSize: 12, fontWeight: '600' }}>{card.bank} ···· {card.number}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-              <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 8 }}>Pick Icon</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-                {BILL_ICONS.map(ic => (
-                  <TouchableOpacity key={ic} style={{ width: 42, height: 42, borderRadius: 10, backgroundColor: c.card2, justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, borderColor: billIcon === ic ? c.accent : 'transparent' }} onPress={() => setBillIcon(ic)}>
-                    <Text style={{ fontSize: 20 }}>{ic}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 8 }}>Pick Colour</Text>
-              <View style={{ flexDirection: 'row', gap: 10, marginBottom: 20 }}>
-                {BILL_COLORS.map(col => (
-                  <TouchableOpacity key={col} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: col, borderWidth: 2.5, borderColor: billColor === col ? '#fff' : 'transparent' }} onPress={() => setBillColor(col)} />
-                ))}
-              </View>
-              <View style={{ flexDirection: 'row', gap: 10, marginBottom: 40 }}>
-                <TouchableOpacity style={{ flex: 1, backgroundColor: c.card2, borderRadius: 14, padding: 16, alignItems: 'center' }} onPress={() => setShowAddBill(false)}>
-                  <Text style={{ color: c.muted, fontWeight: '700' }}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={{ flex: 1, backgroundColor: c.accent, borderRadius: 14, padding: 16, alignItems: 'center', opacity: (!billName || !billAmount) ? 0.4 : 1 }} onPress={handleAddBill} disabled={!billName || !billAmount}>
-                  <Text style={{ color: '#fff', fontWeight: '700' }}>Add Bill</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </ScrollView>
-        </View>
-      </Modal>
-
-      {/* Tab Picker */}
-      <Modal visible={showTabPicker} transparent animationType="slide">
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
-          <View style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, borderWidth: 1, borderColor: c.border }}>
-            <Text style={{ color: c.text, fontSize: 18, fontWeight: '900', marginBottom: 6 }}>{t('customiseQuickActions')}</Text>
-            <Text style={{ color: c.muted, fontSize: 13, marginBottom: 20 }}>{t('chooseShortcuts')} ({selectedTabs.length}/3)</Text>
-            {ALL_TABS.map(tab => {
-              const isSel = !!selectedTabs.find(t => t.label === tab.label);
-              const isDis = !isSel && selectedTabs.length >= 3;
-              return (
-                <TouchableOpacity key={tab.label}
-                  style={{ flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 14, marginBottom: 8, backgroundColor: isSel ? c.accent + '22' : c.card2, borderWidth: 1, borderColor: isSel ? c.accent : c.border, opacity: isDis ? 0.4 : 1 }}
-                  onPress={() => !isDis && toggleTab(tab)} disabled={isDis}>
-                  <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: isSel ? c.accent + '33' : c.card, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-                    <Ionicons name={tab.icon as any} size={18} color={isSel ? c.accent : c.muted} />
-                  </View>
-                  <Text style={{ color: c.text, fontSize: 14, fontWeight: '600', flex: 1 }}>{tab.display}</Text>
-                  {isSel && <Ionicons name="checkmark-circle" size={20} color={c.accent} />}
-                </TouchableOpacity>
-              );
-            })}
-            <TouchableOpacity style={{ backgroundColor: c.accent, borderRadius: 14, padding: 16, alignItems: 'center', marginTop: 8 }} onPress={() => setShowTabPicker(false)}>
-              <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15 }}>{t('done')}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Add Card */}
-      <Modal visible={showAddCard} transparent animationType="slide">
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
-          <View style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, borderWidth: 1, borderColor: c.border }}>
-            <Text style={{ color: c.text, fontSize: 18, fontWeight: '900', marginBottom: 20 }}>{t('addCard')}</Text>
-            {[
-              { label: t('bankName'),       val: newBank,     set: setNewBank,     ph: 'e.g. Barclays',     kb: 'default'     as const },
-              { label: t('cardType'),       val: newCardType, set: setNewCardType, ph: 'e.g. Debit · Visa', kb: 'default'     as const },
-              { label: `${t('balance')} (${currencySymbol})`, val: newBalance, set: setNewBalance, ph: 'e.g. 1500.00', kb: 'decimal-pad' as const },
-              { label: t('lastFourDigits'), val: newNumber,   set: setNewNumber,   ph: 'e.g. 1234',         kb: 'number-pad'  as const },
-            ].map((f, i) => (
-              <View key={i} style={{ marginBottom: 12 }}>
-                <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 6 }}>{f.label}</Text>
-                <TextInput style={{ backgroundColor: c.card2, borderRadius: 12, padding: 14, color: c.text, fontSize: 15, borderWidth: 1, borderColor: c.border }} placeholder={f.ph} placeholderTextColor={c.muted} value={f.val} onChangeText={f.set} keyboardType={f.kb} />
-              </View>
-            ))}
-            <TouchableOpacity onPress={() => setNewBalanceNegative(!newBalanceNegative)}
-              style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: c.card2, borderRadius: 12, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: newBalanceNegative ? '#FF6B6B' : c.border, gap: 12 }}>
-              <Ionicons name="card-outline" size={20} color={newBalanceNegative ? '#FF6B6B' : c.muted} />
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: c.text, fontSize: 14, fontWeight: '700' }}>Negative Balance</Text>
-                <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>Overdraft or credit card debt</Text>
-              </View>
-              <View style={{ width: 46, height: 26, borderRadius: 50, backgroundColor: newBalanceNegative ? '#FF6B6B' : c.card, borderWidth: 1, borderColor: newBalanceNegative ? '#FF6B6B' : c.border, position: 'relative' }}>
-                <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: newBalanceNegative ? '#fff' : c.muted, position: 'absolute', top: 2, left: newBalanceNegative ? 22 : 2 }} />
-              </View>
-            </TouchableOpacity>
-            <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 8 }}>{t('cardColour')}</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20 }}>
-              <View style={{ flexDirection: 'row', gap: 10, paddingVertical: 4 }}>
-                {CARD_COLORS.map(col => (
-                  <TouchableOpacity key={col} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: col, borderWidth: 2.5, borderColor: newCardColor === col ? '#fff' : 'transparent' }} onPress={() => setNewCardColor(col)} />
-                ))}
-              </View>
-            </ScrollView>
-            <View style={{ flexDirection: 'row', gap: 10 }}>
-              <TouchableOpacity style={{ flex: 1, backgroundColor: c.card2, borderRadius: 14, padding: 16, alignItems: 'center' }} onPress={() => setShowAddCard(false)}>
-                <Text style={{ color: c.muted, fontWeight: '700' }}>{t('cancel')}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={{ flex: 1, backgroundColor: c.accent, borderRadius: 14, padding: 16, alignItems: 'center', opacity: (!newBank || !newBalance) ? 0.4 : 1 }} onPress={addCard}>
-                <Text style={{ color: '#fff', fontWeight: '700' }}>{t('addCard')}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Add Investment */}
-      <Modal visible={showAddInv} transparent animationType="slide">
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
-          <View style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, borderWidth: 1, borderColor: c.border }}>
-            <Text style={{ color: c.text, fontSize: 18, fontWeight: '900', marginBottom: 20 }}>{t('addInvestment')}</Text>
-            {[
-              { label: t('name'),    val: newInvName,   set: setNewInvName,   ph: 'e.g. Apple Inc.',       kb: 'default'     as const },
-              { label: t('details'), val: newInvSub,    set: setNewInvSub,    ph: 'e.g. AAPL · 10 shares', kb: 'default'     as const },
-              { label: `${t('currentValue')} (${currencySymbol})`, val: newInvValue, set: setNewInvValue, ph: 'e.g. 1500.00', kb: 'decimal-pad' as const },
-              { label: t('changePercent'), val: newInvChange, set: setNewInvChange, ph: 'e.g. 2.5', kb: 'decimal-pad' as const },
-            ].map((f, i) => (
-              <View key={i} style={{ marginBottom: 12 }}>
-                <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 6 }}>{f.label}</Text>
-                <TextInput style={{ backgroundColor: c.card2, borderRadius: 12, padding: 14, color: c.text, fontSize: 15, borderWidth: 1, borderColor: c.border }} placeholder={f.ph} placeholderTextColor={c.muted} value={f.val} onChangeText={f.set} keyboardType={f.kb} />
-              </View>
-            ))}
-            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 20 }}>
-              <TouchableOpacity style={{ flex: 1, backgroundColor: newInvUp ? '#00D4AA22' : c.card2, borderRadius: 12, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: newInvUp ? '#00D4AA' : c.border }} onPress={() => setNewInvUp(true)}>
-                <Text style={{ color: newInvUp ? '#00D4AA' : c.muted, fontWeight: '700' }}>▲ Up</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={{ flex: 1, backgroundColor: !newInvUp ? '#FF6B6B22' : c.card2, borderRadius: 12, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: !newInvUp ? '#FF6B6B' : c.border }} onPress={() => setNewInvUp(false)}>
-                <Text style={{ color: !newInvUp ? '#FF6B6B' : c.muted, fontWeight: '700' }}>▼ Down</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={{ flexDirection: 'row', gap: 10 }}>
-              <TouchableOpacity style={{ flex: 1, backgroundColor: c.card2, borderRadius: 14, padding: 16, alignItems: 'center' }} onPress={() => setShowAddInv(false)}>
-                <Text style={{ color: c.muted, fontWeight: '700' }}>{t('cancel')}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={{ flex: 1, backgroundColor: c.accent, borderRadius: 14, padding: 16, alignItems: 'center', opacity: (!newInvName || !newInvValue) ? 0.4 : 1 }} onPress={addInvestment}>
-                <Text style={{ color: '#fff', fontWeight: '700' }}>{t('add')}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Edit Investment */}
-      <Modal visible={!!editInv} transparent animationType="slide">
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
-          <View style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, borderWidth: 1, borderColor: c.border }}>
-            <Text style={{ color: c.text, fontSize: 18, fontWeight: '900', marginBottom: 20 }}>✏️ Edit Investment</Text>
-            {[
-              { label: t('name'),    val: editInvName,   set: setEditInvName,   ph: 'e.g. Apple Inc.',       kb: 'default'     as const },
-              { label: t('details'), val: editInvSub,    set: setEditInvSub,    ph: 'e.g. AAPL · 10 shares', kb: 'default'     as const },
-              { label: `${t('currentValue')} (${currencySymbol})`, val: editInvValue, set: setEditInvValue, ph: 'e.g. 1500.00', kb: 'decimal-pad' as const },
-              { label: t('changePercent'), val: editInvChange, set: setEditInvChange, ph: 'e.g. 2.5', kb: 'decimal-pad' as const },
-            ].map((f, i) => (
-              <View key={i} style={{ marginBottom: 12 }}>
-                <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 6 }}>{f.label}</Text>
-                <TextInput style={{ backgroundColor: c.card2, borderRadius: 12, padding: 14, color: c.text, fontSize: 15, borderWidth: 1, borderColor: c.border }} placeholder={f.ph} placeholderTextColor={c.muted} value={f.val} onChangeText={f.set} keyboardType={f.kb} />
-              </View>
-            ))}
-            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 20 }}>
-              <TouchableOpacity style={{ flex: 1, backgroundColor: editInvUp ? '#00D4AA22' : c.card2, borderRadius: 12, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: editInvUp ? '#00D4AA' : c.border }} onPress={() => setEditInvUp(true)}>
-                <Text style={{ color: editInvUp ? '#00D4AA' : c.muted, fontWeight: '700' }}>▲ Up</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={{ flex: 1, backgroundColor: !editInvUp ? '#FF6B6B22' : c.card2, borderRadius: 12, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: !editInvUp ? '#FF6B6B' : c.border }} onPress={() => setEditInvUp(false)}>
-                <Text style={{ color: !editInvUp ? '#FF6B6B' : c.muted, fontWeight: '700' }}>▼ Down</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={{ flexDirection: 'row', gap: 10 }}>
-              <TouchableOpacity style={{ flex: 1, backgroundColor: c.card2, borderRadius: 14, padding: 16, alignItems: 'center' }} onPress={() => setEditInv(null)}>
-                <Text style={{ color: c.muted, fontWeight: '700' }}>{t('cancel')}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={{ flex: 1, backgroundColor: c.accent, borderRadius: 14, padding: 16, alignItems: 'center' }} onPress={saveEditInv}>
-                <Text style={{ color: '#fff', fontWeight: '700' }}>{t('save')}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Add Transaction */}
-      <Modal visible={showAddTxn} transparent animationType="slide">
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
-          <View style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, borderWidth: 1, borderColor: c.border }}>
-            <Text style={{ color: c.text, fontSize: 18, fontWeight: '900', marginBottom: 20 }}>{t('addTransaction')}</Text>
-            <View style={{ flexDirection: 'row', backgroundColor: c.card2, borderRadius: 50, padding: 4, marginBottom: 16, borderWidth: 1, borderColor: c.border }}>
-              <TouchableOpacity style={{ flex: 1, paddingVertical: 8, borderRadius: 50, alignItems: 'center', backgroundColor: newTxnType === 'expense' ? '#FF6B6B' : 'transparent' }} onPress={() => setNewTxnType('expense')}>
-                <Text style={{ color: newTxnType === 'expense' ? '#fff' : c.muted, fontWeight: '700' }}>↓ {t('expense')}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={{ flex: 1, paddingVertical: 8, borderRadius: 50, alignItems: 'center', backgroundColor: newTxnType === 'income' ? '#00D4AA' : 'transparent' }} onPress={() => setNewTxnType('income')}>
-                <Text style={{ color: newTxnType === 'income' ? '#fff' : c.muted, fontWeight: '700' }}>↑ {t('income')}</Text>
-              </TouchableOpacity>
-            </View>
-            {[
-              { label: t('name'),   val: newTxnName, set: setNewTxnName, ph: 'e.g. Tesco',   kb: 'default'     as const },
-              { label: `${t('amount')} (${currencySymbol})`, val: newTxnAmt, set: setNewTxnAmt, ph: 'e.g. 42.80', kb: 'decimal-pad' as const },
-            ].map((f, i) => (
-              <View key={i} style={{ marginBottom: 12 }}>
-                <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 6 }}>{f.label}</Text>
-                <TextInput style={{ backgroundColor: c.card2, borderRadius: 12, padding: 14, color: c.text, fontSize: 15, borderWidth: 1, borderColor: c.border }} placeholder={f.ph} placeholderTextColor={c.muted} value={f.val} onChangeText={f.set} keyboardType={f.kb} />
-              </View>
-            ))}
-            <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 8 }}>{t('category')}</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
-              {Object.keys(CAT_ICONS).slice(0, 13).map(cat => (
-                <TouchableOpacity key={cat} style={{ backgroundColor: newTxnCat === cat ? c.accent : c.card2, borderRadius: 50, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: newTxnCat === cat ? c.accent : c.border }} onPress={() => setNewTxnCat(cat)}>
-                  <Text style={{ color: newTxnCat === cat ? '#fff' : c.muted, fontSize: 12, fontWeight: '600' }}>{CAT_ICONS[cat]} {cat}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <View style={{ flexDirection: 'row', gap: 10 }}>
-              <TouchableOpacity style={{ flex: 1, backgroundColor: c.card2, borderRadius: 14, padding: 16, alignItems: 'center' }} onPress={() => setShowAddTxn(false)}>
-                <Text style={{ color: c.muted, fontWeight: '700' }}>{t('cancel')}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={{ flex: 1, backgroundColor: c.accent, borderRadius: 14, padding: 16, alignItems: 'center', opacity: (!newTxnName || !newTxnAmt) ? 0.4 : 1 }} onPress={addTransaction}>
-                <Text style={{ color: '#fff', fontWeight: '700' }}>{t('add')}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Add Bill Modal — must be OUTSIDE the bills modal to work on iOS */}
-      <Modal visible={showAddBill} transparent animationType="slide">
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
-          <ScrollView style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, borderColor: c.border }} showsVerticalScrollIndicator={false}>
-            <View style={{ padding: 24 }}>
-              <Text style={{ color: c.text, fontSize: 20, fontWeight: '900', marginBottom: 20, textAlign: 'center' }}>Add Recurring Bill</Text>
-              {[
-                { label: 'Bill Name', val: billName, set: setBillName, ph: 'e.g. Netflix', kb: 'default' as const },
-                { label: `Amount (${currencySymbol})`, val: billAmount, set: setBillAmount, ph: 'e.g. 9.99', kb: 'decimal-pad' as const },
-                { label: 'Next Due (DD/MM/YYYY)', val: billDue, set: setBillDue, ph: new Date().toLocaleDateString('en-GB'), kb: 'default' as const },
-              ].map((f, i) => (
-                <View key={i} style={{ marginBottom: 12 }}>
-                  <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 6 }}>{f.label}</Text>
-                  <TextInput style={{ backgroundColor: c.card2, borderRadius: 12, padding: 14, color: c.text, fontSize: 15, borderWidth: 1, borderColor: c.border }} placeholder={f.ph} placeholderTextColor={c.muted} value={f.val} onChangeText={f.set} keyboardType={f.kb} />
-                </View>
-              ))}
-              <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 8 }}>Frequency</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-                {FREQUENCIES.map(f => (
-                  <TouchableOpacity key={f.key} onPress={() => setBillFreq(f.key)}
-                    style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 50, backgroundColor: billFreq === f.key ? c.accent : c.card2, borderWidth: 1, borderColor: billFreq === f.key ? c.accent : c.border }}>
-                    <Text style={{ color: billFreq === f.key ? '#fff' : c.muted, fontSize: 13, fontWeight: '600' }}>{f.label}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 8 }}>Link to Card (optional)</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
-                <TouchableOpacity onPress={() => setBillCardId(null)}
-                  style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 50, backgroundColor: billCardId === null ? c.accent : c.card2, borderWidth: 1, borderColor: billCardId === null ? c.accent : c.border, marginRight: 8 }}>
-                  <Text style={{ color: billCardId === null ? '#fff' : c.muted, fontSize: 12, fontWeight: '600' }}>None</Text>
-                </TouchableOpacity>
-                {cards.map(card => (
-                  <TouchableOpacity key={card.id} onPress={() => setBillCardId(card.id)}
-                    style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 50, backgroundColor: billCardId === card.id ? c.accent : c.card2, borderWidth: 1, borderColor: billCardId === card.id ? c.accent : c.border, marginRight: 8 }}>
-                    <Text style={{ color: billCardId === card.id ? '#fff' : c.muted, fontSize: 12, fontWeight: '600' }}>{card.bank} ···· {card.number}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-              <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 8 }}>Pick Icon</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-                {BILL_ICONS.map(ic => (
-                  <TouchableOpacity key={ic} style={{ width: 42, height: 42, borderRadius: 10, backgroundColor: c.card2, justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, borderColor: billIcon === ic ? c.accent : 'transparent' }} onPress={() => setBillIcon(ic)}>
-                    <Text style={{ fontSize: 20 }}>{ic}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 8 }}>Pick Colour</Text>
-              <View style={{ flexDirection: 'row', gap: 10, marginBottom: 20 }}>
-                {BILL_COLORS.map(col => (
-                  <TouchableOpacity key={col} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: col, borderWidth: 2.5, borderColor: billColor === col ? '#fff' : 'transparent' }} onPress={() => setBillColor(col)} />
-                ))}
-              </View>
-              <View style={{ flexDirection: 'row', gap: 10, marginBottom: 40 }}>
-                <TouchableOpacity style={{ flex: 1, backgroundColor: c.card2, borderRadius: 14, padding: 16, alignItems: 'center' }} onPress={() => setShowAddBill(false)}>
-                  <Text style={{ color: c.muted, fontWeight: '700' }}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={{ flex: 1, backgroundColor: c.accent, borderRadius: 14, padding: 16, alignItems: 'center', opacity: (!billName || !billAmount) ? 0.4 : 1 }} onPress={handleAddBill} disabled={!billName || !billAmount}>
-                  <Text style={{ color: '#fff', fontWeight: '700' }}>Add Bill</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </ScrollView>
-        </View>
-      </Modal>
-
-      {/* Receipt Scanner */}
-      <ReceiptScanner visible={showScanner} onClose={() => setShowScanner(false)}
-        onAdd={txns => {
-          const mapped = txns.map(tx => ({
-            id: Date.now().toString() + Math.random(),
-            icon: tx.icon || CAT_ICONS[tx.cat] || '💳',
-            name: tx.name, cat: tx.cat,
-            amount: -Math.abs(tx.amount), type: 'expense' as const,
-            date: new Date().toLocaleDateString('en-GB'),
-          }));
-          setTransactions([...mapped, ...transactions]);
-        }}
-      />
-
-      <TrialPrompt />
-      <Paywall visible={showPaywall} onClose={() => setShowPaywall(false)} />
-      <Paywall visible={showExpiredPaywall} onClose={() => setShowExpiredPaywall(false)} required={true} />
-
-    </ScrollView>
+    </View>
   );
 }

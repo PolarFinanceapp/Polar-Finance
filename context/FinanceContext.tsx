@@ -17,6 +17,11 @@ export type Transaction = {
   cat: string; amount: number; type: string; date?: string;
 };
 
+export type CustomAsset = {
+  id: string; icon: string; name: string;
+  sub: string; value: number; change: number | null; category: string;
+};
+
 const CARD_COLORS = ['#1a1a4e','#1a2a1a','#2a1a00','#1a001a','#0a1428','#000500'];
 
 export const CAT_ICONS: Record<string, string> = {
@@ -27,11 +32,11 @@ export const CAT_ICONS: Record<string, string> = {
   'TRANSFER':'💸','RECREATION':'🎬','HEALTHCARE':'💊','HOME':'🏠',
 };
 
-// Storage keys — scoped per user so multiple accounts work correctly
 const keys = (uid: string) => ({
-  cards:       `polar_cards_${uid}`,
-  investments: `polar_investments_${uid}`,
-  transactions:`polar_transactions_${uid}`,
+  cards:        `polar_cards_${uid}`,
+  investments:  `polar_investments_${uid}`,
+  transactions: `polar_transactions_${uid}`,
+  assets:       `polar_assets_${uid}`,
 });
 
 type FinanceContextType = {
@@ -41,6 +46,8 @@ type FinanceContextType = {
   setInvestments:  (i: Investment[]) => void;
   transactions:    Transaction[];
   setTransactions: (t: Transaction[]) => void;
+  customAssets:    CustomAsset[];
+  setCustomAssets: (a: CustomAsset[]) => void;
   bankLinked:      boolean;
   setBankLinked:   (b: boolean) => void;
   loadPlaidData:   (userId: string) => Promise<void>;
@@ -50,14 +57,15 @@ type FinanceContextType = {
 const FinanceContext = createContext<FinanceContextType | null>(null);
 
 export function FinanceProvider({ children }: { children: ReactNode }) {
-  const [cards,        setCardsState]       = useState<Card[]>([]);
-  const [investments,  setInvestmentsState] = useState<Investment[]>([]);
-  const [transactions, setTransactionsState]= useState<Transaction[]>([]);
-  const [bankLinked,   setBankLinked]       = useState(false);
-  const [loading,      setLoading]          = useState(true);
-  const [userId,       setUserId]           = useState<string | null>(null);
+  const [cards,        setCardsState]        = useState<Card[]>([]);
+  const [investments,  setInvestmentsState]  = useState<Investment[]>([]);
+  const [transactions, setTransactionsState] = useState<Transaction[]>([]);
+  const [customAssets, setCustomAssetsState] = useState<CustomAsset[]>([]);
+  const [bankLinked,   setBankLinked]        = useState(false);
+  const [loading,      setLoading]           = useState(true);
+  const [userId,       setUserId]            = useState<string | null>(null);
 
-  // ── Load user ID then load their data ──────────────────────────────────────
+  // ── Load ──────────────────────────────────────────────────────────────────
   useEffect(() => {
     const init = async () => {
       try {
@@ -66,15 +74,17 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         setUserId(user.id);
 
         const k = keys(user.id);
-        const [cardsRaw, invRaw, txnRaw] = await Promise.all([
+        const [cardsRaw, invRaw, txnRaw, assetsRaw] = await Promise.all([
           AsyncStorage.getItem(k.cards),
           AsyncStorage.getItem(k.investments),
           AsyncStorage.getItem(k.transactions),
+          AsyncStorage.getItem(k.assets),
         ]);
 
-        if (cardsRaw)       setCardsState(JSON.parse(cardsRaw));
-        if (invRaw)         setInvestmentsState(JSON.parse(invRaw));
-        if (txnRaw)         setTransactionsState(JSON.parse(txnRaw));
+        if (cardsRaw)   setCardsState(JSON.parse(cardsRaw));
+        if (invRaw)     setInvestmentsState(JSON.parse(invRaw));
+        if (txnRaw)     setTransactionsState(JSON.parse(txnRaw));
+        if (assetsRaw)  setCustomAssetsState(JSON.parse(assetsRaw));
       } catch (e) {
         console.warn('FinanceContext load error:', e);
       } finally {
@@ -84,7 +94,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     init();
   }, []);
 
-  // ── Persist helpers ─────────────────────────────────────────────────────────
+  // ── Persist helper ─────────────────────────────────────────────────────────
   const save = async (key: string, data: any) => {
     try {
       await AsyncStorage.setItem(key, JSON.stringify(data));
@@ -93,7 +103,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // ── Setters that also persist ───────────────────────────────────────────────
+  // ── Setters ────────────────────────────────────────────────────────────────
   const setCards = (data: Card[]) => {
     setCardsState(data);
     if (userId) save(keys(userId).cards, data);
@@ -109,7 +119,12 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     if (userId) save(keys(userId).transactions, data);
   };
 
-  // ── Plaid bank link loader ──────────────────────────────────────────────────
+  const setCustomAssets = (data: CustomAsset[]) => {
+    setCustomAssetsState(data);
+    if (userId) save(keys(userId).assets, data);
+  };
+
+  // ── Plaid loader ───────────────────────────────────────────────────────────
   const loadPlaidData = async (uid: string) => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -161,6 +176,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       cards, setCards,
       investments, setInvestments,
       transactions, setTransactions,
+      customAssets, setCustomAssets,
       bankLinked, setBankLinked,
       loadPlaidData, loading,
     }}>

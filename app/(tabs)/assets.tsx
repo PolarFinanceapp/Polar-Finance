@@ -1,10 +1,11 @@
 import { CustomAsset, useFinance } from '@/context/FinanceContext';
 import { useLocale } from '@/context/LocaleContext';
 import { usePlan } from '@/context/PlanContext';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Paywall from '../../components/Paywall';
-import StarBackground from '../../components/StarBackground';
 import { useTheme } from '../../context/ThemeContext';
 
 const ASSET_CATEGORIES = [
@@ -20,6 +21,7 @@ const ICONS = ['🏠', '🚗', '₿', '📈', '💰', '🏦', '💎', '🖥️',
 
 export default function AssetsScreen() {
   const { theme: c } = useTheme();
+  const router = useRouter();
   const { hasFeature } = usePlan();
   const { cards, investments, customAssets, setCustomAssets } = useFinance();
   const { formatAmount, convertPrice, currencySymbol, t } = useLocale();
@@ -54,7 +56,6 @@ export default function AssetsScreen() {
   if (!hasFeature('investmentTracking')) {
     return (
       <View style={{ flex: 1, backgroundColor: c.dark, justifyContent: 'center', alignItems: 'center', padding: 30 }}>
-        <StarBackground />
         <Text style={{ fontSize: 60, marginBottom: 16 }}>💼</Text>
         <Text style={{ color: c.text, fontSize: 24, fontWeight: '900', marginBottom: 8 }}>{t('assets')}</Text>
         <Text style={{ color: c.muted, fontSize: 14, textAlign: 'center', lineHeight: 22, marginBottom: 24 }}>{t('assetsDescription')}</Text>
@@ -161,220 +162,227 @@ export default function AssetsScreen() {
   const allSections = [...plaidSections, ...customSections];
   const empty = allSections.length === 0;
 
+  // ── Back button component ──────────────────────────────────────────────────
+  const BackBtn = () => (
+    <TouchableOpacity onPress={() => router.back()}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 56, marginBottom: 4, alignSelf: 'flex-start' }}>
+      <Ionicons name="chevron-back" size={20} color={c.accent} />
+      <Text style={{ color: c.accent, fontSize: 15, fontWeight: '600' }}>Back</Text>
+    </TouchableOpacity>
+  );
+
   return (
-    <View style={{ flex: 1, backgroundColor: c.dark }}>
-      <StarBackground />
-      <ScrollView style={{ flex: 1, paddingHorizontal: 20 }} showsVerticalScrollIndicator={false}>
+    <ScrollView style={{ flex: 1, backgroundColor: c.dark, paddingHorizontal: 20 }} showsVerticalScrollIndicator={false}>
 
-        {/* Header */}
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 60, marginBottom: 20 }}>
-          <Text style={{ color: c.text, fontSize: 26, fontWeight: '900' }}>{t('assets')} 💼</Text>
+      {/* Header */}
+      <BackBtn />
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, marginBottom: 20 }}>
+        <Text style={{ color: c.text, fontSize: 26, fontWeight: '900' }}>{t('assets')} 💼</Text>
+      </View>
+
+      {/* Add buttons */}
+      <View style={{ flexDirection: 'row', gap: 8, marginBottom: 20 }}>
+        {[
+          { label: `🏠 ${t('addProperty')}`, mode: 'property' as const },
+          { label: `🚗 ${t('addVehicle')}`, mode: 'vehicle' as const },
+          { label: `➕ ${t('addOther')}`, mode: 'asset' as const },
+        ].map(btn => (
+          <TouchableOpacity key={btn.mode}
+            style={{ flex: 1, backgroundColor: c.card, borderRadius: 14, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: c.border }}
+            onPress={() => openModal(btn.mode)}>
+            <Text style={{ color: c.accent, fontSize: 13, fontWeight: '700' }}>{btn.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {/* Net Worth card */}
+      <View style={{ backgroundColor: c.card, borderRadius: 24, padding: 22, borderWidth: 1, borderColor: c.border, marginBottom: 24 }}>
+        <Text style={{ color: c.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1.5 }}>{t('netWorthLabel')}</Text>
+        <Text style={{ color: c.text, fontSize: 34, fontWeight: '900', marginVertical: 6 }}>{formatAmount(netWorth)}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
+          <View style={{ flex: 1, alignItems: 'center' }}>
+            <Text style={{ color: c.muted, fontSize: 11 }}>{t('totalAssets')}</Text>
+            <Text style={{ color: '#00D4AA', fontSize: 15, fontWeight: '700', marginTop: 2 }}>{formatAmount(totalAssets)}</Text>
+          </View>
+          <View style={{ width: 1, height: 30, backgroundColor: 'rgba(255,255,255,0.1)' }} />
+          <View style={{ flex: 1, alignItems: 'center' }}>
+            <Text style={{ color: c.muted, fontSize: 11 }}>{t('liabilities')}</Text>
+            <Text style={{ color: '#FF6B6B', fontSize: 15, fontWeight: '700', marginTop: 2 }}>{formatAmount(Math.abs(totalLiab))}</Text>
+          </View>
         </View>
+      </View>
 
-        {/* Add buttons */}
-        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 20 }}>
-          {[
-            { label: `🏠 ${t('addProperty')}`, mode: 'property' as const },
-            { label: `🚗 ${t('addVehicle')}`, mode: 'vehicle' as const },
-            { label: `➕ ${t('addOther')}`, mode: 'asset' as const },
-          ].map(btn => (
-            <TouchableOpacity key={btn.mode}
-              style={{ flex: 1, backgroundColor: c.card, borderRadius: 14, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: c.border }}
-              onPress={() => openModal(btn.mode)}>
-              <Text style={{ color: c.accent, fontSize: 13, fontWeight: '700' }}>{btn.label}</Text>
+      {/* Empty state */}
+      {empty && (
+        <View style={{ alignItems: 'center', padding: 40 }}>
+          <Text style={{ fontSize: 50, marginBottom: 16 }}>💼</Text>
+          <Text style={{ color: c.text, fontSize: 18, fontWeight: '800', marginBottom: 8 }}>{t('noAssetsYet')}</Text>
+        </View>
+      )}
+
+      {/* Sections */}
+      {allSections.map(section => {
+        const isOpen = openCats.includes(section.label);
+        return (
+          <View key={section.label} style={{ backgroundColor: c.card, borderRadius: 20, marginBottom: 12, borderWidth: 1, borderColor: c.border, overflow: 'hidden' }}>
+            <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 10 }} onPress={() => toggle(section.label)}>
+              <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: section.color }} />
+              <Text style={{ color: c.text, fontSize: 14, fontWeight: '700', flex: 1 }}>{section.label}</Text>
+              <Text style={{ color: section.total < 0 ? '#FF6B6B' : c.text, fontSize: 14, fontWeight: '800' }}>
+                {section.total < 0 ? '-' : ''}{formatAmount(Math.abs(section.total))}
+              </Text>
+              <Text style={{ color: c.muted, fontSize: 11, marginLeft: 6 }}>{isOpen ? '▲' : '▼'}</Text>
             </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Net Worth card */}
-        <View style={{ backgroundColor: c.card, borderRadius: 24, padding: 22, borderWidth: 1, borderColor: c.border, marginBottom: 24 }}>
-          <Text style={{ color: c.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1.5 }}>{t('netWorthLabel')}</Text>
-          <Text style={{ color: c.text, fontSize: 34, fontWeight: '900', marginVertical: 6 }}>{formatAmount(netWorth)}</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
-            <View style={{ flex: 1, alignItems: 'center' }}>
-              <Text style={{ color: c.muted, fontSize: 11 }}>{t('totalAssets')}</Text>
-              <Text style={{ color: '#00D4AA', fontSize: 15, fontWeight: '700', marginTop: 2 }}>{formatAmount(totalAssets)}</Text>
-            </View>
-            <View style={{ width: 1, height: 30, backgroundColor: 'rgba(255,255,255,0.1)' }} />
-            <View style={{ flex: 1, alignItems: 'center' }}>
-              <Text style={{ color: c.muted, fontSize: 11 }}>{t('liabilities')}</Text>
-              <Text style={{ color: '#FF6B6B', fontSize: 15, fontWeight: '700', marginTop: 2 }}>{formatAmount(Math.abs(totalLiab))}</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Empty state */}
-        {empty && (
-          <View style={{ alignItems: 'center', padding: 40 }}>
-            <Text style={{ fontSize: 50, marginBottom: 16 }}>💼</Text>
-            <Text style={{ color: c.text, fontSize: 18, fontWeight: '800', marginBottom: 8 }}>{t('noAssetsYet')}</Text>
-          </View>
-        )}
-
-        {/* Sections */}
-        {allSections.map(section => {
-          const isOpen = openCats.includes(section.label);
-          return (
-            <View key={section.label} style={{ backgroundColor: c.card, borderRadius: 20, marginBottom: 12, borderWidth: 1, borderColor: c.border, overflow: 'hidden' }}>
-              <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 10 }} onPress={() => toggle(section.label)}>
-                <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: section.color }} />
-                <Text style={{ color: c.text, fontSize: 14, fontWeight: '700', flex: 1 }}>{section.label}</Text>
-                <Text style={{ color: section.total < 0 ? '#FF6B6B' : c.text, fontSize: 14, fontWeight: '800' }}>
-                  {section.total < 0 ? '-' : ''}{formatAmount(Math.abs(section.total))}
-                </Text>
-                <Text style={{ color: c.muted, fontSize: 11, marginLeft: 6 }}>{isOpen ? '▲' : '▼'}</Text>
-              </TouchableOpacity>
-              {isOpen && section.items.map((item: any, i: number) => (
-                <TouchableOpacity key={i}
-                  onLongPress={() => item.id && deleteAsset(item.id)}
-                  style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderTopColor: c.border }}>
-                  <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: section.color + '22', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-                    <Text style={{ fontSize: 20 }}>{item.icon}</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: c.text, fontSize: 14, fontWeight: '600' }}>{item.name}</Text>
-                    <Text style={{ color: c.muted, fontSize: 11, marginTop: 2 }}>{item.sub}</Text>
-                  </View>
-                  <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={{ color: item.value < 0 ? '#FF6B6B' : c.text, fontSize: 14, fontWeight: '800' }}>
-                      {item.value < 0 ? '-' : ''}{formatAmount(Math.abs(item.value))}
-                    </Text>
-                    {item.change !== null && item.change !== undefined && (
-                      <Text style={{ color: item.change >= 0 ? '#00D4AA' : '#FF6B6B', fontSize: 11, fontWeight: '700', marginTop: 2 }}>
-                        {item.change >= 0 ? '▲' : '▼'} {Math.abs(item.change)}%
-                      </Text>
-                    )}
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </View>
-          );
-        })}
-
-        <Text style={{ color: c.muted, fontSize: 11, textAlign: 'center', marginBottom: 40 }}>{t('longPressDeleteAsset')}</Text>
-
-        {/* ── Add Modal ── */}
-        <Modal visible={showAdd} transparent animationType="slide">
-          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
-            <ScrollView style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, borderColor: c.border }} showsVerticalScrollIndicator={false}>
-              <View style={{ padding: 24 }}>
-
-                {/* Vehicle form */}
-                {addMode === 'vehicle' && (
-                  <>
-                    <Text style={{ color: c.text, fontSize: 18, fontWeight: '900', marginBottom: 20 }}>🚗 {t('addVehicle')}</Text>
-                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
-                      {['🚗', '🚙', '🏍️', '🚐', '🚕', '🚌', '🛻', '🏎️'].map(ic => (
-                        <TouchableOpacity key={ic}
-                          style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: vIcon === ic ? c.accent + '33' : c.card2, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: vIcon === ic ? c.accent : c.border }}
-                          onPress={() => setVIcon(ic)}>
-                          <Text style={{ fontSize: 20 }}>{ic}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                    {[
-                      { label: t('make'), val: vMake, set: setVMake, ph: 'e.g. Ford', kb: 'default' as const },
-                      { label: t('model'), val: vModel, set: setVModel, ph: 'e.g. Focus', kb: 'default' as const },
-                      { label: t('year'), val: vYear, set: setVYear, ph: 'e.g. 2021', kb: 'number-pad' as const },
-                      { label: `${t('estValue')} (${currencySymbol})`, val: vValue, set: setVValue, ph: 'e.g. 12500', kb: 'decimal-pad' as const },
-                    ].map((f, i) => (
-                      <View key={i} style={{ marginBottom: 12 }}>
-                        <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 6 }}>{f.label}</Text>
-                        <TextInput style={{ backgroundColor: c.card2, borderRadius: 12, padding: 14, color: c.text, fontSize: 15, borderWidth: 1, borderColor: c.border }} placeholder={f.ph} placeholderTextColor={c.muted} value={f.val} onChangeText={f.set} keyboardType={f.kb} />
-                      </View>
-                    ))}
-                  </>
-                )}
-
-                {/* Property form */}
-                {addMode === 'property' && (
-                  <>
-                    <Text style={{ color: c.text, fontSize: 18, fontWeight: '900', marginBottom: 20 }}>🏠 {t('addProperty')}</Text>
-                    <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 8 }}>{t('propertyType')}</Text>
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-                      {['Residential', 'Buy to Let', 'Commercial', 'Land'].map(type => (
-                        <TouchableOpacity key={type}
-                          style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 50, backgroundColor: pType === type ? c.accent + '33' : c.card2, borderWidth: 1, borderColor: pType === type ? c.accent : c.border }}
-                          onPress={() => setPType(type)}>
-                          <Text style={{ color: pType === type ? c.accent : c.muted, fontSize: 12, fontWeight: '600' }}>{type}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                    {[
-                      { label: t('address'), val: pAddress, set: setPAddress, ph: 'e.g. 12 Oak Street', kb: 'default' as const },
-                      { label: `${t('estMarketValue')} (${currencySymbol})`, val: pValue, set: setPValue, ph: 'e.g. 250000', kb: 'decimal-pad' as const },
-                      { label: `${t('outstandingMortgage')} (${currencySymbol})`, val: pMortgage, set: setPMortgage, ph: 'e.g. 150000', kb: 'decimal-pad' as const },
-                    ].map((f, i) => (
-                      <View key={i} style={{ marginBottom: 12 }}>
-                        <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 6 }}>{f.label}</Text>
-                        <TextInput style={{ backgroundColor: c.card2, borderRadius: 12, padding: 14, color: c.text, fontSize: 15, borderWidth: 1, borderColor: c.border }} placeholder={f.ph} placeholderTextColor={c.muted} value={f.val} onChangeText={f.set} keyboardType={f.kb} />
-                      </View>
-                    ))}
-                    {pValue && pMortgage ? (
-                      <View style={{ backgroundColor: c.card2, borderRadius: 12, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: c.border }}>
-                        <Text style={{ color: c.muted, fontSize: 12 }}>
-                          {t('equity')}: <Text style={{ color: '#00D4AA', fontWeight: '700' }}>{formatAmount(parseFloat(pValue) - parseFloat(pMortgage))}</Text>
-                        </Text>
-                      </View>
-                    ) : null}
-                  </>
-                )}
-
-                {/* Other asset form */}
-                {addMode === 'asset' && (
-                  <>
-                    <Text style={{ color: c.text, fontSize: 18, fontWeight: '900', marginBottom: 20 }}>➕ {t('addOther')}</Text>
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-                      {ASSET_CATEGORIES.map(cat => (
-                        <TouchableOpacity key={cat.cat}
-                          style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 50, backgroundColor: newCat === cat.cat ? cat.color + '33' : c.card2, borderWidth: 1, borderColor: newCat === cat.cat ? cat.color : c.border }}
-                          onPress={() => setNewCat(cat.cat)}>
-                          <Text style={{ color: newCat === cat.cat ? cat.color : c.muted, fontSize: 12, fontWeight: '600' }}>{cat.label}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-                      {ICONS.map(ic => (
-                        <TouchableOpacity key={ic}
-                          style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: newIcon === ic ? c.accent + '33' : c.card2, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: newIcon === ic ? c.accent : c.border }}
-                          onPress={() => setNewIcon(ic)}>
-                          <Text style={{ fontSize: 20 }}>{ic}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                    {[
-                      { label: t('name'), val: newName, set: setNewName, ph: 'e.g. Bitcoin', kb: 'default' as const },
-                      { label: t('details'), val: newSub, set: setNewSub, ph: 'e.g. 0.5 BTC', kb: 'default' as const },
-                      { label: `${t('estValue')} (${currencySymbol})`, val: newValue, set: setNewValue, ph: 'e.g. 15000', kb: 'decimal-pad' as const },
-                    ].map((f, i) => (
-                      <View key={i} style={{ marginBottom: 12 }}>
-                        <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 6 }}>{f.label}</Text>
-                        <TextInput style={{ backgroundColor: c.card2, borderRadius: 12, padding: 14, color: c.text, fontSize: 15, borderWidth: 1, borderColor: c.border }} placeholder={f.ph} placeholderTextColor={c.muted} value={f.val} onChangeText={f.set} keyboardType={f.kb} />
-                      </View>
-                    ))}
-                  </>
-                )}
-
-                {/* Buttons */}
-                <View style={{ flexDirection: 'row', gap: 10, marginTop: 8, marginBottom: 40 }}>
-                  <TouchableOpacity
-                    style={{ flex: 1, backgroundColor: c.card2, borderRadius: 14, padding: 16, alignItems: 'center' }}
-                    onPress={() => { resetForms(); setShowAdd(false); }}>
-                    <Text style={{ color: c.muted, fontWeight: '700' }}>{t('cancel')}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={{ flex: 1, backgroundColor: c.accent, borderRadius: 14, padding: 16, alignItems: 'center' }}
-                    onPress={addAsset}>
-                    <Text style={{ color: '#fff', fontWeight: '700' }}>{t('add')}</Text>
-                  </TouchableOpacity>
+            {isOpen && section.items.map((item: any, i: number) => (
+              <TouchableOpacity key={i}
+                onLongPress={() => item.id && deleteAsset(item.id)}
+                style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderTopColor: c.border }}>
+                <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: section.color + '22', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                  <Text style={{ fontSize: 20 }}>{item.icon}</Text>
                 </View>
-              </View>
-            </ScrollView>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: c.text, fontSize: 14, fontWeight: '600' }}>{item.name}</Text>
+                  <Text style={{ color: c.muted, fontSize: 11, marginTop: 2 }}>{item.sub}</Text>
+                </View>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={{ color: item.value < 0 ? '#FF6B6B' : c.text, fontSize: 14, fontWeight: '800' }}>
+                    {item.value < 0 ? '-' : ''}{formatAmount(Math.abs(item.value))}
+                  </Text>
+                  {item.change !== null && item.change !== undefined && (
+                    <Text style={{ color: item.change >= 0 ? '#00D4AA' : '#FF6B6B', fontSize: 11, fontWeight: '700', marginTop: 2 }}>
+                      {item.change >= 0 ? '▲' : '▼'} {Math.abs(item.change)}%
+                    </Text>
+                  )}
+                </View>
+              </TouchableOpacity>
+            ))}
           </View>
-        </Modal>
+        );
+      })}
 
-        <Paywall visible={showPaywall} onClose={() => setShowPaywall(false)} />
-      </ScrollView>
-    </View>
+      <Text style={{ color: c.muted, fontSize: 11, textAlign: 'center', marginBottom: 40 }}>{t('longPressDeleteAsset')}</Text>
+
+      {/* ── Add Modal ── */}
+      <Modal visible={showAdd} transparent animationType="slide">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
+          <ScrollView style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, borderColor: c.border }} showsVerticalScrollIndicator={false}>
+            <View style={{ padding: 24 }}>
+
+              {/* Vehicle form */}
+              {addMode === 'vehicle' && (
+                <>
+                  <Text style={{ color: c.text, fontSize: 18, fontWeight: '900', marginBottom: 20 }}>🚗 {t('addVehicle')}</Text>
+                  <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+                    {['🚗', '🚙', '🏍️', '🚐', '🚕', '🚌', '🛻', '🏎️'].map(ic => (
+                      <TouchableOpacity key={ic}
+                        style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: vIcon === ic ? c.accent + '33' : c.card2, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: vIcon === ic ? c.accent : c.border }}
+                        onPress={() => setVIcon(ic)}>
+                        <Text style={{ fontSize: 20 }}>{ic}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  {[
+                    { label: t('make'), val: vMake, set: setVMake, ph: 'e.g. Ford', kb: 'default' as const },
+                    { label: t('model'), val: vModel, set: setVModel, ph: 'e.g. Focus', kb: 'default' as const },
+                    { label: t('year'), val: vYear, set: setVYear, ph: 'e.g. 2021', kb: 'number-pad' as const },
+                    { label: `${t('estValue')} (${currencySymbol})`, val: vValue, set: setVValue, ph: 'e.g. 12500', kb: 'decimal-pad' as const },
+                  ].map((f, i) => (
+                    <View key={i} style={{ marginBottom: 12 }}>
+                      <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 6 }}>{f.label}</Text>
+                      <TextInput style={{ backgroundColor: c.card2, borderRadius: 12, padding: 14, color: c.text, fontSize: 15, borderWidth: 1, borderColor: c.border }} placeholder={f.ph} placeholderTextColor={c.muted} value={f.val} onChangeText={f.set} keyboardType={f.kb} />
+                    </View>
+                  ))}
+                </>
+              )}
+
+              {/* Property form */}
+              {addMode === 'property' && (
+                <>
+                  <Text style={{ color: c.text, fontSize: 18, fontWeight: '900', marginBottom: 20 }}>🏠 {t('addProperty')}</Text>
+                  <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 8 }}>{t('propertyType')}</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+                    {['Residential', 'Buy to Let', 'Commercial', 'Land'].map(type => (
+                      <TouchableOpacity key={type}
+                        style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 50, backgroundColor: pType === type ? c.accent + '33' : c.card2, borderWidth: 1, borderColor: pType === type ? c.accent : c.border }}
+                        onPress={() => setPType(type)}>
+                        <Text style={{ color: pType === type ? c.accent : c.muted, fontSize: 12, fontWeight: '600' }}>{type}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  {[
+                    { label: t('address'), val: pAddress, set: setPAddress, ph: 'e.g. 12 Oak Street', kb: 'default' as const },
+                    { label: `${t('estMarketValue')} (${currencySymbol})`, val: pValue, set: setPValue, ph: 'e.g. 250000', kb: 'decimal-pad' as const },
+                    { label: `${t('outstandingMortgage')} (${currencySymbol})`, val: pMortgage, set: setPMortgage, ph: 'e.g. 150000', kb: 'decimal-pad' as const },
+                  ].map((f, i) => (
+                    <View key={i} style={{ marginBottom: 12 }}>
+                      <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 6 }}>{f.label}</Text>
+                      <TextInput style={{ backgroundColor: c.card2, borderRadius: 12, padding: 14, color: c.text, fontSize: 15, borderWidth: 1, borderColor: c.border }} placeholder={f.ph} placeholderTextColor={c.muted} value={f.val} onChangeText={f.set} keyboardType={f.kb} />
+                    </View>
+                  ))}
+                  {pValue && pMortgage ? (
+                    <View style={{ backgroundColor: c.card2, borderRadius: 12, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: c.border }}>
+                      <Text style={{ color: c.muted, fontSize: 12 }}>
+                        {t('equity')}: <Text style={{ color: '#00D4AA', fontWeight: '700' }}>{formatAmount(parseFloat(pValue) - parseFloat(pMortgage))}</Text>
+                      </Text>
+                    </View>
+                  ) : null}
+                </>
+              )}
+
+              {/* Other asset form */}
+              {addMode === 'asset' && (
+                <>
+                  <Text style={{ color: c.text, fontSize: 18, fontWeight: '900', marginBottom: 20 }}>➕ {t('addOther')}</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+                    {ASSET_CATEGORIES.map(cat => (
+                      <TouchableOpacity key={cat.cat}
+                        style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 50, backgroundColor: newCat === cat.cat ? cat.color + '33' : c.card2, borderWidth: 1, borderColor: newCat === cat.cat ? cat.color : c.border }}
+                        onPress={() => setNewCat(cat.cat)}>
+                        <Text style={{ color: newCat === cat.cat ? cat.color : c.muted, fontSize: 12, fontWeight: '600' }}>{cat.label}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+                    {ICONS.map(ic => (
+                      <TouchableOpacity key={ic}
+                        style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: newIcon === ic ? c.accent + '33' : c.card2, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: newIcon === ic ? c.accent : c.border }}
+                        onPress={() => setNewIcon(ic)}>
+                        <Text style={{ fontSize: 20 }}>{ic}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  {[
+                    { label: t('name'), val: newName, set: setNewName, ph: 'e.g. Bitcoin', kb: 'default' as const },
+                    { label: t('details'), val: newSub, set: setNewSub, ph: 'e.g. 0.5 BTC', kb: 'default' as const },
+                    { label: `${t('estValue')} (${currencySymbol})`, val: newValue, set: setNewValue, ph: 'e.g. 15000', kb: 'decimal-pad' as const },
+                  ].map((f, i) => (
+                    <View key={i} style={{ marginBottom: 12 }}>
+                      <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 6 }}>{f.label}</Text>
+                      <TextInput style={{ backgroundColor: c.card2, borderRadius: 12, padding: 14, color: c.text, fontSize: 15, borderWidth: 1, borderColor: c.border }} placeholder={f.ph} placeholderTextColor={c.muted} value={f.val} onChangeText={f.set} keyboardType={f.kb} />
+                    </View>
+                  ))}
+                </>
+              )}
+
+              {/* Buttons */}
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 8, marginBottom: 40 }}>
+                <TouchableOpacity
+                  style={{ flex: 1, backgroundColor: c.card2, borderRadius: 14, padding: 16, alignItems: 'center' }}
+                  onPress={() => { resetForms(); setShowAdd(false); }}>
+                  <Text style={{ color: c.muted, fontWeight: '700' }}>{t('cancel')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{ flex: 1, backgroundColor: c.accent, borderRadius: 14, padding: 16, alignItems: 'center' }}
+                  onPress={addAsset}>
+                  <Text style={{ color: '#fff', fontWeight: '700' }}>{t('add')}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </ScrollView>
+        </View>
+      </Modal>
+
+      <Paywall visible={showPaywall} onClose={() => setShowPaywall(false)} />
+    </ScrollView>
   );
 }

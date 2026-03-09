@@ -1,6 +1,8 @@
 import { useFinance } from '@/context/FinanceContext';
 import { useLocale } from '@/context/LocaleContext';
 import { usePlan } from '@/context/PlanContext';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import Paywall from '../../components/Paywall';
@@ -50,15 +52,26 @@ function getPeriodLabel(period: Period): string {
 export default function StatsScreen() {
   const [period, setPeriod] = useState<Period>('monthly');
   const { theme: c } = useTheme();
+  const router = useRouter();
   const { transactions } = useFinance();
   const { formatAmount, convertPrice, t } = useLocale();
   const { hasFeature } = usePlan();
   const [showPaywall, setShowPaywall] = useState(false);
 
+
+  const BackBtn = () => (
+    <TouchableOpacity onPress={() => router.back()}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 56, marginBottom: 4, alignSelf: 'flex-start' }}>
+      <Ionicons name="chevron-back" size={20} color={c.accent} />
+      <Text style={{ color: c.accent, fontSize: 15, fontWeight: '600' }}>Back</Text>
+    </TouchableOpacity>
+  );
+
   if (!hasFeature('advancedCharts')) {
     return (
       <View style={{ flex: 1, backgroundColor: c.dark }}>
         <StarBackground />
+        <View style={{ paddingHorizontal: 20 }}><BackBtn /></View>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 30 }}>
           <Text style={{ fontSize: 60, marginBottom: 16 }}>📊</Text>
           <Text style={{ color: c.text, fontSize: 24, fontWeight: '900', marginBottom: 8 }}>{t('stats')}</Text>
@@ -90,11 +103,16 @@ export default function StatsScreen() {
     color: CATEGORY_COLORS[name] || '#6C63FF', icon: CAT_ICON[name] || '💳',
   }));
 
+  // ── Back button component ──────────────────────────────────────────────────
+
+
+
   return (
     <View style={{ flex: 1, backgroundColor: c.dark }}>
       <StarBackground />
       <ScrollView style={{ flex: 1, paddingHorizontal: 20 }} showsVerticalScrollIndicator={false}>
-        <Text style={{ color: c.text, fontSize: 26, fontWeight: '900', marginTop: 60, marginBottom: 20 }}>{t('stats')}</Text>
+        <BackBtn />
+        <Text style={{ color: c.text, fontSize: 26, fontWeight: '900', marginTop: 8, marginBottom: 20 }}>{t('stats')}</Text>
 
         {/* Period toggle */}
         <View style={{ flexDirection: 'row', backgroundColor: c.card, borderRadius: 50, padding: 4, marginBottom: 8, borderWidth: 1, borderColor: c.border }}>

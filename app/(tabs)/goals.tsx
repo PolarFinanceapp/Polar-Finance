@@ -3,6 +3,7 @@ import { usePlan } from '@/context/PlanContext';
 import { supabase } from '@/lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Paywall from '../../components/Paywall';
@@ -17,6 +18,8 @@ export default function GoalsScreen() {
   const { theme: c } = useTheme();
   const { maxGoals } = usePlan();
   const { formatAmount, currencySymbol, t } = useLocale();
+  const router = useRouter();
+
   const [showPaywall, setShowPaywall] = useState(false);
   const [goals, setGoalsState] = useState<Goal[]>([]);
   const [storageKey, setStorageKey] = useState<string | null>(null);
@@ -102,11 +105,21 @@ export default function GoalsScreen() {
     </>
   );
 
+  // ── Back button component ──────────────────────────────────────────────────
+  const BackBtn = () => (
+    <TouchableOpacity onPress={() => router.back()}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 56, marginBottom: 4, alignSelf: 'flex-start' }}>
+      <Ionicons name="chevron-back" size={20} color={c.accent} />
+      <Text style={{ color: c.accent, fontSize: 15, fontWeight: '600' }}>Back</Text>
+    </TouchableOpacity>
+  );
+
   return (
     <View style={{ flex: 1, backgroundColor: c.dark }}>
       <StarBackground />
       <ScrollView style={{ flex: 1, paddingHorizontal: 20 }} showsVerticalScrollIndicator={false}>
-        <Text style={{ color: c.text, fontSize: 26, fontWeight: '900', marginTop: 60, marginBottom: 20 }}>{t('savingGoals')}</Text>
+        <BackBtn />
+        <Text style={{ color: c.text, fontSize: 26, fontWeight: '900', marginTop: 8, marginBottom: 20 }}>{t('savingGoals')}</Text>
 
         {/* Summary */}
         <View style={{ backgroundColor: c.card, borderRadius: 24, padding: 20, borderWidth: 1, borderColor: c.border, marginBottom: 24 }}>

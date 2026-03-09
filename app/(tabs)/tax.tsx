@@ -2,6 +2,7 @@ import { useFinance } from '@/context/FinanceContext';
 import { useLocale } from '@/context/LocaleContext';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, ScrollView, Share, Text, TouchableOpacity, View } from 'react-native';
 import StarBackground from '../../components/StarBackground';
@@ -224,6 +225,8 @@ export default function TaxScreen() {
   const { theme: c } = useTheme();
   const { transactions } = useFinance();
   const { formatAmount, currency } = useLocale();
+  const router = useRouter();
+
 
   const cfg = TAX_CONFIGS[currency] ?? TAX_CONFIGS['GBP'];
 
@@ -331,13 +334,23 @@ export default function TaxScreen() {
     </TouchableOpacity>
   );
 
+  // ── Back button component ──────────────────────────────────────────────────
+  const BackBtn = () => (
+    <TouchableOpacity onPress={() => router.back()}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 56, marginBottom: 4, alignSelf: 'flex-start' }}>
+      <Ionicons name="chevron-back" size={20} color={c.accent} />
+      <Text style={{ color: c.accent, fontSize: 15, fontWeight: '600' }}>Back</Text>
+    </TouchableOpacity>
+  );
+
   return (
     <View style={{ flex: 1, backgroundColor: c.dark }}>
       <StarBackground />
       <ScrollView style={{ flex: 1, paddingHorizontal: 20 }} showsVerticalScrollIndicator={false}>
 
         {/* Header */}
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 60, marginBottom: 6 }}>
+        <BackBtn />
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, marginBottom: 6 }}>
           <Text style={{ color: c.text, fontSize: 26, fontWeight: '900' }}>Tax Helper 🧾</Text>
           <TouchableOpacity onPress={handleExport}
             style={{ backgroundColor: c.accent + '22', borderRadius: 50, paddingHorizontal: 14, paddingVertical: 7, borderWidth: 1, borderColor: c.accent + '55', flexDirection: 'row', alignItems: 'center', gap: 6 }}>

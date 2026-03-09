@@ -1,6 +1,7 @@
 import { useFinance } from '@/context/FinanceContext';
 import { useLocale } from '@/context/LocaleContext';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import StarBackground from '../../components/StarBackground';
@@ -12,6 +13,7 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 
 
 export default function CalendarScreen() {
   const { theme: c } = useTheme();
+  const router = useRouter();
   const { transactions } = useFinance();
   const { bills } = useBills();
   const { formatAmount, t } = useLocale();
@@ -58,11 +60,21 @@ export default function CalendarScreen() {
   const selectedIn = selectedTxns.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0);
   const selectedOut = selectedTxns.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
 
+  // ── Back button component ──────────────────────────────────────────────────
+  const BackBtn = () => (
+    <TouchableOpacity onPress={() => router.back()}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 56, marginBottom: 4, alignSelf: 'flex-start' }}>
+      <Ionicons name="chevron-back" size={20} color={c.accent} />
+      <Text style={{ color: c.accent, fontSize: 15, fontWeight: '600' }}>Back</Text>
+    </TouchableOpacity>
+  );
+
   return (
     <View style={{ flex: 1, backgroundColor: c.dark }}>
       <StarBackground />
       <ScrollView style={{ flex: 1, paddingHorizontal: 16 }} showsVerticalScrollIndicator={false}>
-        <Text style={{ color: c.text, fontSize: 26, fontWeight: '900', marginTop: 60, marginBottom: 20 }}>{t('calendar')}</Text>
+        <BackBtn />
+        <Text style={{ color: c.text, fontSize: 26, fontWeight: '900', marginTop: 8, marginBottom: 20 }}>{t('calendar')}</Text>
 
         {/* Month nav */}
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: c.card, borderRadius: 16, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: c.border }}>

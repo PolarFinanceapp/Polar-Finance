@@ -1,6 +1,8 @@
 import { useLocale } from '@/context/LocaleContext';
 import { usePlan } from '@/context/PlanContext';
 import { supabase } from '@/lib/supabase';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import Paywall from '../../components/Paywall';
@@ -21,6 +23,7 @@ const cIcon = (s: string) => s === 'BTC' ? '₿' : s === 'ETH' ? '⟠' : s === '
 
 export default function ExploreScreen() {
   const { theme: c } = useTheme();
+  const router = useRouter();
   const { hasFeature } = usePlan();
   const { formatAmount, convertPrice, convertRaw, currencySymbol, t } = useLocale();
 
@@ -80,13 +83,23 @@ export default function ExploreScreen() {
     );
   }
 
+  // ── Back button component ──────────────────────────────────────────────────
+  const BackBtn = () => (
+    <TouchableOpacity onPress={() => router.back()}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 56, marginBottom: 4, alignSelf: 'flex-start' }}>
+      <Ionicons name="chevron-back" size={20} color={c.accent} />
+      <Text style={{ color: c.accent, fontSize: 15, fontWeight: '600' }}>Back</Text>
+    </TouchableOpacity>
+  );
+
   return (
     <View style={{ flex: 1, backgroundColor: c.dark }}>
       <StarBackground />
       <ScrollView style={{ flex: 1, paddingHorizontal: 20 }} showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.accent} />}>
 
-        <Text style={{ color: c.text, fontSize: 26, fontWeight: '900', marginTop: 60, marginBottom: 6 }}>{t('markets')} 📈</Text>
+        <BackBtn />
+        <Text style={{ color: c.text, fontSize: 26, fontWeight: '900', marginTop: 8, marginBottom: 6 }}>{t('markets')} 📈</Text>
         <Text style={{ color: c.muted, fontSize: 13, marginBottom: 20 }}>{t('liveSignals')} · {t('pullToRefresh')}</Text>
 
         {disclaimer && (

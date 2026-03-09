@@ -24,6 +24,40 @@ import TrialPrompt from '../../components/TrialPrompt';
 import { useBills } from '../../context/BillsContext';
 import { useTheme } from '../../context/ThemeContext';
 
+// ── Market symbols catalogue ───────────────────────────────────────────────────
+export const STOCK_SYMBOLS = [
+  { symbol: 'AAPL', name: 'Apple', type: 'stock' as const },
+  { symbol: 'MSFT', name: 'Microsoft', type: 'stock' as const },
+  { symbol: 'GOOGL', name: 'Google', type: 'stock' as const },
+  { symbol: 'AMZN', name: 'Amazon', type: 'stock' as const },
+  { symbol: 'TSLA', name: 'Tesla', type: 'stock' as const },
+  { symbol: 'NVDA', name: 'Nvidia', type: 'stock' as const },
+  { symbol: 'META', name: 'Meta', type: 'stock' as const },
+  { symbol: 'NFLX', name: 'Netflix', type: 'stock' as const },
+  { symbol: 'BABA', name: 'Alibaba', type: 'stock' as const },
+  { symbol: 'SPY', name: 'S&P 500 ETF', type: 'stock' as const },
+];
+export const CRYPTO_SYMBOLS = [
+  { symbol: 'BTC', name: 'Bitcoin', type: 'crypto' as const },
+  { symbol: 'ETH', name: 'Ethereum', type: 'crypto' as const },
+  { symbol: 'SOL', name: 'Solana', type: 'crypto' as const },
+  { symbol: 'XRP', name: 'XRP', type: 'crypto' as const },
+  { symbol: 'BNB', name: 'BNB', type: 'crypto' as const },
+  { symbol: 'ADA', name: 'Cardano', type: 'crypto' as const },
+  { symbol: 'DOGE', name: 'Dogecoin', type: 'crypto' as const },
+];
+export const COMMODITY_SYMBOLS = [
+  { symbol: 'GOLD', name: 'Gold', type: 'commodity' as const },
+  { symbol: 'SILVER', name: 'Silver', type: 'commodity' as const },
+  { symbol: 'OIL', name: 'Crude Oil', type: 'commodity' as const },
+  { symbol: 'NATGAS', name: 'Natural Gas', type: 'commodity' as const },
+];
+export const ALL_MARKET_SYMBOLS = [...STOCK_SYMBOLS, ...CRYPTO_SYMBOLS, ...COMMODITY_SYMBOLS];
+
+const MARKET_RATE_LIMIT_KEY = 'jf_market_last_fetch';
+const MARKET_CACHE_KEY = 'jf_market_cache';
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
 // ── Constants ──────────────────────────────────────────────────────────────────
 const ALL_TABS = [
   { icon: 'bar-chart', label: 'stats', display: 'Stats', route: '/(tabs)/stats' },
@@ -128,6 +162,76 @@ export default function HomeScreen() {
 
   const handleProfileClose = () => { setShowProfile(false); loadProfilePhoto(); };
 
+  const applyMarketPrices = (data: any, invList: typeof investments) => {
+    const allPrices: Record<string, { price: number; change: number }> = {};
+
+    // Index stocks & commodities by symbol
+    [...(data.stocks ?? []), ...(data.commodities ?? [])].forEach((item: any) => {
+      allPrices[item.symbol] = { price: item.price, change: item.change };
+    });
+
+    // Index crypto by symbol
+    (data.crypto ?? []).forEach((item: any) => {
+      allPrices[item.symbol] = { price: item.price, change: item.change };
+    });
+
+    // Update investments that have a linked symbol
+    const updated = invList.map(inv => {
+      const sym = (inv as any).symbol;
+      const qty = (inv as any).quantity ?? 1;
+      if (!sym || !allPrices[sym]) return inv;
+      const market = allPrices[sym];
+      return {
+        ...inv,
+        value: Math.round(market.price * qty * 100) / 100,
+        change: Math.round(market.change * 10) / 10,
+        up: market.change >= 0,
+      };
+    });
+
+    setInvestments(updated);
+  };
+
+
+  // ── Market price auto-updater (rate limited: once per day) ────────────────
+  const refreshMarketPrices = async (invList: typeof investments) => {
+    const linkedInvs = invList.filter(i => (i as any).symbol && (i as any).assetType);
+    if (linkedInvs.length === 0) return;
+
+    try {
+      // Rate limit check — only fetch once per day
+      const lastFetch = await AsyncStorage.getItem(MARKET_RATE_LIMIT_KEY);
+      const now = Date.now();
+      if (lastFetch && now - parseInt(lastFetch) < ONE_DAY_MS) {
+        // Use cached prices instead
+        const cached = await AsyncStorage.getItem(MARKET_CACHE_KEY);
+        if (cached) applyMarketPrices(JSON.parse(cached), invList);
+        return;
+      }
+
+      const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
+      const res = await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/get-market-data`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${anonKey}`, 'apikey': anonKey },
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+
+      // Cache the result and timestamp
+      await AsyncStorage.setItem(MARKET_RATE_LIMIT_KEY, now.toString());
+      await AsyncStorage.setItem(MARKET_CACHE_KEY, JSON.stringify(data));
+
+      applyMarketPrices(data, invList);
+    } catch { /* silent fail — don't disrupt the UI */ }
+  };
+
+  useEffect(() => {
+    if (showInvest && investments.length > 0) {
+      refreshMarketPrices(investments);
+    }
+  }, [showInvest]);
+
   // ── Modal state ───────────────────────────────────────────────────────────────
   const [showPaywall, setShowPaywall] = useState(false);
   const [showExpiredPaywall, setShowExpiredPaywall] = useState(false);
@@ -155,6 +259,10 @@ export default function HomeScreen() {
   const [newInvChange, setNewInvChange] = useState('');
   const [newInvUp, setNewInvUp] = useState(true);
   const [newInvIcon, setNewInvIcon] = useState('📈');
+  const [newInvSymbol, setNewInvSymbol] = useState('');
+  const [newInvAssetType, setNewInvAssetType] = useState<'stock' | 'crypto' | 'commodity' | 'manual'>('manual');
+  const [newInvQty, setNewInvQty] = useState('1');
+  const [invTab, setInvTab] = useState<'manual' | 'market'>('manual');
 
   // ── Investment edit ───────────────────────────────────────────────────────────
   const [editInv, setEditInv] = useState<any | null>(null);
@@ -239,9 +347,31 @@ export default function HomeScreen() {
   };
 
   const addInvestment = () => {
-    if (!newInvName || !newInvValue) return;
-    setInvestments([...investments, { id: Date.now().toString(), icon: newInvIcon, name: newInvName, sub: newInvSub, value: parseFloat(newInvValue), change: parseFloat(newInvChange) || 0, up: newInvUp }]);
+    const isMarket = invTab === 'market' && newInvSymbol;
+    if (isMarket) {
+      if (!newInvSymbol || !newInvQty) return;
+      const symMeta = ALL_MARKET_SYMBOLS.find(s => s.symbol === newInvSymbol);
+      const newInv = {
+        id: Date.now().toString(),
+        icon: symMeta?.type === 'crypto' ? '₿' : symMeta?.type === 'commodity' ? '🏅' : '📈',
+        name: symMeta?.name || newInvSymbol,
+        sub: `${newInvSymbol} · ${newInvQty} units`,
+        value: 0,
+        change: 0,
+        up: true,
+        symbol: newInvSymbol,
+        assetType: symMeta?.type || 'stock',
+        quantity: parseFloat(newInvQty) || 1,
+      } as any;
+      const updated = [...investments, newInv];
+      setInvestments(updated);
+      refreshMarketPrices(updated);
+    } else {
+      if (!newInvName || !newInvValue) return;
+      setInvestments([...investments, { id: Date.now().toString(), icon: newInvIcon, name: newInvName, sub: newInvSub, value: parseFloat(newInvValue), change: parseFloat(newInvChange) || 0, up: newInvUp } as any]);
+    }
     setNewInvName(''); setNewInvSub(''); setNewInvValue(''); setNewInvChange(''); setNewInvIcon('📈');
+    setNewInvSymbol(''); setNewInvQty('1'); setInvTab('manual');
     setShowAddInv(false);
   };
 
@@ -409,7 +539,11 @@ export default function HomeScreen() {
             </View>
           )}
 
-          {!showCardsOk && (
+          {showCardsOk ? (
+            <Text style={{ color: c.accent + 'AA', fontSize: 11, textAlign: 'center', marginTop: 12, fontWeight: '600' }}>
+              {showCards ? 'Tap to hide cards & investments' : 'Tap to view cards & investments'}
+            </Text>
+          ) : (
             <TouchableOpacity onPress={() => setShowPaywall(true)} style={{ marginTop: 12 }}>
               <Text style={{ color: c.muted, fontSize: 11, textAlign: 'center' }}>
                 <Ionicons name="lock-closed" size={11} color={c.muted} /> {t('upgradeProCards')}
@@ -469,9 +603,18 @@ export default function HomeScreen() {
                     <Ionicons name="trending-up" size={13} color={c.muted} />
                     <Text style={{ color: c.muted, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8 }}>{t('investments')}</Text>
                   </View>
-                  <TouchableOpacity style={{ backgroundColor: c.accent + '22', borderRadius: 50, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: c.accent + '55' }} onPress={() => setShowAddInv(true)}>
-                    <Text style={{ color: c.accent, fontSize: 11, fontWeight: '700' }}>+ {t('add')}</Text>
-                  </TouchableOpacity>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    {investments.some(i => (i as any).symbol) && (
+                      <TouchableOpacity
+                        style={{ backgroundColor: '#00D4AA22', borderRadius: 50, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: '#00D4AA55' }}
+                        onPress={() => refreshMarketPrices(investments)}>
+                        <Text style={{ color: '#00D4AA', fontSize: 11, fontWeight: '700' }}>↻ Update</Text>
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity style={{ backgroundColor: c.accent + '22', borderRadius: 50, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: c.accent + '55' }} onPress={() => setShowAddInv(true)}>
+                      <Text style={{ color: c.accent, fontSize: 11, fontWeight: '700' }}>+ {t('add')}</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
                 {investments.length === 0 && <View style={{ alignItems: 'center', paddingVertical: 20 }}><Text style={{ color: c.muted, fontSize: 13 }}>{t('noInvestments')}</Text></View>}
                 {investments.map(inv => (
@@ -481,7 +624,14 @@ export default function HomeScreen() {
                         <Text style={{ fontSize: 18 }}>{inv.icon}</Text>
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={{ color: c.text, fontSize: 14, fontWeight: '700' }}>{inv.name}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <Text style={{ color: c.text, fontSize: 14, fontWeight: '700' }}>{inv.name}</Text>
+                          {(inv as any).symbol && (
+                            <View style={{ backgroundColor: '#00D4AA22', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
+                              <Text style={{ color: '#00D4AA', fontSize: 9, fontWeight: '700' }}>LIVE</Text>
+                            </View>
+                          )}
+                        </View>
                         <Text style={{ color: c.muted, fontSize: 11, marginTop: 1 }}>{inv.sub}</Text>
                       </View>
                       <View style={{ alignItems: 'flex-end', marginRight: 10 }}>
@@ -692,29 +842,108 @@ export default function HomeScreen() {
         {/* Add Investment */}
         <Modal visible={showAddInv} transparent animationType="slide">
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'flex-end' }}>
-            <View style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, borderWidth: 1, borderColor: c.border }}>
-              <Text style={{ color: c.text, fontSize: 18, fontWeight: '900', marginBottom: 20 }}>{t('addInvestment')}</Text>
-              <Field label={t('name')} val={newInvName} set={setNewInvName} ph="e.g. Apple Inc." />
-              <Field label={t('details')} val={newInvSub} set={setNewInvSub} ph="e.g. AAPL · 10 shares" />
-              <Field label={`${t('currentValue')} (${currencySymbol})`} val={newInvValue} set={setNewInvValue} ph="e.g. 1500.00" kb="decimal-pad" />
-              <Field label={t('changePercent')} val={newInvChange} set={setNewInvChange} ph="e.g. 2.5" kb="decimal-pad" />
-              <View style={{ flexDirection: 'row', gap: 10, marginBottom: 20 }}>
-                <TouchableOpacity style={{ flex: 1, backgroundColor: newInvUp ? '#00D4AA22' : c.card2, borderRadius: 12, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: newInvUp ? '#00D4AA' : c.border }} onPress={() => setNewInvUp(true)}>
-                  <Text style={{ color: newInvUp ? '#00D4AA' : c.muted, fontWeight: '700' }}>▲ Up</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={{ flex: 1, backgroundColor: !newInvUp ? '#FF6B6B22' : c.card2, borderRadius: 12, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: !newInvUp ? '#FF6B6B' : c.border }} onPress={() => setNewInvUp(false)}>
-                  <Text style={{ color: !newInvUp ? '#FF6B6B' : c.muted, fontWeight: '700' }}>▼ Down</Text>
-                </TouchableOpacity>
+            <ScrollView style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, borderColor: c.border }} showsVerticalScrollIndicator={false}>
+              <View style={{ padding: 24 }}>
+                <Text style={{ color: c.text, fontSize: 18, fontWeight: '900', marginBottom: 16 }}>{t('addInvestment')}</Text>
+
+                {/* Manual / Market toggle */}
+                <View style={{ flexDirection: 'row', backgroundColor: c.card2, borderRadius: 50, padding: 4, marginBottom: 20, borderWidth: 1, borderColor: c.border }}>
+                  <TouchableOpacity style={{ flex: 1, paddingVertical: 8, borderRadius: 50, alignItems: 'center', backgroundColor: invTab === 'manual' ? c.accent : 'transparent' }} onPress={() => setInvTab('manual')}>
+                    <Text style={{ color: invTab === 'manual' ? '#fff' : c.muted, fontWeight: '700', fontSize: 13 }}>Manual</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={{ flex: 1, paddingVertical: 8, borderRadius: 50, alignItems: 'center', backgroundColor: invTab === 'market' ? c.accent : 'transparent' }} onPress={() => setInvTab('market')}>
+                    <Text style={{ color: invTab === 'market' ? '#fff' : c.muted, fontWeight: '700', fontSize: 13 }}>Live Market</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {invTab === 'manual' ? (
+                  <>
+                    <Field label={t('name')} val={newInvName} set={setNewInvName} ph="e.g. Apple Inc." />
+                    <Field label={t('details')} val={newInvSub} set={setNewInvSub} ph="e.g. AAPL · 10 shares" />
+                    <Field label={`${t('currentValue')} (${currencySymbol})`} val={newInvValue} set={setNewInvValue} ph="e.g. 1500.00" kb="decimal-pad" />
+                    <Field label={t('changePercent')} val={newInvChange} set={setNewInvChange} ph="e.g. 2.5" kb="decimal-pad" />
+                    <View style={{ flexDirection: 'row', gap: 10, marginBottom: 20 }}>
+                      <TouchableOpacity style={{ flex: 1, backgroundColor: newInvUp ? '#00D4AA22' : c.card2, borderRadius: 12, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: newInvUp ? '#00D4AA' : c.border }} onPress={() => setNewInvUp(true)}>
+                        <Text style={{ color: newInvUp ? '#00D4AA' : c.muted, fontWeight: '700' }}>▲ Up</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={{ flex: 1, backgroundColor: !newInvUp ? '#FF6B6B22' : c.card2, borderRadius: 12, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: !newInvUp ? '#FF6B6B' : c.border }} onPress={() => setNewInvUp(false)}>
+                        <Text style={{ color: !newInvUp ? '#FF6B6B' : c.muted, fontWeight: '700' }}>▼ Down</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </>
+                ) : (
+                  <>
+                    {/* Stocks */}
+                    <Text style={{ color: c.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>Stocks</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
+                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                        {STOCK_SYMBOLS.map(s => (
+                          <TouchableOpacity key={s.symbol} onPress={() => setNewInvSymbol(newInvSymbol === s.symbol ? '' : s.symbol)}
+                            style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 50, backgroundColor: newInvSymbol === s.symbol ? c.accent : c.card2, borderWidth: 1, borderColor: newInvSymbol === s.symbol ? c.accent : c.border }}>
+                            <Text style={{ color: newInvSymbol === s.symbol ? '#fff' : c.muted, fontSize: 12, fontWeight: '700' }}>{s.symbol}</Text>
+                            <Text style={{ color: newInvSymbol === s.symbol ? '#ffffff99' : c.muted + '88', fontSize: 10, textAlign: 'center' }}>{s.name}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </ScrollView>
+
+                    {/* Crypto */}
+                    <Text style={{ color: c.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>Crypto</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
+                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                        {CRYPTO_SYMBOLS.map(s => (
+                          <TouchableOpacity key={s.symbol} onPress={() => setNewInvSymbol(newInvSymbol === s.symbol ? '' : s.symbol)}
+                            style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 50, backgroundColor: newInvSymbol === s.symbol ? '#FFD700' : c.card2, borderWidth: 1, borderColor: newInvSymbol === s.symbol ? '#FFD700' : c.border }}>
+                            <Text style={{ color: newInvSymbol === s.symbol ? '#000' : c.muted, fontSize: 12, fontWeight: '700' }}>{s.symbol}</Text>
+                            <Text style={{ color: newInvSymbol === s.symbol ? '#00000088' : c.muted + '88', fontSize: 10, textAlign: 'center' }}>{s.name}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </ScrollView>
+
+                    {/* Commodities */}
+                    <Text style={{ color: c.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>Commodities</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
+                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                        {COMMODITY_SYMBOLS.map(s => (
+                          <TouchableOpacity key={s.symbol} onPress={() => setNewInvSymbol(newInvSymbol === s.symbol ? '' : s.symbol)}
+                            style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 50, backgroundColor: newInvSymbol === s.symbol ? '#FF9F43' : c.card2, borderWidth: 1, borderColor: newInvSymbol === s.symbol ? '#FF9F43' : c.border }}>
+                            <Text style={{ color: newInvSymbol === s.symbol ? '#fff' : c.muted, fontSize: 12, fontWeight: '700' }}>{s.symbol}</Text>
+                            <Text style={{ color: newInvSymbol === s.symbol ? '#ffffff99' : c.muted + '88', fontSize: 10, textAlign: 'center' }}>{s.name}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </ScrollView>
+
+                    {/* Quantity */}
+                    <Field label="Quantity / Units" val={newInvQty} set={setNewInvQty} ph="e.g. 10" kb="decimal-pad" />
+
+                    {newInvSymbol ? (
+                      <View style={{ backgroundColor: c.accent + '18', borderRadius: 12, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: c.accent + '44', flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                        <Ionicons name="information-circle" size={16} color={c.accent} />
+                        <Text style={{ color: c.accent, fontSize: 12, flex: 1 }}>Price will update automatically from live market data once per day</Text>
+                      </View>
+                    ) : (
+                      <View style={{ backgroundColor: c.card2, borderRadius: 12, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: c.border }}>
+                        <Text style={{ color: c.muted, fontSize: 12, textAlign: 'center' }}>Select a symbol above</Text>
+                      </View>
+                    )}
+                  </>
+                )}
+
+                <View style={{ flexDirection: 'row', gap: 10, paddingBottom: 20 }}>
+                  <TouchableOpacity style={{ flex: 1, backgroundColor: c.card2, borderRadius: 14, padding: 16, alignItems: 'center' }} onPress={() => { setShowAddInv(false); setInvTab('manual'); setNewInvSymbol(''); }}>
+                    <Text style={{ color: c.muted, fontWeight: '700' }}>{t('cancel')}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={{ flex: 1, backgroundColor: c.accent, borderRadius: 14, padding: 16, alignItems: 'center', opacity: (invTab === 'manual' ? (!newInvName || !newInvValue) : !newInvSymbol) ? 0.4 : 1 }}
+                    onPress={addInvestment}
+                    disabled={invTab === 'manual' ? (!newInvName || !newInvValue) : !newInvSymbol}>
+                    <Text style={{ color: '#fff', fontWeight: '700' }}>{t('add')}</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                <TouchableOpacity style={{ flex: 1, backgroundColor: c.card2, borderRadius: 14, padding: 16, alignItems: 'center' }} onPress={() => setShowAddInv(false)}>
-                  <Text style={{ color: c.muted, fontWeight: '700' }}>{t('cancel')}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={{ flex: 1, backgroundColor: c.accent, borderRadius: 14, padding: 16, alignItems: 'center', opacity: (!newInvName || !newInvValue) ? 0.4 : 1 }} onPress={addInvestment}>
-                  <Text style={{ color: '#fff', fontWeight: '700' }}>{t('add')}</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+            </ScrollView>
           </View>
         </Modal>
 

@@ -21,28 +21,28 @@ type IncomeSource = {
 };
 
 const PAY_FREQS: { key: PayFrequency; label: string; tKey: string }[] = [
-  { key: 'weekly',      label: 'Weekly',      tKey: 'weekly'      },
+  { key: 'weekly', label: 'Weekly', tKey: 'weekly' },
   { key: 'fortnightly', label: 'Fortnightly', tKey: 'fortnightly' },
-  { key: 'monthly',     label: 'Monthly',     tKey: 'monthly'     },
-  { key: 'yearly',      label: 'Yearly',      tKey: 'yearly'      },
+  { key: 'monthly', label: 'Monthly', tKey: 'monthly' },
+  { key: 'yearly', label: 'Yearly', tKey: 'yearly' },
 ];
 
-const INCOME_EMOJIS = ['💼','💰','🏦','📊','🖥️','🔧','🎨','🚚','👨‍⚕️','👨‍🏫','🏪','📱'];
+const INCOME_EMOJIS = ['💼', '💰', '🏦', '📊', '🖥️', '🔧', '🎨', '🚚', '👨‍⚕️', '👨‍🏫', '🏪', '📱'];
 
 const COMING_SOON_ITEMS: { icon: string; titleKey: string; descKey: string }[] = [
-  { icon: 'business',           titleKey: 'comingSoonBankSync',   descKey: 'comingSoonBankSyncDesc'   },
-  { icon: 'pie-chart',          titleKey: 'comingSoonBudgets',    descKey: 'comingSoonBudgetsDesc'    },
-  { icon: 'people',             titleKey: 'comingSoonShared',     descKey: 'comingSoonSharedDesc'     },
-  { icon: 'hardware-chip',      titleKey: 'comingSoonAIInsights', descKey: 'comingSoonAIInsightsDesc' },
+  { icon: 'business', titleKey: 'comingSoonBankSync', descKey: 'comingSoonBankSyncDesc' },
+  { icon: 'pie-chart', titleKey: 'comingSoonBudgets', descKey: 'comingSoonBudgetsDesc' },
+  { icon: 'people', titleKey: 'comingSoonShared', descKey: 'comingSoonSharedDesc' },
+  { icon: 'hardware-chip', titleKey: 'comingSoonAIInsights', descKey: 'comingSoonAIInsightsDesc' },
 ];
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function toMonthly(amount: number, freq: PayFrequency): number {
   switch (freq) {
-    case 'weekly':      return amount * 4.33;
+    case 'weekly': return amount * 4.33;
     case 'fortnightly': return amount * 2.17;
-    case 'monthly':     return amount;
-    case 'yearly':      return amount / 12;
+    case 'monthly': return amount;
+    case 'yearly': return amount / 12;
   }
 }
 
@@ -70,21 +70,21 @@ export default function MoreScreen() {
   const { formatAmount, convertPrice, currencySymbol, t } = useLocale();
   const router = useRouter();
 
-  const [showPaywall,      setShowPaywall]      = useState(false);
-  const [comingSoonOpen,   setComingSoonOpen]   = useState(false);
-  const [incomeOpen,       setIncomeOpen]       = useState(false);
-  const [showAddIncome,    setShowAddIncome]    = useState(false);
-  const [editingIncome,    setEditingIncome]    = useState<IncomeSource | null>(null);
-  const [sources,          setSources]          = useState<IncomeSource[]>([]);
-  const [storageKey,       setStorageKey]       = useState('polar_income_local');
+  const [showPaywall, setShowPaywall] = useState(false);
+  const [comingSoonOpen, setComingSoonOpen] = useState(false);
+  const [incomeOpen, setIncomeOpen] = useState(false);
+  const [showAddIncome, setShowAddIncome] = useState(false);
+  const [editingIncome, setEditingIncome] = useState<IncomeSource | null>(null);
+  const [sources, setSources] = useState<IncomeSource[]>([]);
+  const [storageKey, setStorageKey] = useState('polar_income_local');
 
   // ── Form state ─────────────────────────────────────────────────────────────
-  const [fLabel,   setFLabel]   = useState('');
-  const [fAmount,  setFAmount]  = useState('');
-  const [fFreq,    setFFreq]    = useState<PayFrequency>('monthly');
-  const [fDay,     setFDay]     = useState('25');
-  const [fEmoji,   setFEmoji]   = useState('💼');
-  const [fSaved,   setFSaved]   = useState(false);
+  const [fLabel, setFLabel] = useState('');
+  const [fAmount, setFAmount] = useState('');
+  const [fFreq, setFFreq] = useState<PayFrequency>('monthly');
+  const [fDay, setFDay] = useState('25');
+  const [fEmoji, setFEmoji] = useState('💼');
+  const [fSaved, setFSaved] = useState(false);
 
   // ── Load income sources ────────────────────────────────────────────────────
   useEffect(() => {
@@ -96,7 +96,7 @@ export default function MoreScreen() {
         setStorageKey(key);
         const raw = await AsyncStorage.getItem(key);
         if (raw) setSources(JSON.parse(raw));
-      } catch {}
+      } catch { }
     };
     load();
   }, []);
@@ -143,16 +143,17 @@ export default function MoreScreen() {
   // ── Derived ────────────────────────────────────────────────────────────────
   const totalMonthlyIncome = sources.reduce((s, src) => s + toMonthly(src.amount, src.frequency), 0);
   const totalExpense = transactions.filter(tx => tx.type === 'expense').reduce((s, tx) => s + Math.abs(tx.amount), 0);
-  const totalIncome  = transactions.filter(tx => tx.type === 'income').reduce((s, tx) => s + Math.abs(tx.amount), 0);
-  const totalSaved   = totalIncome - totalExpense;
-  const leftToSpend  = totalMonthlyIncome - totalExpense;
+  const totalIncome = transactions.filter(tx => tx.type === 'income').reduce((s, tx) => s + Math.abs(tx.amount), 0);
+  const totalSaved = totalIncome - totalExpense;
+  const leftToSpend = totalMonthlyIncome - totalExpense;
 
   const menuItems = [
-    { icon: 'trending-up',  label: t('markets'),        sub: t('marketsDescription')    || 'Live signals & forecasts',       route: '/(tabs)/explore',  lock: true,  feature: 'investmentTracking' },
-    { icon: 'calendar',     label: t('calendar'),       sub: t('calendarDescription')   || 'View transactions by date',      route: '/(tabs)/calendar', lock: false },
-    { icon: 'flag',         label: t('savingGoals'),    sub: t('goalsDescription')      || 'Track your saving goals',        route: '/(tabs)/goals',    lock: false },
-    { icon: 'briefcase',    label: t('assets'),         sub: t('assetsDescription')     || 'Cards, investments & property',  route: '/(tabs)/assets',   lock: true,  feature: 'investmentTracking' },
-    { icon: 'receipt',      label: 'Tax Helper',        sub: 'Estimate tax, bands & checklist',                              route: '/(tabs)/tax',      lock: false },
+    { icon: 'trending-up', label: t('markets'), sub: t('marketsDescription') || 'Live signals & forecasts', route: '/(tabs)/explore', lock: true, feature: 'investmentTracking' },
+    { icon: 'wallet', label: 'Budgets', sub: 'Set monthly spending limits per category', route: '/(tabs)/budgets', lock: false },
+    { icon: 'calendar', label: t('calendar'), sub: t('calendarDescription') || 'View transactions by date', route: '/(tabs)/calendar', lock: false },
+    { icon: 'flag', label: t('savingGoals'), sub: t('goalsDescription') || 'Track your saving goals', route: '/(tabs)/goals', lock: false },
+    { icon: 'briefcase', label: t('assets'), sub: t('assetsDescription') || 'Cards, investments & property', route: '/(tabs)/assets', lock: true, feature: 'investmentTracking' },
+    { icon: 'receipt', label: 'Tax Helper', sub: 'Estimate tax, bands & checklist', route: '/(tabs)/tax', lock: false },
   ] as const;
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -279,9 +280,9 @@ export default function MoreScreen() {
       <Text style={{ color: c.muted, fontSize: 12, fontWeight: '700', letterSpacing: .8, textTransform: 'uppercase', marginBottom: 12 }}>{t('quickStats')}</Text>
       <View style={{ flexDirection: 'row', gap: 12, marginBottom: 24 }}>
         {[
-          { icon: 'calendar-outline', color: c.accent,  value: transactions.length,       label: t('transactions') },
-          { icon: 'wallet-outline',   color: totalSaved >= 0 ? '#00D4AA' : '#FF6B6B', value: formatAmount(Math.abs(totalSaved)), label: totalSaved >= 0 ? t('saved') : t('overspent') },
-          { icon: 'trending-down',    color: '#FF6B6B', value: transactions.filter(tx => tx.type === 'expense').length, label: t('expenses') },
+          { icon: 'calendar-outline', color: c.accent, value: transactions.length, label: t('transactions') },
+          { icon: 'wallet-outline', color: totalSaved >= 0 ? '#00D4AA' : '#FF6B6B', value: formatAmount(Math.abs(totalSaved)), label: totalSaved >= 0 ? t('saved') : t('overspent') },
+          { icon: 'trending-down', color: '#FF6B6B', value: transactions.filter(tx => tx.type === 'expense').length, label: t('expenses') },
         ].map((item, i) => (
           <View key={i} style={{ flex: 1, backgroundColor: c.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: c.border, alignItems: 'center' }}>
             <Ionicons name={item.icon as any} size={24} color={item.color} />

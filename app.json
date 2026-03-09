@@ -6,30 +6,52 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "polar-finance",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false,
+      "bundleIdentifier": "com.polarfinance.app",
+      "buildNumber": "1",
       "infoPlist": {
         "NSCameraUsageDescription": "Polar Finance uses your camera to scan receipts and automatically add transactions.",
         "NSPhotoLibraryUsageDescription": "Polar Finance accesses your photo library so you can upload receipts to scan.",
-        "ITSAppUsesNonExemptEncryption": false
-      },
-      "bundleIdentifier": "com.polarfinance.app"
+        "NSUserNotificationsUsageDescription": "Polar Finance sends bill reminders, payday alerts, and spending summaries.",
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIBackgroundModes": [
+          "fetch",
+          "remote-notification",
+          "fetch",
+          "remote-notification"
+        ]
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#0D0D1A"
       },
+      "package": "com.polarfinance.app",
+      "versionCode": 1,
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.RECORD_AUDIO"
-      ],
-      "package": "com.anonymous.polarfinance"
+        "android.permission.RECORD_AUDIO",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.SCHEDULE_EXACT_ALARM",
+        "android.permission.USE_EXACT_ALARM",
+        "android.permission.VIBRATE",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.SCHEDULE_EXACT_ALARM",
+        "android.permission.USE_EXACT_ALARM",
+        "android.permission.VIBRATE",
+        "android.permission.POST_NOTIFICATIONS"
+      ]
     },
     "web": {
       "output": "static",
@@ -53,6 +75,15 @@
           "photosPermission": "Polar Finance accesses your photos to scan receipts.",
           "cameraPermission": "Polar Finance uses your camera to scan receipts."
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#6C63FF",
+          "defaultChannel": "default",
+          "sounds": []
+        }
       ]
     ],
     "experiments": {
@@ -64,6 +95,12 @@
       "eas": {
         "projectId": "8f9848f7-513f-4b7f-9b8f-77f0257db065"
       }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/8f9848f7-513f-4b7f-9b8f-77f0257db065"
     }
   }
 }

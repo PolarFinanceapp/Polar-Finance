@@ -9,27 +9,28 @@ import { useEffect, useState } from 'react';
 import { Image, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Paywall from '../../components/Paywall';
 import ProfileModal from '../../components/ProfileModal';
-import ReceiptScanner from '../../components/ReceiptScanner';
 import RecurringBills from '../../components/RecurringBills';
 import TrialPrompt from '../../components/TrialPrompt';
+import { useBills } from '../../context/BillsContext';
 import { useTheme } from '../../context/ThemeContext';
 
 const ALL_TABS = [
-  { icon: 'bar-chart',  label: 'stats',       display: 'Stats',    route: '/(tabs)/stats'    },
-  { icon: 'calendar',   label: 'calendar',    display: 'Calendar', route: '/(tabs)/calendar' },
-  { icon: 'flag',       label: 'savingGoals', display: 'Goals',    route: '/(tabs)/goals'    },
-  { icon: 'briefcase',  label: 'assets',      display: 'Assets',   route: '/(tabs)/assets'   },
-  { icon: 'card',       label: 'credit',      display: 'Credit',   route: '/(tabs)/credit'   },
-  { icon: 'settings',   label: 'settings',    display: 'Settings', route: '/(tabs)/settings' },
+  { icon: 'bar-chart', label: 'stats', display: 'Stats', route: '/(tabs)/stats' },
+  { icon: 'wallet', label: 'budgets', display: 'Budgets', route: '/(tabs)/budgets' },
+  { icon: 'calendar', label: 'calendar', display: 'Calendar', route: '/(tabs)/calendar' },
+  { icon: 'flag', label: 'savingGoals', display: 'Goals', route: '/(tabs)/goals' },
+  { icon: 'briefcase', label: 'assets', display: 'Assets', route: '/(tabs)/assets' },
+  { icon: 'card', label: 'credit', display: 'Credit', route: '/(tabs)/credit' },
+  { icon: 'settings', label: 'settings', display: 'Settings', route: '/(tabs)/settings' },
 ] as const;
 
 const CARD_COLORS = [
-  '#1a1a4e','#1a2a1a','#2a1a00','#1a001a','#0a1428','#000500',
-  '#0a2a4a','#0d1b4b','#1a3a5c','#0a3d62',
-  '#2d1b69','#4a1942','#3d0066','#1a0533',
-  '#0d3b2e','#1a4a1a','#003322','#1b4332',
-  '#4a1010','#3d1a00','#2a0a00','#4a2000',
-  '#1a1a2e','#2d2d2d','#1c1c1c','#0f0f1a',
+  '#1a1a4e', '#1a2a1a', '#2a1a00', '#1a001a', '#0a1428', '#000500',
+  '#0a2a4a', '#0d1b4b', '#1a3a5c', '#0a3d62',
+  '#2d1b69', '#4a1942', '#3d0066', '#1a0533',
+  '#0d3b2e', '#1a4a1a', '#003322', '#1b4332',
+  '#4a1010', '#3d1a00', '#2a0a00', '#4a2000',
+  '#1a1a2e', '#2d2d2d', '#1c1c1c', '#0f0f1a',
 ];
 
 export default function HomeScreen() {
@@ -37,13 +38,14 @@ export default function HomeScreen() {
   const { theme: c } = useTheme();
   const router = useRouter();
   const { formatAmount, currencySymbol, t } = useLocale();
+  const { bills } = useBills();
 
   const showCardsOk = hasFeature('cardTracking');
-  const showInvest  = hasFeature('investmentTracking');
+  const showInvest = hasFeature('investmentTracking');
 
-  const { cards, setCards, investments, setInvestments, transactions, setTransactions } = useFinance();
+  const { cards, setCards, investments, setInvestments, transactions, setTransactions, customAssets } = useFinance();
 
-  // ── Greeting ──────────────────────────────────────────────────────────────────
+  // ── Greeting ──────────────────────────────────────────────────────────────
   const greeting = (() => {
     const h = new Date().getHours();
     if (h < 12) return t('goodMorning');
@@ -51,10 +53,17 @@ export default function HomeScreen() {
     return t('goodEvening');
   })();
 
-  // ── User info ─────────────────────────────────────────────────────────────────
-  const [userName,     setUserName]     = useState('');
-  const [userInitial,  setUserInitial]  = useState('?');
+  // ── User info ─────────────────────────────────────────────────────────────
+  const [userName, setUserName] = useState('');
+  const [userInitial, setUserInitial] = useState('?');
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
+
+  const loadProfilePhoto = async () => {
+    const pairs = await AsyncStorage.multiGet(['profile_photo', 'profile_avatar']);
+    const photo = pairs[0][1];
+    const emoji = pairs[1][1];
+    setProfilePhoto(photo || emoji || null);
+  };
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -63,63 +72,69 @@ export default function HomeScreen() {
       setUserName(name.split(' ')[0]);
       setUserInitial(name.charAt(0).toUpperCase());
     });
-    AsyncStorage.getItem('profile_photo').then(uri => { if (uri) setProfilePhoto(uri); });
+    loadProfilePhoto();
   }, []);
 
   const handleProfileClose = () => {
     setShowProfile(false);
-    AsyncStorage.getItem('profile_photo').then(uri => setProfilePhoto(uri || null));
+    loadProfilePhoto();
   };
 
-  // ── Modal state ───────────────────────────────────────────────────────────────
-  const [showPaywall,        setShowPaywall]        = useState(false);
+  // ── Modal state ───────────────────────────────────────────────────────────
+  const [showPaywall, setShowPaywall] = useState(false);
   const [showExpiredPaywall, setShowExpiredPaywall] = useState(false);
-  const [showAddCard,        setShowAddCard]        = useState(false);
-  const [showAddInv,         setShowAddInv]         = useState(false);
-  const [showAddTxn,         setShowAddTxn]         = useState(false);
-  const [showScanner,        setShowScanner]        = useState(false);
-  const [showCards,          setShowCards]          = useState(false);
-  const [showProfile,        setShowProfile]        = useState(false);
-  const [showTabPicker,      setShowTabPicker]      = useState(false);
-  const [showSearch,         setShowSearch]         = useState(false);
-  const [showBills,          setShowBills]          = useState(false);
+  const [showAddCard, setShowAddCard] = useState(false);
+  const [showAddInv, setShowAddInv] = useState(false);
+  const [showAddTxn, setShowAddTxn] = useState(false);
+  const [showCards, setShowCards] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+  const [showTabPicker, setShowTabPicker] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [showBills, setShowBills] = useState(false);
 
-  // ── Card form ─────────────────────────────────────────────────────────────────
-  const [newBank,            setNewBank]            = useState('');
-  const [newCardType,        setNewCardType]        = useState('Debit · Visa');
-  const [newBalance,         setNewBalance]         = useState('');
-  const [newNumber,          setNewNumber]          = useState('');
-  const [newCardColor,       setNewCardColor]       = useState('#1a1a4e');
+  // ── Card form ─────────────────────────────────────────────────────────────
+  const [newBank, setNewBank] = useState('');
+  const [newCardType, setNewCardType] = useState('Debit · Visa');
+  const [newBalance, setNewBalance] = useState('');
+  const [newNumber, setNewNumber] = useState('');
+  const [newCardColor, setNewCardColor] = useState('#1a1a4e');
   const [newBalanceNegative, setNewBalanceNegative] = useState(false);
 
-  // ── Investment form ───────────────────────────────────────────────────────────
-  const [newInvName,   setNewInvName]   = useState('');
-  const [newInvSub,    setNewInvSub]    = useState('');
-  const [newInvValue,  setNewInvValue]  = useState('');
+  // ── Investment form ───────────────────────────────────────────────────────
+  const [newInvName, setNewInvName] = useState('');
+  const [newInvSub, setNewInvSub] = useState('');
+  const [newInvValue, setNewInvValue] = useState('');
   const [newInvChange, setNewInvChange] = useState('');
-  const [newInvUp,     setNewInvUp]     = useState(true);
-  const [newInvIcon,   setNewInvIcon]   = useState('📈');
+  const [newInvUp, setNewInvUp] = useState(true);
+  const [newInvIcon, setNewInvIcon] = useState('📈');
 
-  // ── Investment edit ───────────────────────────────────────────────────────────
-  const [editInv,       setEditInv]       = useState<any | null>(null);
-  const [editInvName,   setEditInvName]   = useState('');
-  const [editInvSub,    setEditInvSub]    = useState('');
-  const [editInvValue,  setEditInvValue]  = useState('');
+  // ── Investment edit ───────────────────────────────────────────────────────
+  const [editInv, setEditInv] = useState<any | null>(null);
+  const [editInvName, setEditInvName] = useState('');
+  const [editInvSub, setEditInvSub] = useState('');
+  const [editInvValue, setEditInvValue] = useState('');
   const [editInvChange, setEditInvChange] = useState('');
-  const [editInvUp,     setEditInvUp]     = useState(true);
+  const [editInvUp, setEditInvUp] = useState(true);
 
-  // ── Transaction form ──────────────────────────────────────────────────────────
+  // ── Transaction form ──────────────────────────────────────────────────────
   const [newTxnName, setNewTxnName] = useState('');
-  const [newTxnCat,  setNewTxnCat]  = useState('Groceries');
-  const [newTxnAmt,  setNewTxnAmt]  = useState('');
-  const [newTxnType, setNewTxnType] = useState<'income'|'expense'>('expense');
+  const [newTxnCat, setNewTxnCat] = useState('Groceries');
+  const [newTxnAmt, setNewTxnAmt] = useState('');
+  const [newTxnType, setNewTxnType] = useState<'income' | 'expense'>('expense');
 
-  // ── Quick actions ─────────────────────────────────────────────────────────────
+  // ── Transaction edit ──────────────────────────────────────────────────────
+  const [editTxn, setEditTxn] = useState<any | null>(null);
+  const [editTxnName, setEditTxnName] = useState('');
+  const [editTxnCat, setEditTxnCat] = useState('Groceries');
+  const [editTxnAmt, setEditTxnAmt] = useState('');
+  const [editTxnType, setEditTxnType] = useState<'income' | 'expense'>('expense');
+
+  // ── Quick actions ─────────────────────────────────────────────────────────
   const [selectedTabs, setSelectedTabs] = useState<typeof ALL_TABS[number][]>([ALL_TABS[0], ALL_TABS[1], ALL_TABS[2]]);
-  const [search,       setSearch]       = useState('');
-  const [filter,       setFilter]       = useState<'all'|'income'|'expense'>('all');
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState<'all' | 'income' | 'expense'>('all');
 
-  // ── Force paywall on expired trial ────────────────────────────────────────────
+  // ── Force paywall on expired trial ────────────────────────────────────────
   useEffect(() => {
     if (needsPaywall) {
       const timer = setTimeout(() => setShowExpiredPaywall(true), 600);
@@ -127,7 +142,24 @@ export default function HomeScreen() {
     }
   }, [needsPaywall]);
 
-  // ── Helpers ───────────────────────────────────────────────────────────────────
+  // ── Derived totals ────────────────────────────────────────────────────────
+  const totalIncome = transactions.filter(t => t.type === 'income').reduce((s, t) => s + Math.abs(t.amount), 0);
+  const totalExpense = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + Math.abs(t.amount), 0);
+  const totalInvest = showInvest ? investments.reduce((s, i) => s + i.value, 0) : 0;
+  const totalCards = showCardsOk ? cards.reduce((s, card) => s + card.balance, 0) : 0;
+  const totalCustomAssets = showInvest ? customAssets.reduce((s, a) => s + a.value, 0) : 0;
+  const netWorth = totalIncome - totalExpense + totalInvest + totalCards + totalCustomAssets;
+
+  // Bills summary for bar
+  const totalMonthlyBills = bills.reduce((s, b) => {
+    switch (b.frequency) {
+      case 'weekly': return s + b.amount * 4.33;
+      case 'fortnightly': return s + b.amount * 2.17;
+      case 'monthly': return s + b.amount;
+      case 'yearly': return s + b.amount / 12;
+    }
+  }, 0);
+
   const toggleTab = (tab: typeof ALL_TABS[number]) => {
     setSelectedTabs((prev: typeof ALL_TABS[number][]) => {
       if (prev.find(t => t.label === tab.label)) return prev.filter(t => t.label !== tab.label);
@@ -136,15 +168,9 @@ export default function HomeScreen() {
     });
   };
 
-  const totalIncome  = transactions.filter(t => t.type === 'income').reduce((s, t) => s + Math.abs(t.amount), 0);
-  const totalExpense = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + Math.abs(t.amount), 0);
-  const totalInvest  = showInvest  ? investments.reduce((s, i) => s + i.value, 0) : 0;
-  const totalCards   = showCardsOk ? cards.reduce((s, card) => s + card.balance, 0) : 0;
-  const netWorth     = totalIncome - totalExpense + totalInvest + totalCards;
-
   const filtered = transactions.filter(tx => {
     const mS = tx.name.toLowerCase().includes(search.toLowerCase()) || tx.cat.toLowerCase().includes(search.toLowerCase());
-    const mF  = filter === 'all' || tx.type === filter;
+    const mF = filter === 'all' || tx.type === filter;
     return mS && mF;
   });
 
@@ -152,7 +178,7 @@ export default function HomeScreen() {
     ? filtered
     : filtered.slice(0, maxTransactions === Infinity ? filtered.length : maxTransactions);
 
-  // ── Actions ───────────────────────────────────────────────────────────────────
+  // ── Actions ───────────────────────────────────────────────────────────────
   const addCard = () => {
     if (!newBank || !newBalance) return;
     const raw = parseFloat(newBalance);
@@ -196,9 +222,38 @@ export default function HomeScreen() {
     setShowAddTxn(false);
   };
 
-  // ── Render ────────────────────────────────────────────────────────────────────
-  // FIX: Wrap in a root View so ProfileModal and RecurringBills sit OUTSIDE the
-  // ScrollView — prevents iOS gesture conflicts and nested-modal issues.
+  // ── Transaction edit helpers ──────────────────────────────────────────────
+  const openEditTxn = (txn: any) => {
+    setEditTxn(txn);
+    setEditTxnName(txn.name);
+    setEditTxnCat(txn.cat);
+    setEditTxnAmt(Math.abs(txn.amount).toString());
+    setEditTxnType(txn.type === 'income' ? 'income' : 'expense');
+  };
+
+  const saveEditTxn = () => {
+    if (!editTxn || !editTxnName || !editTxnAmt) return;
+    const amt = parseFloat(editTxnAmt);
+    setTransactions(transactions.map(tx => tx.id === editTxn.id
+      ? {
+        ...tx,
+        name: editTxnName,
+        cat: editTxnCat,
+        icon: CAT_ICONS[editTxnCat] || tx.icon,
+        amount: editTxnType === 'expense' ? -Math.abs(amt) : Math.abs(amt),
+        type: editTxnType,
+      }
+      : tx
+    ));
+    setEditTxn(null);
+  };
+
+  const deleteTxn = (id: string) => {
+    setTransactions(transactions.filter(tx => tx.id !== id));
+    setEditTxn(null);
+  };
+
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <View style={{ flex: 1, backgroundColor: c.dark }}>
       <ScrollView style={{ flex: 1, paddingHorizontal: 20 }} showsVerticalScrollIndicator={false}>
@@ -217,9 +272,11 @@ export default function HomeScreen() {
           <TouchableOpacity activeOpacity={0.7}
             style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: c.accent, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }}
             onPress={() => setShowProfile(true)}>
-            {profilePhoto
+            {profilePhoto && (profilePhoto.startsWith('http') || profilePhoto.startsWith('file'))
               ? <Image source={{ uri: profilePhoto }} style={{ width: 44, height: 44, borderRadius: 22 }} />
-              : <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>{userInitial}</Text>}
+              : profilePhoto && profilePhoto.length <= 8
+                ? <Text style={{ fontSize: 22 }}>{profilePhoto}</Text>
+                : <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>{userInitial}</Text>}
           </TouchableOpacity>
         </View>
 
@@ -262,8 +319,8 @@ export default function HomeScreen() {
               <>
                 <View style={{ width: 1, height: 30, backgroundColor: 'rgba(255,255,255,0.1)' }} />
                 <View style={{ flex: 1, alignItems: 'center' }}>
-                  <Text style={{ color: c.muted, fontSize: 11 }}>📈 {t('invested')}</Text>
-                  <Text style={{ color: '#a89fff', fontSize: 14, fontWeight: '700', marginTop: 2 }}>{formatAmount(totalInvest)}</Text>
+                  <Text style={{ color: c.muted, fontSize: 11 }}>💼 {t('assets')}</Text>
+                  <Text style={{ color: '#a89fff', fontSize: 14, fontWeight: '700', marginTop: 2 }}>{formatAmount(totalCustomAssets + totalInvest)}</Text>
                 </View>
               </>
             )}
@@ -382,7 +439,7 @@ export default function HomeScreen() {
           <View style={{ backgroundColor: c.card, borderRadius: 20, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: c.accent + '4D' }}>
             <TextInput style={{ color: c.text, fontSize: 15, paddingVertical: 4, marginBottom: 10 }} placeholder={t('searchTransactions')} placeholderTextColor={c.muted} value={search} onChangeText={setSearch} autoFocus />
             <View style={{ flexDirection: 'row', gap: 8 }}>
-              {(['all','income','expense'] as const).map(f => (
+              {(['all', 'income', 'expense'] as const).map(f => (
                 <TouchableOpacity key={f} style={{ paddingHorizontal: 14, paddingVertical: 6, borderRadius: 50, backgroundColor: filter === f ? c.accent : c.card2, borderWidth: 1, borderColor: filter === f ? c.accent : c.border }} onPress={() => setFilter(f)}>
                   <Text style={{ color: filter === f ? '#fff' : c.muted, fontSize: 12, fontWeight: '600' }}>
                     {t(f === 'all' ? 'all' : f === 'income' ? 'income' : 'expense')}
@@ -401,7 +458,7 @@ export default function HomeScreen() {
           </TouchableOpacity>
         )}
 
-        {/* Recurring Bills bar — FIX: just sets showBills=true, modal handled outside ScrollView */}
+        {/* Recurring Bills bar — now shows live summary */}
         <TouchableOpacity
           onPress={() => setShowBills(true)}
           style={{ backgroundColor: c.card, borderRadius: 14, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: c.border, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -411,7 +468,9 @@ export default function HomeScreen() {
           <View style={{ flex: 1 }}>
             <Text style={{ color: c.text, fontSize: 14, fontWeight: '700' }}>Recurring Bills</Text>
             <Text style={{ color: c.muted, fontSize: 12, marginTop: 1 }}>
-              Tap to manage recurring bills
+              {bills.length > 0
+                ? `${bills.length} bill${bills.length !== 1 ? 's' : ''} · ${formatAmount(totalMonthlyBills)}/mo`
+                : 'Tap to manage recurring bills'}
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={c.muted} />
@@ -421,16 +480,12 @@ export default function HomeScreen() {
         <View style={{ marginBottom: 30 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <Text style={{ color: c.text, fontSize: 17, fontWeight: '800' }}>{t('recentTransactions')}</Text>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <TouchableOpacity style={{ backgroundColor: c.card2, borderRadius: 50, paddingHorizontal: 12, paddingVertical: 5, borderWidth: 1, borderColor: c.border, flexDirection: 'row', alignItems: 'center', gap: 5 }} onPress={() => setShowScanner(true)}>
-                <Ionicons name="scan-outline" size={13} color={c.text} />
-                <Text style={{ color: c.text, fontSize: 12, fontWeight: '700' }}>Scan</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={{ backgroundColor: c.accent + '22', borderRadius: 50, paddingHorizontal: 12, paddingVertical: 5, borderWidth: 1, borderColor: c.accent + '55', flexDirection: 'row', alignItems: 'center', gap: 5 }} onPress={() => setShowAddTxn(true)}>
-                <Ionicons name="add" size={14} color={c.accent} />
-                <Text style={{ color: c.accent, fontSize: 12, fontWeight: '700' }}>{t('add')}</Text>
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity
+              style={{ backgroundColor: c.accent + '22', borderRadius: 50, paddingHorizontal: 12, paddingVertical: 5, borderWidth: 1, borderColor: c.accent + '55', flexDirection: 'row', alignItems: 'center', gap: 5 }}
+              onPress={() => setShowAddTxn(true)}>
+              <Ionicons name="add" size={14} color={c.accent} />
+              <Text style={{ color: c.accent, fontSize: 12, fontWeight: '700' }}>{t('add')}</Text>
+            </TouchableOpacity>
           </View>
 
           {filtered.length === 0 && (
@@ -440,8 +495,11 @@ export default function HomeScreen() {
             </View>
           )}
 
+          {/* FIX: tap opens edit modal, long press deletes */}
           {displayTxns.map(txn => (
-            <TouchableOpacity key={txn.id} onLongPress={() => setTransactions(transactions.filter(tx => tx.id !== txn.id))}
+            <TouchableOpacity key={txn.id}
+              onPress={() => openEditTxn(txn)}
+              onLongPress={() => deleteTxn(txn.id)}
               style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: c.card, borderRadius: 16, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: c.border }}>
               <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: c.card2, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
                 <Text style={{ fontSize: 18 }}>{txn.icon}</Text>
@@ -462,10 +520,10 @@ export default function HomeScreen() {
               <Text style={{ color: c.accent, fontSize: 13, fontWeight: '700' }}>{t('upgradeProCards')} — {transactions.length - maxTransactions} more hidden</Text>
             </TouchableOpacity>
           )}
-          <Text style={{ color: c.muted, fontSize: 11, textAlign: 'center', marginTop: 4 }}>{t('longPressDelete')}</Text>
+          <Text style={{ color: c.muted, fontSize: 11, textAlign: 'center', marginTop: 4 }}>Tap to edit · Long press to delete</Text>
         </View>
 
-        {/* ── Modals (transparent ones only — pageSheet modals are outside ScrollView) ── */}
+        {/* ── Modals ── */}
 
         {/* Tab Picker */}
         <Modal visible={showTabPicker} transparent animationType="slide">
@@ -501,10 +559,10 @@ export default function HomeScreen() {
             <View style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, borderWidth: 1, borderColor: c.border }}>
               <Text style={{ color: c.text, fontSize: 18, fontWeight: '900', marginBottom: 20 }}>{t('addCard')}</Text>
               {[
-                { label: t('bankName'),       val: newBank,     set: setNewBank,     ph: 'e.g. Barclays',     kb: 'default'     as const },
-                { label: t('cardType'),       val: newCardType, set: setNewCardType, ph: 'e.g. Debit · Visa', kb: 'default'     as const },
+                { label: t('bankName'), val: newBank, set: setNewBank, ph: 'e.g. Barclays', kb: 'default' as const },
+                { label: t('cardType'), val: newCardType, set: setNewCardType, ph: 'e.g. Debit · Visa', kb: 'default' as const },
                 { label: `${t('balance')} (${currencySymbol})`, val: newBalance, set: setNewBalance, ph: 'e.g. 1500.00', kb: 'decimal-pad' as const },
-                { label: t('lastFourDigits'), val: newNumber,   set: setNewNumber,   ph: 'e.g. 1234',         kb: 'number-pad'  as const },
+                { label: t('lastFourDigits'), val: newNumber, set: setNewNumber, ph: 'e.g. 1234', kb: 'number-pad' as const },
               ].map((f, i) => (
                 <View key={i} style={{ marginBottom: 12 }}>
                   <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 6 }}>{f.label}</Text>
@@ -548,8 +606,8 @@ export default function HomeScreen() {
             <View style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, borderWidth: 1, borderColor: c.border }}>
               <Text style={{ color: c.text, fontSize: 18, fontWeight: '900', marginBottom: 20 }}>{t('addInvestment')}</Text>
               {[
-                { label: t('name'),    val: newInvName,   set: setNewInvName,   ph: 'e.g. Apple Inc.',       kb: 'default'     as const },
-                { label: t('details'), val: newInvSub,    set: setNewInvSub,    ph: 'e.g. AAPL · 10 shares', kb: 'default'     as const },
+                { label: t('name'), val: newInvName, set: setNewInvName, ph: 'e.g. Apple Inc.', kb: 'default' as const },
+                { label: t('details'), val: newInvSub, set: setNewInvSub, ph: 'e.g. AAPL · 10 shares', kb: 'default' as const },
                 { label: `${t('currentValue')} (${currencySymbol})`, val: newInvValue, set: setNewInvValue, ph: 'e.g. 1500.00', kb: 'decimal-pad' as const },
                 { label: t('changePercent'), val: newInvChange, set: setNewInvChange, ph: 'e.g. 2.5', kb: 'decimal-pad' as const },
               ].map((f, i) => (
@@ -584,8 +642,8 @@ export default function HomeScreen() {
             <View style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, borderWidth: 1, borderColor: c.border }}>
               <Text style={{ color: c.text, fontSize: 18, fontWeight: '900', marginBottom: 20 }}>✏️ Edit Investment</Text>
               {[
-                { label: t('name'),    val: editInvName,   set: setEditInvName,   ph: 'e.g. Apple Inc.',       kb: 'default'     as const },
-                { label: t('details'), val: editInvSub,    set: setEditInvSub,    ph: 'e.g. AAPL · 10 shares', kb: 'default'     as const },
+                { label: t('name'), val: editInvName, set: setEditInvName, ph: 'e.g. Apple Inc.', kb: 'default' as const },
+                { label: t('details'), val: editInvSub, set: setEditInvSub, ph: 'e.g. AAPL · 10 shares', kb: 'default' as const },
                 { label: `${t('currentValue')} (${currencySymbol})`, val: editInvValue, set: setEditInvValue, ph: 'e.g. 1500.00', kb: 'decimal-pad' as const },
                 { label: t('changePercent'), val: editInvChange, set: setEditInvChange, ph: 'e.g. 2.5', kb: 'decimal-pad' as const },
               ].map((f, i) => (
@@ -628,7 +686,7 @@ export default function HomeScreen() {
                 </TouchableOpacity>
               </View>
               {[
-                { label: t('name'),   val: newTxnName, set: setNewTxnName, ph: 'e.g. Tesco',   kb: 'default'     as const },
+                { label: t('name'), val: newTxnName, set: setNewTxnName, ph: 'e.g. Tesco', kb: 'default' as const },
                 { label: `${t('amount')} (${currencySymbol})`, val: newTxnAmt, set: setNewTxnAmt, ph: 'e.g. 42.80', kb: 'decimal-pad' as const },
               ].map((f, i) => (
                 <View key={i} style={{ marginBottom: 12 }}>
@@ -656,19 +714,53 @@ export default function HomeScreen() {
           </View>
         </Modal>
 
-        {/* Receipt Scanner */}
-        <ReceiptScanner visible={showScanner} onClose={() => setShowScanner(false)}
-          onAdd={txns => {
-            const mapped = txns.map(tx => ({
-              id: Date.now().toString() + Math.random(),
-              icon: tx.icon || CAT_ICONS[tx.cat] || '💳',
-              name: tx.name, cat: tx.cat,
-              amount: -Math.abs(tx.amount), type: 'expense' as const,
-              date: new Date().toLocaleDateString('en-GB'),
-            }));
-            setTransactions([...mapped, ...transactions]);
-          }}
-        />
+        {/* Edit Transaction */}
+        <Modal visible={!!editTxn} transparent animationType="slide">
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
+            <View style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, borderWidth: 1, borderColor: c.border }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                <Text style={{ color: c.text, fontSize: 18, fontWeight: '900' }}>✏️ Edit Transaction</Text>
+                <TouchableOpacity onPress={() => editTxn && deleteTxn(editTxn.id)}
+                  style={{ backgroundColor: '#FF6B6B18', borderRadius: 10, padding: 8, borderWidth: 1, borderColor: '#FF6B6B44' }}>
+                  <Ionicons name="trash-outline" size={18} color="#FF6B6B" />
+                </TouchableOpacity>
+              </View>
+              <View style={{ flexDirection: 'row', backgroundColor: c.card2, borderRadius: 50, padding: 4, marginBottom: 16, borderWidth: 1, borderColor: c.border }}>
+                <TouchableOpacity style={{ flex: 1, paddingVertical: 8, borderRadius: 50, alignItems: 'center', backgroundColor: editTxnType === 'expense' ? '#FF6B6B' : 'transparent' }} onPress={() => setEditTxnType('expense')}>
+                  <Text style={{ color: editTxnType === 'expense' ? '#fff' : c.muted, fontWeight: '700' }}>↓ {t('expense')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={{ flex: 1, paddingVertical: 8, borderRadius: 50, alignItems: 'center', backgroundColor: editTxnType === 'income' ? '#00D4AA' : 'transparent' }} onPress={() => setEditTxnType('income')}>
+                  <Text style={{ color: editTxnType === 'income' ? '#fff' : c.muted, fontWeight: '700' }}>↑ {t('income')}</Text>
+                </TouchableOpacity>
+              </View>
+              {[
+                { label: t('name'), val: editTxnName, set: setEditTxnName, ph: 'e.g. Tesco', kb: 'default' as const },
+                { label: `${t('amount')} (${currencySymbol})`, val: editTxnAmt, set: setEditTxnAmt, ph: 'e.g. 42.80', kb: 'decimal-pad' as const },
+              ].map((f, i) => (
+                <View key={i} style={{ marginBottom: 12 }}>
+                  <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 6 }}>{f.label}</Text>
+                  <TextInput style={{ backgroundColor: c.card2, borderRadius: 12, padding: 14, color: c.text, fontSize: 15, borderWidth: 1, borderColor: c.border }} placeholder={f.ph} placeholderTextColor={c.muted} value={f.val} onChangeText={f.set} keyboardType={f.kb} />
+                </View>
+              ))}
+              <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 8 }}>{t('category')}</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
+                {Object.keys(CAT_ICONS).slice(0, 13).map(cat => (
+                  <TouchableOpacity key={cat} style={{ backgroundColor: editTxnCat === cat ? c.accent : c.card2, borderRadius: 50, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: editTxnCat === cat ? c.accent : c.border }} onPress={() => setEditTxnCat(cat)}>
+                    <Text style={{ color: editTxnCat === cat ? '#fff' : c.muted, fontSize: 12, fontWeight: '600' }}>{CAT_ICONS[cat]} {cat}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity style={{ flex: 1, backgroundColor: c.card2, borderRadius: 14, padding: 16, alignItems: 'center' }} onPress={() => setEditTxn(null)}>
+                  <Text style={{ color: c.muted, fontWeight: '700' }}>{t('cancel')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={{ flex: 1, backgroundColor: c.accent, borderRadius: 14, padding: 16, alignItems: 'center', opacity: (!editTxnName || !editTxnAmt) ? 0.4 : 1 }} onPress={saveEditTxn}>
+                  <Text style={{ color: '#fff', fontWeight: '700' }}>{t('save')}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
 
         <TrialPrompt />
         <Paywall visible={showPaywall} onClose={() => setShowPaywall(false)} />
@@ -676,12 +768,8 @@ export default function HomeScreen() {
 
       </ScrollView>
 
-      {/* FIX 1: ProfileModal outside ScrollView — no more gesture conflicts */}
       <ProfileModal visible={showProfile} onClose={handleProfileClose} />
-
-      {/* FIX 2: RecurringBills outside ScrollView — no more nested pageSheet issue */}
       <RecurringBills visible={showBills} onClose={() => setShowBills(false)} />
-
     </View>
   );
 }

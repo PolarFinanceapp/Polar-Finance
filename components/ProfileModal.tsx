@@ -1,286 +1,190 @@
-import { useLocale } from '@/context/LocaleContext';
+import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useState } from 'react';
-import { Alert, Image, Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native';
-import { Plan, planFeatures, usePlan } from '../context/PlanContext';
+import {
+  Alert, Image, Modal, ScrollView,
+  Text, TouchableOpacity, View,
+} from 'react-native';
 import { useTheme } from '../context/ThemeContext';
-import { supabase } from '../lib/supabase';
 
-const AVATAR_ICONS = [
-  '🐻‍❄️','🦁','🐯','🦊','🐺','🦅','🐬','🦋',
-  '🐲','🌟','💎','🔥','⚡','🎯','🚀','🌈','🍀','👑',
+// Suitable avatar icons from Ionicons
+const AVATAR_ICONS: { name: string; label: string }[] = [
+  { name: 'person-circle', label: 'Person' },
+  { name: 'happy', label: 'Happy' },
+  { name: 'star', label: 'Star' },
+  { name: 'heart', label: 'Heart' },
+  { name: 'trophy', label: 'Trophy' },
+  { name: 'rocket', label: 'Rocket' },
+  { name: 'diamond', label: 'Diamond' },
+  { name: 'leaf', label: 'Leaf' },
+  { name: 'flame', label: 'Flame' },
+  { name: 'moon', label: 'Moon' },
+  { name: 'sunny', label: 'Sun' },
+  { name: 'planet', label: 'Planet' },
+  { name: 'musical-notes', label: 'Music' },
+  { name: 'football', label: 'Football' },
+  { name: 'bicycle', label: 'Cycling' },
+  { name: 'car', label: 'Car' },
+  { name: 'home', label: 'Home' },
+  { name: 'airplane', label: 'Travel' },
+  { name: 'briefcase', label: 'Work' },
+  { name: 'cafe', label: 'Coffee' },
+  { name: 'barbell', label: 'Fitness' },
+  { name: 'book', label: 'Reading' },
+  { name: 'camera', label: 'Camera' },
+  { name: 'game-controller', label: 'Gaming' },
+  { name: 'headset', label: 'Music' },
+  { name: 'paw', label: 'Pets' },
+  { name: 'pizza', label: 'Food' },
+  { name: 'rose', label: 'Rose' },
+  { name: 'thunderstorm', label: 'Storm' },
+  { name: 'skull', label: 'Skull' },
 ];
-
-const planMeta: Record<Plan, { color: string; emoji: string }> = {
-  free:    { color: '#7B7B9E', emoji: '🆓' },
-  trial:   { color: '#FFD700', emoji: '👑' },
-  pro:     { color: '#00D4AA', emoji: '⚡' },
-  premium: { color: '#6C63FF', emoji: '👑' },
-  expired: { color: '#FF6B6B', emoji: '⏰' },
-};
 
 type Props = { visible: boolean; onClose: () => void };
 
 export default function ProfileModal({ visible, onClose }: Props) {
-  const { plan, trialDaysLeft, resetPlan } = usePlan();
-  const { t, convertPrice } = useLocale();
   const { theme: c } = useTheme();
-  const meta = planMeta[plan] || planMeta.free;
 
-  const [userName,      setUserName]      = useState('');
-  const [userEmail,     setUserEmail]      = useState('');
-  const [photoUri,      setPhotoUri]       = useState<string | null>(null);
-  const [avatar,        setAvatar]         = useState('');
-  const [pickingAvatar, setPickingAvatar]  = useState(false);
+  const [selectedIcon, setSelectedIcon] = useState<string | null>(null);
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [plan, setPlan] = useState('');
+  const [daysLeft, setDaysLeft] = useState(0);
 
   useEffect(() => {
     if (!visible) return;
-    // Load user info
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return;
-      setUserName(user.user_metadata?.full_name || user.email?.split('@')[0] || 'User');
-      setUserEmail(user.email || '');
-    });
-    // Load saved photo / emoji
-    AsyncStorage.multiGet(['profile_photo', 'profile_avatar']).then(pairs => {
-      const photo  = pairs[0][1];
-      const emoji  = pairs[1][1];
-      if (photo) { setPhotoUri(photo); setAvatar(''); }
-      else if (emoji) { setAvatar(emoji); setPhotoUri(null); }
-    });
+    (async () => {
+      const pairs = await AsyncStorage.multiGet(['profile_photo', 'profile_avatar', 'polar_plan', 'polar_trial_end']);
+      setPhotoUri(pairs[0][1] ?? null);
+      setSelectedIcon(pairs[1][1] ?? null);
+      setPlan(pairs[2][1] ?? 'free');
+      const trialEnd = pairs[3][1];
+      if (trialEnd) {
+        const diff = Math.ceil((new Date(trialEnd).getTime() - Date.now()) / 86400000);
+        setDaysLeft(Math.max(0, diff));
+      }
+    })();
   }, [visible]);
 
-  const handleClose = () => {
-    setPickingAvatar(false);
-    onClose();
+  const pickFromGallery = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') { Alert.alert('Permission needed', 'Allow photo access in Settings.'); return; }
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, aspect: [1, 1], quality: 0.7 });
+    if (!result.canceled && result.assets[0]) {
+      const uri = result.assets[0].uri;
+      setPhotoUri(uri);
+      setSelectedIcon(null);
+      await AsyncStorage.multiSet([['profile_photo', uri], ['profile_avatar', '']]);
+    }
   };
 
-  const savePhoto = async (uri: string) => {
-    setPhotoUri(uri);
-    setAvatar('');
-    await AsyncStorage.setItem('profile_photo', uri);
-    await AsyncStorage.removeItem('profile_avatar');
-    setPickingAvatar(false);
-  };
-
-  const saveAvatar = async (emoji: string) => {
-    setAvatar(emoji);
-    setPhotoUri(null);
-    await AsyncStorage.setItem('profile_avatar', emoji);
-    await AsyncStorage.removeItem('profile_photo');
-    setPickingAvatar(false);
+  const pickFromCamera = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') { Alert.alert('Permission needed', 'Allow camera access in Settings.'); return; }
+    const result = await ImagePicker.launchCameraAsync({ allowsEditing: true, aspect: [1, 1], quality: 0.7 });
+    if (!result.canceled && result.assets[0]) {
+      const uri = result.assets[0].uri;
+      setPhotoUri(uri);
+      setSelectedIcon(null);
+      await AsyncStorage.multiSet([['profile_photo', uri], ['profile_avatar', '']]);
+    }
   };
 
   const removePhoto = async () => {
     setPhotoUri(null);
-    setAvatar('');
-    await AsyncStorage.multiRemove(['profile_photo', 'profile_avatar']);
-    setPickingAvatar(false);
+    setSelectedIcon(null);
+    await AsyncStorage.multiSet([['profile_photo', ''], ['profile_avatar', '']]);
   };
 
-  const pickFromGallery = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Please allow photo library access to set a profile picture.');
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-    if (!result.canceled && result.assets[0].uri) {
-      await savePhoto(result.assets[0].uri);
-    }
+  const selectIcon = async (iconName: string) => {
+    setSelectedIcon(iconName);
+    setPhotoUri(null);
+    await AsyncStorage.multiSet([['profile_avatar', iconName], ['profile_photo', '']]);
   };
 
-  const takePhoto = async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Please allow camera access to take a profile picture.');
-      return;
-    }
-    const result = await ImagePicker.launchCameraAsync({
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-    if (!result.canceled && result.assets[0].uri) {
-      await savePhoto(result.assets[0].uri);
-    }
-  };
+  const handleDone = () => onClose();
 
-  const planLabel =
-    plan === 'free'    ? t('freePlan')
-    : plan === 'trial'   ? t('trialPlan')
-    : plan === 'pro'     ? t('proPlan')
-    : plan === 'expired' ? 'Expired'
-    : t('premiumPlan');
-
-  const featureLabels: { key: keyof typeof planFeatures['free']; label: string }[] = [
-    { key: 'adFree',                label: 'Ad-free' },
-    { key: 'unlimitedTransactions', label: 'Unlimited Transactions' },
-    { key: 'receiptPhoto',          label: 'Receipt Scanning' },
-    { key: 'advancedCharts',        label: 'Advanced Charts' },
-    { key: 'calendarView',          label: 'Calendar View' },
-    { key: 'themes',                label: 'All Themes' },
-    { key: 'cardTracking',          label: 'Card Tracking' },
-    { key: 'advancedFiltering',     label: 'Advanced Filtering' },
-    { key: 'investmentTracking',    label: 'Investment Tracking' },
-    { key: 'assetGraph',            label: 'Asset Graph' },
-    { key: 'customTheme',           label: 'Custom Themes' },
-    { key: 'doubleEntry',           label: 'Double-Entry Bookkeeping' },
-  ];
-
-  // What to show in the avatar circle
-  const showPhoto  = !!photoUri;
-  const showEmoji  = !photoUri && !!avatar;
-  const showLetter = !photoUri && !avatar;
+  const planLabel = plan === 'trial' ? `Premium Trial · ${daysLeft}d left`
+    : plan === 'pro' ? 'Pro' : plan === 'premium' ? 'Premium' : 'Free';
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      presentationStyle="pageSheet"
-      onRequestClose={handleClose}>
-      <View style={{ flex: 1, backgroundColor: '#13132A' }}>
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+      <View style={{ flex: 1, backgroundColor: c.dark }}>
 
         {/* Header */}
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(108,99,255,0.15)' }}>
-          <TouchableOpacity onPress={handleClose} style={{ paddingVertical: 4, paddingRight: 12 }}>
-            <Text style={{ color: '#6C63FF', fontSize: 16, fontWeight: '600' }}>← {t('close')}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingTop: 28, borderBottomWidth: 1, borderBottomColor: c.border }}>
+          <TouchableOpacity onPress={onClose}>
+            <Text style={{ color: c.accent, fontSize: 16, fontWeight: '600' }}>← Close</Text>
           </TouchableOpacity>
-          <Text style={{ color: '#E8E8F0', fontSize: 16, fontWeight: '700' }}>Profile</Text>
-          <TouchableOpacity onPress={handleClose} style={{ paddingVertical: 4, paddingLeft: 12 }}>
-            <Text style={{ color: '#6C63FF', fontSize: 16, fontWeight: '600' }}>{t('done')}</Text>
+          <Text style={{ color: c.text, fontSize: 17, fontWeight: '800' }}>Profile</Text>
+          <TouchableOpacity onPress={handleDone}>
+            <Text style={{ color: c.accent, fontSize: 16, fontWeight: '700' }}>Done</Text>
           </TouchableOpacity>
         </View>
 
-        <ScrollView style={{ paddingHorizontal: 20 }} showsVerticalScrollIndicator={false}>
+        <ScrollView showsVerticalScrollIndicator={false}>
 
-          {/* Profile Header */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: 24, marginBottom: 16 }}>
-            <TouchableOpacity
-              onPress={() => setPickingAvatar(!pickingAvatar)}
-              style={{ width: 72, height: 72, borderRadius: 36, justifyContent: 'center', alignItems: 'center', borderWidth: 2, backgroundColor: meta.color + '33', borderColor: meta.color, overflow: 'hidden', position: 'relative' }}>
-              {showPhoto  && <Image source={{ uri: photoUri! }} style={{ width: 72, height: 72, borderRadius: 36 }} />}
-              {showEmoji  && <Text style={{ fontSize: 32 }}>{avatar}</Text>}
-              {showLetter && <Text style={{ color: '#fff', fontSize: 28, fontWeight: '800' }}>{userName.charAt(0).toUpperCase()}</Text>}
-              {/* Edit badge */}
-              <View style={{ position: 'absolute', bottom: 0, right: 0, backgroundColor: '#6C63FF', borderRadius: 12, width: 22, height: 22, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#13132A' }}>
-                <Text style={{ fontSize: 10 }}>✏️</Text>
-              </View>
-            </TouchableOpacity>
-
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: '#E8E8F0', fontSize: 20, fontWeight: '800' }}>{userName || '...'}</Text>
-              <Text style={{ color: '#7B7B9E', fontSize: 13, marginBottom: 6 }}>{userEmail || '...'}</Text>
-              <View style={{ alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 3, borderRadius: 50, borderWidth: 1, backgroundColor: meta.color + '22', borderColor: meta.color }}>
-                <Text style={{ fontSize: 12, fontWeight: '700', color: meta.color }}>
-                  {meta.emoji} {planLabel}{plan === 'trial' && trialDaysLeft > 0 ? ` · ${trialDaysLeft}d` : ''}
-                </Text>
-              </View>
+          {/* Current avatar preview */}
+          <View style={{ alignItems: 'center', paddingVertical: 24 }}>
+            <View style={{ width: 90, height: 90, borderRadius: 45, backgroundColor: c.accent + '22', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: c.accent }}>
+              {photoUri ? (
+                <Image source={{ uri: photoUri }} style={{ width: 90, height: 90, borderRadius: 45 }} />
+              ) : selectedIcon ? (
+                <Ionicons name={selectedIcon as any} size={48} color={c.accent} />
+              ) : (
+                <Ionicons name="person-circle" size={52} color={c.muted} />
+              )}
             </View>
           </View>
 
-          {/* Avatar / Photo Picker */}
-          {pickingAvatar && (
-            <View style={{ backgroundColor: '#1A1A35', borderRadius: 16, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: 'rgba(108,99,255,0.2)' }}>
-
-              {/* Photo options */}
-              <Text style={{ color: '#7B7B9E', fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>Photo</Text>
-              <View style={{ flexDirection: 'row', gap: 10, marginBottom: 20 }}>
-                <TouchableOpacity
-                  onPress={pickFromGallery}
-                  style={{ flex: 1, backgroundColor: '#6C63FF22', borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: '#6C63FF55' }}>
-                  <Text style={{ fontSize: 26, marginBottom: 4 }}>🖼️</Text>
-                  <Text style={{ color: '#6C63FF', fontSize: 12, fontWeight: '700' }}>Gallery</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={takePhoto}
-                  style={{ flex: 1, backgroundColor: '#00D4AA22', borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: '#00D4AA55' }}>
-                  <Text style={{ fontSize: 26, marginBottom: 4 }}>📷</Text>
-                  <Text style={{ color: '#00D4AA', fontSize: 12, fontWeight: '700' }}>Camera</Text>
-                </TouchableOpacity>
-                {(photoUri || avatar) && (
-                  <TouchableOpacity
-                    onPress={removePhoto}
-                    style={{ flex: 1, backgroundColor: '#FF6B6B22', borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: '#FF6B6B55' }}>
-                    <Text style={{ fontSize: 26, marginBottom: 4 }}>🗑️</Text>
-                    <Text style={{ color: '#FF6B6B', fontSize: 12, fontWeight: '700' }}>Remove</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-
-              {/* Emoji picker */}
-              <Text style={{ color: '#7B7B9E', fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>Or Choose Emoji</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                {/* Initial letter */}
-                <TouchableOpacity
-                  onPress={removePhoto}
-                  style={{ width: 46, height: 46, borderRadius: 12, backgroundColor: '#13132A', justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, borderColor: showLetter ? '#6C63FF' : 'rgba(108,99,255,0.15)' }}>
-                  <Text style={{ color: '#E8E8F0', fontSize: 18, fontWeight: '800' }}>{userName.charAt(0).toUpperCase()}</Text>
-                </TouchableOpacity>
-                {AVATAR_ICONS.map(ic => (
-                  <TouchableOpacity
-                    key={ic}
-                    onPress={() => saveAvatar(ic)}
-                    style={{ width: 46, height: 46, borderRadius: 12, backgroundColor: '#13132A', justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, borderColor: avatar === ic ? '#6C63FF' : 'rgba(108,99,255,0.15)' }}>
-                    <Text style={{ fontSize: 24 }}>{ic}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          )}
-
-          {/* Current Plan */}
-          <Text style={{ color: '#7B7B9E', fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12, marginTop: 4 }}>{t('yourPlan')}</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#1A1A35', borderRadius: 18, padding: 18, borderWidth: 1, borderColor: meta.color + '44', marginBottom: 20 }}>
-            <Text style={{ fontSize: 32 }}>{meta.emoji}</Text>
-            <View style={{ flex: 1, marginLeft: 14 }}>
-              <Text style={{ color: '#E8E8F0', fontSize: 18, fontWeight: '800' }}>{planLabel}</Text>
-              <Text style={{ color: meta.color, fontSize: 14, fontWeight: '700', marginTop: 2 }}>
-                {plan === 'free'    ? 'Free forever'
-                : plan === 'trial'  ? `${trialDaysLeft} days left`
-                : plan === 'pro'    ? `${convertPrice(3.99)}${t('perMonth')}`
-                : plan === 'expired'? 'Trial ended — choose a plan'
-                : `${convertPrice(7.99)}${t('perMonth')}`}
-              </Text>
-            </View>
-            {plan !== 'free' && plan !== 'expired' && (
-              <TouchableOpacity
-                onPress={resetPlan}
-                style={{ backgroundColor: '#FF6B6B22', borderRadius: 50, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: '#FF6B6B44' }}>
-                <Text style={{ color: '#FF6B6B', fontSize: 11, fontWeight: '700' }}>Reset</Text>
+          {/* Photo buttons */}
+          <View style={{ paddingHorizontal: 20 }}>
+            <Text style={{ color: c.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>Photo</Text>
+            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 28 }}>
+              <TouchableOpacity onPress={pickFromGallery} style={{ flex: 1, backgroundColor: c.accent + '18', borderRadius: 14, padding: 16, alignItems: 'center', gap: 6, borderWidth: 1, borderColor: c.accent + '44' }}>
+                <Ionicons name="image" size={24} color={c.accent} />
+                <Text style={{ color: c.accent, fontSize: 13, fontWeight: '700' }}>Gallery</Text>
               </TouchableOpacity>
-            )}
+              <TouchableOpacity onPress={pickFromCamera} style={{ flex: 1, backgroundColor: '#00D4AA18', borderRadius: 14, padding: 16, alignItems: 'center', gap: 6, borderWidth: 1, borderColor: '#00D4AA44' }}>
+                <Ionicons name="camera" size={24} color="#00D4AA" />
+                <Text style={{ color: '#00D4AA', fontSize: 13, fontWeight: '700' }}>Camera</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={removePhoto} style={{ flex: 1, backgroundColor: '#FF6B6B18', borderRadius: 14, padding: 16, alignItems: 'center', gap: 6, borderWidth: 1, borderColor: '#FF6B6B44' }}>
+                <Ionicons name="trash" size={24} color="#FF6B6B" />
+                <Text style={{ color: '#FF6B6B', fontSize: 13, fontWeight: '700' }}>Remove</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Icon grid */}
+            <Text style={{ color: c.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>Or choose an icon</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 32 }}>
+              {AVATAR_ICONS.map(({ name }) => {
+                const active = selectedIcon === name && !photoUri;
+                return (
+                  <TouchableOpacity
+                    key={name}
+                    onPress={() => selectIcon(name)}
+                    style={{
+                      width: 58, height: 58, borderRadius: 16,
+                      backgroundColor: active ? c.accent + '33' : c.card,
+                      justifyContent: 'center', alignItems: 'center',
+                      borderWidth: active ? 2 : 1,
+                      borderColor: active ? c.accent : c.border,
+                    }}>
+                    <Ionicons name={name as any} size={28} color={active ? c.accent : c.muted} />
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Plan */}
+            <Text style={{ color: c.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>Your Plan</Text>
+            <View style={{ backgroundColor: c.card, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: c.border, flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 40 }}>
+              <Ionicons name="ribbon" size={24} color={c.accent} />
+              <Text style={{ color: c.text, fontSize: 15, fontWeight: '700' }}>{planLabel}</Text>
+            </View>
           </View>
-
-          {/* Features */}
-          <Text style={{ color: '#7B7B9E', fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>{t('features')}</Text>
-          <View style={{ backgroundColor: '#1A1A35', borderRadius: 16, padding: 12, marginBottom: 24 }}>
-            {featureLabels.map((f, idx) => {
-              const has = planFeatures[plan]?.[f.key] ?? false;
-              return (
-                <View
-                  key={f.key}
-                  style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: idx < featureLabels.length - 1 ? 1 : 0, borderBottomColor: 'rgba(255,255,255,0.05)', gap: 10 }}>
-                  <Text style={{ fontSize: 14, fontWeight: '800', width: 18, color: has ? '#00D4AA' : '#FF6B6B' }}>{has ? '✓' : '✕'}</Text>
-                  <Text style={{ color: has ? '#E8E8F0' : '#7B7B9E', fontSize: 13, flex: 1 }}>{f.label}</Text>
-                  {!has && <Text style={{ fontSize: 12 }}>🔒</Text>}
-                </View>
-              );
-            })}
-          </View>
-
-          <TouchableOpacity
-            onPress={handleClose}
-            style={{ backgroundColor: '#1A1A35', borderRadius: 14, padding: 14, alignItems: 'center', marginBottom: 48 }}>
-            <Text style={{ color: '#7B7B9E', fontWeight: '600' }}>{t('close')}</Text>
-          </TouchableOpacity>
-
         </ScrollView>
       </View>
     </Modal>

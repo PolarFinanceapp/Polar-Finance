@@ -1,24 +1,25 @@
+import { useFinance } from '@/context/FinanceContext';
 import { useLocale } from '@/context/LocaleContext';
 import { useState } from 'react';
 import { Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
-import { useTransactions } from '../../context/TransactionContext';
 
 const categories = [
-  { icon: '🏠', name: 'Housing' },  { icon: '🛒', name: 'Groceries' },
+  { icon: '🏠', name: 'Housing' }, { icon: '🛒', name: 'Groceries' },
   { icon: '🚗', name: 'Transport' }, { icon: '🎬', name: 'Entertainment' },
-  { icon: '💊', name: 'Health' },    { icon: '👗', name: 'Clothing' },
+  { icon: '💊', name: 'Health' }, { icon: '👗', name: 'Clothing' },
   { icon: '⚡', name: 'Utilities' }, { icon: '📱', name: 'Subscriptions' },
-  { icon: '🍕', name: 'Food' },      { icon: '💼', name: 'Income' },
-  { icon: '💰', name: 'Savings' },   { icon: '🎁', name: 'Other' },
+  { icon: '🍕', name: 'Food' }, { icon: '💼', name: 'Income' },
+  { icon: '💰', name: 'Savings' }, { icon: '🎁', name: 'Other' },
 ];
 
 export default function AddScreen() {
   const { theme: c } = useTheme();
-  const { addTransaction, transactions } = useTransactions();
+  // FIX: use FinanceContext instead of TransactionContext
+  const { transactions, setTransactions } = useFinance();
   const { formatAmount, currencySymbol, t } = useLocale();
 
-  const [type, setType] = useState<'expense'|'income'>('expense');
+  const [type, setType] = useState<'expense' | 'income'>('expense');
   const [amount, setAmount] = useState('');
   const [name, setName] = useState('');
   const [selectedCat, setSelectedCat] = useState('');
@@ -31,11 +32,26 @@ export default function AddScreen() {
   const isValid = amount && name && selectedCat;
   const recentAdded = transactions.slice(0, 10);
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (!isValid) return;
-    await addTransaction({ icon: selectedCatIcon, name, cat: selectedCat, amount: type === 'expense' ? -parseFloat(amount) : parseFloat(amount), type, note, recurring });
+    const amt = parseFloat(amount);
+    const newTxn = {
+      id: Date.now().toString(),
+      icon: selectedCatIcon,
+      name,
+      cat: selectedCat,
+      amount: type === 'expense' ? -Math.abs(amt) : Math.abs(amt),
+      type,
+      date: new Date().toLocaleDateString('en-GB'),
+      note,
+      recurring,
+    } as any;
+    setTransactions([newTxn, ...transactions]);
     setSubmitted(true);
-    setTimeout(() => { setSubmitted(false); setAmount(''); setName(''); setSelectedCat(''); setNote(''); setRecurring(false); }, 1800);
+    setTimeout(() => {
+      setSubmitted(false);
+      setAmount(''); setName(''); setSelectedCat(''); setNote(''); setRecurring(false);
+    }, 1800);
   };
 
   return (
@@ -50,6 +66,7 @@ export default function AddScreen() {
         )}
       </View>
 
+      {/* Type toggle */}
       <View style={{ flexDirection: 'row', backgroundColor: c.card, borderRadius: 50, padding: 4, marginBottom: 24, borderWidth: 1, borderColor: c.border }}>
         <TouchableOpacity style={{ flex: 1, paddingVertical: 10, borderRadius: 50, alignItems: 'center', backgroundColor: type === 'expense' ? '#FF6B6B' : 'transparent' }} onPress={() => setType('expense')}>
           <Text style={{ color: type === 'expense' ? '#fff' : c.muted, fontSize: 14, fontWeight: '700' }}>↓ {t('expense')}</Text>
@@ -59,21 +76,26 @@ export default function AddScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Amount */}
       <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: c.card, borderRadius: 20, padding: 20, marginBottom: 16, borderWidth: 1.5, borderColor: type === 'income' ? 'rgba(0,212,170,0.4)' : 'rgba(255,107,107,0.4)' }}>
         <Text style={{ color: type === 'income' ? '#00D4AA' : '#FF6B6B', fontSize: 32, fontWeight: '900', marginRight: 8 }}>{currencySymbol}</Text>
         <TextInput style={{ flex: 1, color: c.text, fontSize: 36, fontWeight: '900' }} placeholder="0.00" placeholderTextColor={c.muted} keyboardType="decimal-pad" value={amount} onChangeText={setAmount} />
       </View>
 
+      {/* Description */}
       <View style={{ marginBottom: 20 }}>
         <Text style={{ color: c.muted, fontSize: 13, fontWeight: '600', marginBottom: 8, marginLeft: 4 }}>{t('description')}</Text>
         <TextInput style={{ backgroundColor: c.card, borderRadius: 16, padding: 16, color: c.text, fontSize: 15, borderWidth: 1, borderColor: c.border }} placeholder="e.g. Tesco, Salary, Netflix..." placeholderTextColor={c.muted} value={name} onChangeText={setName} />
       </View>
 
+      {/* Category */}
       <View style={{ marginBottom: 20 }}>
         <Text style={{ color: c.muted, fontSize: 13, fontWeight: '600', marginBottom: 8, marginLeft: 4 }}>{t('category')}</Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
           {categories.map(cat => (
-            <TouchableOpacity key={cat.name} style={{ backgroundColor: selectedCat === cat.name ? c.accent : c.card, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12, flexDirection: 'row', gap: 6, borderWidth: 1, borderColor: selectedCat === cat.name ? c.accent : c.border }} onPress={() => setSelectedCat(cat.name)}>
+            <TouchableOpacity key={cat.name}
+              style={{ backgroundColor: selectedCat === cat.name ? c.accent : c.card, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12, flexDirection: 'row', gap: 6, borderWidth: 1, borderColor: selectedCat === cat.name ? c.accent : c.border }}
+              onPress={() => setSelectedCat(cat.name)}>
               <Text style={{ fontSize: 16 }}>{cat.icon}</Text>
               <Text style={{ color: selectedCat === cat.name ? '#fff' : c.muted, fontSize: 12, fontWeight: '600' }}>{cat.name}</Text>
             </TouchableOpacity>
@@ -81,33 +103,39 @@ export default function AddScreen() {
         </View>
       </View>
 
+      {/* Note */}
       <View style={{ marginBottom: 20 }}>
         <Text style={{ color: c.muted, fontSize: 13, fontWeight: '600', marginBottom: 8, marginLeft: 4 }}>{t('note')}</Text>
         <TextInput style={{ backgroundColor: c.card, borderRadius: 16, padding: 16, color: c.text, fontSize: 15, borderWidth: 1, borderColor: c.border, height: 80, textAlignVertical: 'top' }} placeholder={`${t('add')} ${t('note').toLowerCase()}...`} placeholderTextColor={c.muted} multiline value={note} onChangeText={setNote} />
       </View>
 
+      {/* Recurring toggle */}
       <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: c.card, borderRadius: 16, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: c.border, gap: 12 }} onPress={() => setRecurring(!recurring)}>
         <View style={{ flex: 1 }}>
           <Text style={{ color: c.text, fontSize: 14, fontWeight: '700' }}>🔁 {t('recurring')}</Text>
           <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>{t('recurringDesc')}</Text>
         </View>
-        <View style={{ width: 46, height: 26, borderRadius: 50, backgroundColor: recurring ? c.accent : c.card2, borderWidth: 1, borderColor: recurring ? c.accent : c.border, position: 'relative' }}>
+        <View style={{ width: 46, height: 26, borderRadius: 50, backgroundColor: recurring ? c.accent : c.card2, borderWidth: 1, borderColor: recurring ? c.accent : c.border }}>
           <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: recurring ? '#fff' : c.muted, position: 'absolute', top: 2, left: recurring ? 22 : 2 }} />
         </View>
       </TouchableOpacity>
 
+      {/* Submit */}
       {submitted ? (
         <View style={{ backgroundColor: '#00D4AA', borderRadius: 16, padding: 18, alignItems: 'center', marginBottom: 10 }}>
           <Text style={{ color: '#fff', fontSize: 16, fontWeight: '800' }}>✓ {t('transactionSaved')}</Text>
         </View>
       ) : (
-        <TouchableOpacity style={{ backgroundColor: c.accent, borderRadius: 16, padding: 18, alignItems: 'center', marginBottom: 10, opacity: isValid ? 1 : 0.4 }} onPress={handleSubmit} disabled={!isValid}>
+        <TouchableOpacity
+          style={{ backgroundColor: c.accent, borderRadius: 16, padding: 18, alignItems: 'center', marginBottom: 10, opacity: isValid ? 1 : 0.4 }}
+          onPress={handleSubmit} disabled={!isValid}>
           <Text style={{ color: '#fff', fontSize: 16, fontWeight: '800' }}>➕ {type === 'expense' ? t('addExpense') : t('addIncome')}</Text>
         </TouchableOpacity>
       )}
 
       <View style={{ height: 40 }} />
 
+      {/* Recent modal */}
       <Modal visible={showRecent} transparent animationType="slide">
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
           <View style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, maxHeight: '75%', borderWidth: 1, borderColor: c.border }}>
@@ -118,7 +146,7 @@ export default function AddScreen() {
               </TouchableOpacity>
             </View>
             <ScrollView showsVerticalScrollIndicator={false}>
-              {recentAdded.map(txn => (
+              {recentAdded.map((txn: any) => (
                 <View key={txn.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: c.border }}>
                   <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: c.card2, justifyContent: 'center', alignItems: 'center' }}>
                     <Text style={{ fontSize: 18 }}>{txn.icon}</Text>

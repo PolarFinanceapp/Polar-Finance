@@ -1,8 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { PlanProvider } from '../../context/PlanContext';
-import { ThemeProvider, useTheme } from '../../context/ThemeContext';
+import { useTheme } from '../../context/ThemeContext';
 
 function ThemedTabs() {
   const { theme: c } = useTheme();
@@ -48,11 +47,5 @@ function ThemedTabs() {
 }
 
 export default function TabLayout() {
-  return (
-    <ThemeProvider>
-      <PlanProvider>
-        <ThemedTabs />
-      </PlanProvider>
-    </ThemeProvider>
-  );
+  return <ThemedTabs />;
 }

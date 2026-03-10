@@ -140,8 +140,13 @@ function GlassTabBar({ state, navigation }: any) {
         const from = dragging.current;
         const to = currentHover.current;
 
+        // Reset scale
         Animated.spring(dragScale, { toValue: 1, useNativeDriver: true, speed: 35 }).start();
-        resetSlots();
+
+        // Instantly zero all slot offsets BEFORE updating tabs order
+        // so the new render starts clean with no offsets applied
+        slotX.forEach(a => a.setValue(0));
+
         setDragActive(false);
         setGhostTab(null);
         dragging.current = null;
@@ -160,7 +165,7 @@ function GlassTabBar({ state, navigation }: any) {
 
       onPanResponderTerminate: () => {
         Animated.spring(dragScale, { toValue: 1, useNativeDriver: true, speed: 35 }).start();
-        resetSlots();
+        slotX.forEach(a => a.setValue(0));
         setDragActive(false);
         setGhostTab(null);
         dragging.current = null;

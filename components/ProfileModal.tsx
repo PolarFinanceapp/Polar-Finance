@@ -6,6 +6,7 @@ import {
   Alert, Image, Modal, ScrollView,
   Text, TouchableOpacity, View,
 } from 'react-native';
+import { usePlan } from '../context/PlanContext';
 import { useTheme } from '../context/ThemeContext';
 
 // Suitable avatar icons from Ionicons
@@ -47,23 +48,21 @@ type Props = { visible: boolean; onClose: () => void };
 export default function ProfileModal({ visible, onClose }: Props) {
   const { theme: c } = useTheme();
 
+  // ── Use PlanContext directly — never read polar_plan from AsyncStorage ──────
+  // Reading from AsyncStorage gives stale/wrong data because the tabs layout
+  // had a duplicate PlanProvider that reset to 'free'. usePlan() reads from
+  // the correct root provider which has the real subscription state.
+  const { plan, trialDaysLeft } = usePlan();
+
   const [selectedIcon, setSelectedIcon] = useState<string | null>(null);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
-  const [plan, setPlan] = useState('');
-  const [daysLeft, setDaysLeft] = useState(0);
 
   useEffect(() => {
     if (!visible) return;
     (async () => {
-      const pairs = await AsyncStorage.multiGet(['profile_photo', 'profile_avatar', 'polar_plan', 'polar_trial_end']);
+      const pairs = await AsyncStorage.multiGet(['profile_photo', 'profile_avatar']);
       setPhotoUri(pairs[0][1] ?? null);
       setSelectedIcon(pairs[1][1] ?? null);
-      setPlan(pairs[2][1] ?? 'free');
-      const trialEnd = pairs[3][1];
-      if (trialEnd) {
-        const diff = Math.ceil((new Date(trialEnd).getTime() - Date.now()) / 86400000);
-        setDaysLeft(Math.max(0, diff));
-      }
     })();
   }, [visible]);
 
@@ -103,10 +102,10 @@ export default function ProfileModal({ visible, onClose }: Props) {
     await AsyncStorage.multiSet([['profile_avatar', iconName], ['profile_photo', '']]);
   };
 
-  const handleDone = () => onClose();
-
-  const planLabel = plan === 'trial' ? `Premium Trial · ${daysLeft}d left`
+  const planLabel = plan === 'trial' ? `Premium Trial · ${trialDaysLeft}d left`
     : plan === 'pro' ? 'Pro' : plan === 'premium' ? 'Premium' : 'Free';
+
+  const planColor = plan === 'premium' ? '#FFD700' : plan === 'pro' ? c.accent : plan === 'trial' ? '#FF9F43' : c.muted;
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
@@ -118,7 +117,7 @@ export default function ProfileModal({ visible, onClose }: Props) {
             <Text style={{ color: c.accent, fontSize: 16, fontWeight: '600' }}>← Close</Text>
           </TouchableOpacity>
           <Text style={{ color: c.text, fontSize: 17, fontWeight: '800' }}>Profile</Text>
-          <TouchableOpacity onPress={handleDone}>
+          <TouchableOpacity onPress={onClose}>
             <Text style={{ color: c.accent, fontSize: 16, fontWeight: '700' }}>Done</Text>
           </TouchableOpacity>
         </View>
@@ -138,9 +137,10 @@ export default function ProfileModal({ visible, onClose }: Props) {
             </View>
           </View>
 
-          {/* Photo buttons */}
           <View style={{ paddingHorizontal: 20 }}>
-            <Text style={{ color: c.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>Photo</Text>
+
+            {/* Photo buttons */}
+            <Text style={{ color: c.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>PHOTO</Text>
             <View style={{ flexDirection: 'row', gap: 10, marginBottom: 28 }}>
               <TouchableOpacity onPress={pickFromGallery} style={{ flex: 1, backgroundColor: c.accent + '18', borderRadius: 14, padding: 16, alignItems: 'center', gap: 6, borderWidth: 1, borderColor: c.accent + '44' }}>
                 <Ionicons name="image" size={24} color={c.accent} />
@@ -157,7 +157,7 @@ export default function ProfileModal({ visible, onClose }: Props) {
             </View>
 
             {/* Icon grid */}
-            <Text style={{ color: c.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>Or choose an icon</Text>
+            <Text style={{ color: c.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>OR CHOOSE AN ICON</Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 32 }}>
               {AVATAR_ICONS.map(({ name }) => {
                 const active = selectedIcon === name && !photoUri;
@@ -179,11 +179,12 @@ export default function ProfileModal({ visible, onClose }: Props) {
             </View>
 
             {/* Plan */}
-            <Text style={{ color: c.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>Your Plan</Text>
-            <View style={{ backgroundColor: c.card, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: c.border, flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 40 }}>
-              <Ionicons name="ribbon" size={24} color={c.accent} />
-              <Text style={{ color: c.text, fontSize: 15, fontWeight: '700' }}>{planLabel}</Text>
+            <Text style={{ color: c.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>YOUR PLAN</Text>
+            <View style={{ backgroundColor: c.card, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: planColor + '44', flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 40 }}>
+              <Ionicons name="ribbon" size={24} color={planColor} />
+              <Text style={{ color: planColor, fontSize: 15, fontWeight: '700' }}>{planLabel}</Text>
             </View>
+
           </View>
         </ScrollView>
       </View>

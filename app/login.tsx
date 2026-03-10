@@ -93,17 +93,38 @@ export default function LoginScreen() {
     const rl = await checkRateLimit('signup', 3);
     if (!rl.allowed) { Alert.alert('Too many attempts', `Please wait ${formatRetryAfter(rl.retryAfterSeconds)} before trying again.`); return; }
     setLoading(true);
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email: email.trim().toLowerCase(),
       password,
       options: { data: { full_name: sanitiseShort(name, MAX_LENGTHS.name) } },
     });
+    if (error) {
+      setLoading(false);
+      Alert.alert('Sign Up Failed', error.message);
+      return;
+    }
+    // If session exists immediately, email confirmation is disabled — log straight in
+    if (data.session) {
+      await resetRateLimit('signup');
+      setLoading(false);
+      router.replace('/onboarding' as any);
+      return;
+    }
+    // Email confirmation required — try to sign in anyway in case it works
+    const { error: loginError } = await supabase.auth.signInWithPassword({
+      email: email.trim().toLowerCase(),
+      password,
+    });
     setLoading(false);
-    if (error) { Alert.alert('Sign Up Failed', error.message); }
-    else {
-      Alert.alert('Check your email!', 'We sent you a confirmation link. Please verify your email then log in.', [
-        { text: 'OK', onPress: () => setMode('login') },
-      ]);
+    if (!loginError) {
+      await resetRateLimit('signup');
+      router.replace('/onboarding' as any);
+    } else {
+      Alert.alert(
+        'Account Created!',
+        'Check your email for a confirmation link, then log in.',
+        [{ text: 'OK', onPress: () => setMode('login') }]
+      );
     }
   };
 

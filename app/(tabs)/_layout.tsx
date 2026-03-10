@@ -22,7 +22,7 @@ const DEFAULT_TABS = [
   { name: 'settings', label: 'Settings', active: 'settings', inactive: 'settings-outline' },
 ] as const;
 
-type TabDef = typeof DEFAULT_TABS[number];
+type TabDef = { name: string; label: string; active: string; inactive: string };
 const HIDDEN = ['calendar', 'goals', 'assets', 'add', 'explore', 'tax', 'budgets'];
 const ORDER_KEY = 'jf_tab_order';
 const N = DEFAULT_TABS.length;
@@ -30,22 +30,27 @@ const N = DEFAULT_TABS.length;
 function GlassTabBar({ state, navigation }: any) {
   const { theme: c } = useTheme();
 
+  // ── Tab order (stable array of tab objects) ───────────────────────────────
   const [tabs, setTabs] = useState<TabDef[]>([...DEFAULT_TABS]);
-  const [draggingIdx, setDraggingIdx] = useState<number | null>(null);
-  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
 
-  // Animated X for the floating drag icon (relative to pill left)
+  // ── Drag state in refs (never triggers re-renders mid-drag) ───────────────
+  const dragging = useRef<number | null>(null);  // index being dragged
+  const currentHover = useRef<number | null>(null);  // index hovering over
+  const [dragActive, setDragActive] = useState(false);
+  const [ghostTab, setGhostTab] = useState<TabDef | null>(null);
+
+  // ── Animated values (stable, never recreated) ─────────────────────────────
   const floatX = useRef(new Animated.Value(0)).current;
   const dragScale = useRef(new Animated.Value(1)).current;
+  // One translateX per slot position (0..N-1), always length N
+  const slotX = useRef(Array.from({ length: N }, () => new Animated.Value(0))).current;
 
-  // Animated X offsets for each slot (for smooth shuffle)
-  const slotOffsets = useRef(Array.from({ length: N }, () => new Animated.Value(0))).current;
-
-  // Layout
+  // ── Layout refs ───────────────────────────────────────────────────────────
   const pillLeft = useRef(0);
-  const pillWidth = useRef(0);
+  const pillW = useRef(0);
+  const tabW = () => pillW.current / N;
 
-  // Load saved order
+  // ── Load saved order ──────────────────────────────────────────────────────
   useEffect(() => {
     AsyncStorage.getItem(ORDER_KEY).then(raw => {
       if (!raw) return;
@@ -62,127 +67,125 @@ function GlassTabBar({ state, navigation }: any) {
   const saveOrder = (t: TabDef[]) =>
     AsyncStorage.setItem(ORDER_KEY, JSON.stringify(t.map(x => x.name)));
 
-  const tabW = () => pillWidth.current / N;
-
-  // Clamp float X so the floating pill stays fully inside
-  const FLOAT_HALF = 38; // half-width of the floating pill
-  const clampFloat = (x: number) =>
-    Math.max(FLOAT_HALF, Math.min(pillWidth.current - FLOAT_HALF, x));
-
-  const idxFromX = (relX: number) =>
-    Math.max(0, Math.min(N - 1, Math.floor(relX / tabW())));
-
-  // Animate other slots to shuffle smoothly
-  const animateSlots = (from: number, to: number) => {
-    slotOffsets.forEach((anim, i) => {
+  // ── Shuffle helper: animate slots based on drag from→hover ───────────────
+  const updateSlots = (from: number, to: number) => {
+    for (let i = 0; i < N; i++) {
       let target = 0;
       if (from < to) {
-        // dragging right — slots between from+1..to shift left
         if (i > from && i <= to) target = -tabW();
       } else if (from > to) {
-        // dragging left — slots between to..from-1 shift right
-        if (i >= to && i < from) target = tabW();
+        if (i < from && i >= to) target = tabW();
       }
-      Animated.spring(anim, {
+      Animated.spring(slotX[i], {
         toValue: target,
         useNativeDriver: true,
-        speed: 18,
-        bounciness: 4,
+        speed: 22,
+        bounciness: 3,
       }).start();
-    });
+    }
   };
 
-  // Reset all slot offsets
   const resetSlots = () => {
-    slotOffsets.forEach(a =>
-      Animated.spring(a, { toValue: 0, useNativeDriver: true, speed: 18, bounciness: 4 }).start()
+    slotX.forEach(a =>
+      Animated.spring(a, { toValue: 0, useNativeDriver: true, speed: 22, bounciness: 3 }).start()
     );
   };
 
-  // Build pan responders
-  const panRefs = useRef<ReturnType<typeof PanResponder.create>[]>([]);
+  // ── Single PanResponder for the whole pill ────────────────────────────────
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_e, gs) =>
+        Math.abs(gs.dx) > 8 && Math.abs(gs.dy) < 18,
 
-  const buildPanResponders = (currentTabs: TabDef[]) => {
-    panRefs.current = currentTabs.map((_, index) =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => false,
-        onMoveShouldSetPanResponder: (_e, gs) =>
-          Math.abs(gs.dx) > 6 && Math.abs(gs.dy) < 16,
+      onPanResponderGrant: (e) => {
+        // Work out which tab was grabbed from the touch X
+        const relX = e.nativeEvent.pageX - pillLeft.current;
+        const idx = Math.max(0, Math.min(N - 1, Math.floor(relX / tabW())));
+        dragging.current = idx;
+        currentHover.current = idx;
 
-        onPanResponderGrant: () => {
-          const startRelX = index * tabW() + tabW() / 2;
-          floatX.setValue(startRelX);
-          setDraggingIdx(index);
-          setHoverIdx(index);
-          Animated.spring(dragScale, { toValue: 1.15, useNativeDriver: true, speed: 30 }).start();
-        },
+        // Set float start position
+        const startX = idx * tabW() + tabW() / 2;
+        floatX.setValue(startX);
 
-        onPanResponderMove: (_e, gs) => {
-          const startRelX = index * tabW() + tabW() / 2;
-          const rawX = startRelX + gs.dx;
-          const clamped = clampFloat(rawX);
-          floatX.setValue(clamped);
+        setGhostTab(null); // will set below via setState batch
+        setDragActive(true);
 
-          const over = idxFromX(clamped - tabW() / 2 + tabW() / 2);
-          setHoverIdx(prev => {
-            if (prev !== over) {
-              animateSlots(index, over);
-            }
-            return over;
+        // Tiny timeout so React can batch the state before animation starts
+        setTimeout(() => {
+          // Read tabs from closure — use a ref snapshot
+          setGhostTab(tabsRef.current[idx]);
+        }, 0);
+
+        Animated.spring(dragScale, { toValue: 1.12, useNativeDriver: true, speed: 35 }).start();
+      },
+
+      onPanResponderMove: (e) => {
+        if (dragging.current === null) return;
+
+        const relX = e.nativeEvent.pageX - pillLeft.current;
+        const half = tabW() / 2;
+        const clamped = Math.max(half + 2, Math.min(pillW.current - half - 2, relX));
+        floatX.setValue(clamped);
+
+        const over = Math.max(0, Math.min(N - 1, Math.floor(clamped / tabW())));
+        if (over !== currentHover.current) {
+          updateSlots(dragging.current, over);
+          currentHover.current = over;
+        }
+      },
+
+      onPanResponderRelease: () => {
+        const from = dragging.current;
+        const to = currentHover.current;
+
+        Animated.spring(dragScale, { toValue: 1, useNativeDriver: true, speed: 35 }).start();
+        resetSlots();
+        setDragActive(false);
+        setGhostTab(null);
+        dragging.current = null;
+        currentHover.current = null;
+
+        if (from !== null && to !== null && from !== to) {
+          setTabs(prev => {
+            const next = [...prev];
+            const [moved] = next.splice(from, 1);
+            next.splice(to, 0, moved);
+            saveOrder(next);
+            return next;
           });
-        },
+        }
+      },
 
-        onPanResponderRelease: (_e, gs) => {
-          const startRelX = index * tabW() + tabW() / 2;
-          const rawX = startRelX + gs.dx;
-          const clamped = clampFloat(rawX);
-          const dropIdx = idxFromX(clamped);
+      onPanResponderTerminate: () => {
+        Animated.spring(dragScale, { toValue: 1, useNativeDriver: true, speed: 35 }).start();
+        resetSlots();
+        setDragActive(false);
+        setGhostTab(null);
+        dragging.current = null;
+        currentHover.current = null;
+      },
+    })
+  ).current;
 
-          Animated.spring(dragScale, { toValue: 1, useNativeDriver: true, speed: 30 }).start();
-          resetSlots();
-
-          if (dropIdx !== index) {
-            setTabs(prev => {
-              const next = [...prev];
-              const [moved] = next.splice(index, 1);
-              next.splice(dropIdx, 0, moved);
-              saveOrder(next);
-              return next;
-            });
-          }
-
-          setDraggingIdx(null);
-          setHoverIdx(null);
-        },
-
-        onPanResponderTerminate: () => {
-          Animated.spring(dragScale, { toValue: 1, useNativeDriver: true, speed: 30 }).start();
-          resetSlots();
-          setDraggingIdx(null);
-          setHoverIdx(null);
-        },
-      })
-    );
-  };
-
-  // Rebuild when tabs change
-  useEffect(() => {
-    buildPanResponders(tabs);
-  }, [tabs.map(t => t.name).join(','), pillWidth.current]);
+  // Keep a ref to tabs so panResponder callbacks can read latest value
+  const tabsRef = useRef(tabs);
+  useEffect(() => { tabsRef.current = tabs; }, [tabs]);
 
   return (
     <View style={styles.container} pointerEvents="box-none">
       <View
         style={styles.pill}
-        onLayout={e => {
-          pillWidth.current = e.nativeEvent.layout.width;
-          buildPanResponders(tabs);
-        }}
+        onLayout={e => { pillW.current = e.nativeEvent.layout.width; }}
         ref={(r: any) => {
-          if (r) r.measure((_fx: number, _fy: number, _w: number, _h: number, px: number) => {
-            pillLeft.current = px;
-          });
+          if (r) r.measure(
+            (_fx: number, _fy: number, _w: number, _h: number, px: number) => {
+              pillLeft.current = px;
+            }
+          );
         }}
+        {...panResponder.panHandlers}
       >
         {/* Frosted glass */}
         {Platform.OS === 'ios' ? (
@@ -195,29 +198,28 @@ function GlassTabBar({ state, navigation }: any) {
         <View style={[styles.topShine, { backgroundColor: c.accent + '28' }]} />
 
         {/* Tab slots */}
-        <View style={styles.tabRow}>
+        <View style={styles.tabRow} pointerEvents={dragActive ? 'none' : 'auto'}>
           {tabs.map((tabDef, index) => {
             const route = state.routes.find((r: any) => r.name === tabDef.name);
             if (!route) return null;
 
             const isFocused = state.routes[state.index]?.name === tabDef.name;
-            const isDragging = draggingIdx === index;
+            const isDragging = dragActive && dragging.current === index;
 
             return (
               <Animated.View
                 key={tabDef.name}
-                {...(panRefs.current[index]?.panHandlers ?? {})}
                 style={[
                   styles.tabItem,
                   {
-                    transform: [{ translateX: slotOffsets[index] }],
+                    transform: [{ translateX: slotX[index] }],
                     opacity: isDragging ? 0 : 1,
                   },
                 ]}
               >
                 <TouchableOpacity
                   onPress={() => {
-                    if (draggingIdx !== null) return;
+                    if (dragActive) return;
                     const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
                     if (!isFocused && !event.defaultPrevented) navigation.navigate(tabDef.name);
                   }}
@@ -247,46 +249,32 @@ function GlassTabBar({ state, navigation }: any) {
           })}
         </View>
 
-        {/* Floating drag ghost — absolutely positioned, clipped to pill */}
-        {draggingIdx !== null && (() => {
-          const tabDef = tabs[draggingIdx];
-          const isFocused = state.routes[state.index]?.name === tabDef.name;
-          const tw = tabW();
-
-          return (
-            <Animated.View
-              pointerEvents="none"
-              style={[
-                styles.floatWrapper,
-                {
-                  transform: [
-                    {
-                      translateX: Animated.subtract(
-                        floatX,
-                        new Animated.Value(tw / 2)
-                      ),
-                    },
-                    { scale: dragScale },
-                  ],
-                  width: tw,
-                  shadowColor: c.accent,
-                },
-              ]}
-            >
-              <View style={[
-                styles.floatPill,
-                { backgroundColor: c.accent + '28', borderColor: c.accent + '55' },
-              ]}>
-                <Ionicons
-                  name={(isFocused ? tabDef.active : tabDef.inactive) as any}
-                  size={20}
-                  color={c.accent}
-                />
-                <Text style={[styles.label, { color: c.accent }]}>{tabDef.label}</Text>
-              </View>
-            </Animated.View>
-          );
-        })()}
+        {/* Floating ghost — absolutely positioned, clipped by pill overflow:hidden */}
+        {dragActive && ghostTab && (
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.floatWrapper,
+              {
+                width: tabW(),
+                transform: [
+                  { translateX: Animated.subtract(floatX, new Animated.Value(tabW() / 2)) },
+                  { scale: dragScale },
+                ],
+                shadowColor: c.accent,
+              },
+            ]}
+          >
+            <View style={[styles.floatPill, { backgroundColor: c.accent + '28', borderColor: c.accent + '55' }]}>
+              <Ionicons
+                name={(state.routes[state.index]?.name === ghostTab.name ? ghostTab.active : ghostTab.inactive) as any}
+                size={20}
+                color={c.accent}
+              />
+              <Text style={[styles.label, { color: c.accent }]}>{ghostTab.label}</Text>
+            </View>
+          </Animated.View>
+        )}
       </View>
     </View>
   );
@@ -302,7 +290,7 @@ const styles = StyleSheet.create({
   pill: {
     height: 64,
     borderRadius: 32,
-    overflow: 'hidden',          // clips the floating ghost to pill bounds
+    overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.05)',
   },
@@ -360,7 +348,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 2,
     paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingVertical: 6,
     borderRadius: 20,
     borderWidth: 1,
   },

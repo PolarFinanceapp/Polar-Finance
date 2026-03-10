@@ -23,9 +23,9 @@ function GlassTabBar({ state, navigation }: any) {
       <View style={styles.pill}>
         {/* Frosted glass blur */}
         {Platform.OS === 'ios' ? (
-          <BlurView intensity={70} tint="dark" style={StyleSheet.absoluteFill} />
+          <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
         ) : (
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(18,18,35,0.93)' }]} />
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(18,18,35,0.65)' }]} />
         )}
 
         {/* Top shine */}
@@ -93,7 +93,7 @@ const styles = StyleSheet.create({
     borderRadius: 33,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.11)',
+    borderColor: 'rgba(255,255,255,0.07)',
   },
   topShine: {
     position: 'absolute',

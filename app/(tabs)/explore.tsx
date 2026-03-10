@@ -19,7 +19,11 @@ const TIMEFRAMES = ['15m', '30m', '1h', '4h', '1d'] as const;
 const sigColor = (s: string, a: string) => s === 'buy' || s === 'strong_buy' ? '#00D4AA' : s === 'sell' || s === 'strong_sell' ? '#FF6B6B' : a;
 const sigLabel = (s: string) => s === 'strong_buy' ? 'STRONG BUY' : s === 'buy' ? 'BUY' : s === 'strong_sell' ? 'STRONG SELL' : s === 'sell' ? 'SELL' : 'NEUTRAL';
 const ratColor = (r: string) => r.includes('Buy') ? '#00D4AA' : r.includes('Sell') ? '#FF6B6B' : '#FFD700';
-const cIcon = (s: string) => s === 'BTC' ? '₿' : s === 'ETH' ? '⟠' : s === 'SOL' ? '◎' : s === 'XRP' ? '✕' : '🪙';
+const cryptoIcon: Record<string, string> = {
+  BTC: 'logo-bitcoin', ETH: 'diamond', SOL: 'flash', XRP: 'swap-horizontal',
+  BNB: 'cube', ADA: 'layers', DOGE: 'paw',
+};
+const getCryptoIcon = (s: string) => cryptoIcon[s] || 'cash';
 
 export default function ExploreScreen() {
   const { theme: c } = useTheme();
@@ -72,11 +76,11 @@ export default function ExploreScreen() {
     return (
       <View style={{ flex: 1, backgroundColor: c.dark, justifyContent: 'center', alignItems: 'center', padding: 30 }}>
         <StarBackground />
-        <Text style={{ fontSize: 60, marginBottom: 16 }}>📈</Text>
+        <Ionicons name="trending-up" size={60} color={c.accent} style={{ marginBottom: 16 }} />
         <Text style={{ color: c.text, fontSize: 22, fontWeight: '900', marginBottom: 8, textAlign: 'center' }}>{t('markets')}</Text>
         <Text style={{ color: c.muted, fontSize: 14, textAlign: 'center', lineHeight: 22, marginBottom: 24 }}>{t('marketsDescription')}</Text>
         <TouchableOpacity onPress={() => setShowPaywall(true)} style={{ backgroundColor: c.accent, borderRadius: 14, padding: 16, alignItems: 'center', width: '100%' }}>
-          <Text style={{ color: '#fff', fontSize: 14, fontWeight: '800' }}>👑 {t('upgradePremiumMarkets')} — {convertPrice(7.99)}{t('perMonth')}</Text>
+          <Text style={{ color: '#fff', fontSize: 14, fontWeight: '800' }}>{t('upgradePremiumMarkets')} — {convertPrice(7.99)}{t('perMonth')}</Text>
         </TouchableOpacity>
         <Paywall visible={showPaywall} onClose={() => setShowPaywall(false)} />
       </View>
@@ -99,17 +103,17 @@ export default function ExploreScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.accent} />}>
 
         <BackBtn />
-        <Text style={{ color: c.text, fontSize: 26, fontWeight: '900', marginTop: 8, marginBottom: 6 }}>{t('markets')} 📈</Text>
+        <Text style={{ color: c.text, fontSize: 26, fontWeight: '900', marginTop: 8, marginBottom: 6 }}>{t('markets')}</Text>
         <Text style={{ color: c.muted, fontSize: 13, marginBottom: 20 }}>{t('liveSignals')} · {t('pullToRefresh')}</Text>
 
         {disclaimer && (
           <View style={{ backgroundColor: '#FFD70022', borderRadius: 14, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: '#FFD70055', flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
-            <Text style={{ fontSize: 20 }}>⚠️</Text>
+            <Ionicons name="warning" size={20} color="#FFD700" />
             <View style={{ flex: 1 }}>
               <Text style={{ color: '#FFD700', fontSize: 13, fontWeight: '700', marginBottom: 4 }}>{t('notFinancialAdvice')}</Text>
               <Text style={{ color: c.muted, fontSize: 12, lineHeight: 18 }}>{t('notFinancialAdviceDesc')}</Text>
             </View>
-            <TouchableOpacity onPress={() => setDisclaimer(false)}><Text style={{ color: c.muted, fontSize: 18 }}>✕</Text></TouchableOpacity>
+            <TouchableOpacity onPress={() => setDisclaimer(false)}><Ionicons name="close" size={18} color={c.muted} /></TouchableOpacity>
           </View>
         )}
 
@@ -118,7 +122,7 @@ export default function ExploreScreen() {
           {(['stocks', 'commodities', 'crypto'] as const).map(tb => (
             <TouchableOpacity key={tb} style={{ flex: 1, paddingVertical: 8, borderRadius: 50, alignItems: 'center', backgroundColor: tab === tb ? c.accent : 'transparent' }} onPress={() => setTab(tb)}>
               <Text style={{ color: tab === tb ? '#fff' : c.muted, fontSize: 12, fontWeight: '700' }}>
-                {tb === 'stocks' ? `📊 ${t('stocks')}` : tb === 'commodities' ? `🛢️ ${t('commodities')}` : `₿ ${t('crypto')}`}
+                {tb === 'stocks' ? t('stocks') : tb === 'commodities' ? t('commodities') : t('crypto')}
               </Text>
             </TouchableOpacity>
           ))}
@@ -132,7 +136,7 @@ export default function ExploreScreen() {
           </View>
         ) : error ? (
           <View style={{ alignItems: 'center', padding: 40 }}>
-            <Text style={{ fontSize: 40, marginBottom: 12 }}>⚠️</Text>
+            <Ionicons name="warning-outline" size={48} color="#FF6B6B" style={{ marginBottom: 12 }} />
             <Text style={{ color: '#FF6B6B', fontSize: 14, textAlign: 'center', marginBottom: 16 }}>{error}</Text>
             <TouchableOpacity style={{ backgroundColor: c.accent, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12 }} onPress={() => { setLoading(true); fetchData(); }}>
               <Text style={{ color: '#fff', fontWeight: '700' }}>{t('tryAgain')}</Text>
@@ -142,13 +146,13 @@ export default function ExploreScreen() {
           <>
             {tab === 'crypto' && (
               crypto.length === 0
-                ? <View style={{ alignItems: 'center', padding: 40 }}><Text style={{ fontSize: 40, marginBottom: 12 }}>🪙</Text><Text style={{ color: c.muted, fontSize: 14 }}>No crypto data available.</Text></View>
+                ? <View style={{ alignItems: 'center', padding: 40 }}><Ionicons name="cash-outline" size={48} color={c.muted} style={{ marginBottom: 12 }} /><Text style={{ color: c.muted, fontSize: 14 }}>No crypto data available.</Text></View>
                 : crypto.map((item, i) => (
                   <View key={i} style={{ backgroundColor: c.card, borderRadius: 20, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: c.border }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                         <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: c.card2, justifyContent: 'center', alignItems: 'center' }}>
-                          <Text style={{ fontSize: 20 }}>{cIcon(item.symbol)}</Text>
+                          <Ionicons name={getCryptoIcon(item.symbol) as any} size={20} color={c.accent} />
                         </View>
                         <View>
                           <Text style={{ color: c.text, fontSize: 15, fontWeight: '700' }}>{item.name}</Text>
@@ -166,7 +170,7 @@ export default function ExploreScreen() {
 
             {tab !== 'crypto' && (() => {
               const items = tab === 'stocks' ? stocks : commodities;
-              if (items.length === 0) return <View style={{ alignItems: 'center', padding: 40 }}><Text style={{ fontSize: 40, marginBottom: 12 }}>📊</Text><Text style={{ color: c.muted, fontSize: 14 }}>No {tab} data available.</Text></View>;
+              if (items.length === 0) return <View style={{ alignItems: 'center', padding: 40 }}><Ionicons name="bar-chart-outline" size={48} color={c.muted} style={{ marginBottom: 12 }} /><Text style={{ color: c.muted, fontSize: 14 }}>No {tab} data available.</Text></View>;
               return items.map((item, i) => {
                 const isOpen = expanded === item.symbol;
                 return (
@@ -206,10 +210,8 @@ export default function ExploreScreen() {
                             const col = sigColor(sig.signal, c.accent);
                             return (
                               <View key={tf} style={{ flex: 1, backgroundColor: col + '22', borderRadius: 10, padding: 8, alignItems: 'center', borderWidth: 1, borderColor: col + '55' }}>
-                                <Text style={{ color: c.muted, fontSize: 9, marginBottom: 3 }}>{tf}</Text>
+                                <Text style={{ color: c.muted, fontSize: 9, marginBottom: 4 }}>{tf}</Text>
                                 <Text style={{ color: col, fontSize: 9, fontWeight: '800', textAlign: 'center' }}>{sigLabel(sig.signal)}</Text>
-                                <Text style={{ color: '#00D4AA', fontSize: 8, marginTop: 2 }}>B:{sig.buy}</Text>
-                                <Text style={{ color: '#FF6B6B', fontSize: 8 }}>S:{sig.sell}</Text>
                               </View>
                             );
                           })}
@@ -238,7 +240,7 @@ export default function ExploreScreen() {
                             })}
                           </>
                         )}
-                        <Text style={{ color: c.muted, fontSize: 10, marginTop: 10, textAlign: 'center' }}>⚠️ {t('infoOnly')}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, marginTop: 10 }}><Ionicons name="warning-outline" size={12} color={c.muted} /><Text style={{ color: c.muted, fontSize: 10 }}>{t('infoOnly')}</Text></View>
                       </View>
                     )}
                   </View>

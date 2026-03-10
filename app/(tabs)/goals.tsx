@@ -3,14 +3,13 @@ import { usePlan } from '@/context/PlanContext';
 import { supabase } from '@/lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Paywall from '../../components/Paywall';
 import StarBackground from '../../components/StarBackground';
 import { useTheme } from '../../context/ThemeContext';
 
-const GOAL_ICONS = ['🏠', '✈️', '🚗', '🛡️', '📱', '💻', '🎓', '👶', '💍', '🏋️', '🎸', '🐶'];
+const GOAL_ICONS = ['home', 'airplane', 'car', 'shield', 'phone-portrait', 'laptop', 'school', 'people', 'heart', 'barbell', 'musical-notes', 'paw'];
 const GOAL_COLORS = ['#6C63FF', '#00D4AA', '#FF9F43', '#FF6B6B', '#a89fff', '#FFD700'];
 type Goal = { id: string; icon: string; name: string; saved: number; target: number; color: string };
 
@@ -18,8 +17,6 @@ export default function GoalsScreen() {
   const { theme: c } = useTheme();
   const { maxGoals } = usePlan();
   const { formatAmount, currencySymbol, t } = useLocale();
-  const router = useRouter();
-
   const [showPaywall, setShowPaywall] = useState(false);
   const [goals, setGoalsState] = useState<Goal[]>([]);
   const [storageKey, setStorageKey] = useState<string | null>(null);
@@ -28,12 +25,12 @@ export default function GoalsScreen() {
   const [newName, setNewName] = useState('');
   const [newTarget, setNewTarget] = useState('');
   const [newSaved, setNewSaved] = useState('');
-  const [newIcon, setNewIcon] = useState('🏠');
+  const [newIcon, setNewIcon] = useState('home');
   const [newColor, setNewColor] = useState('#6C63FF');
   const [editName, setEditName] = useState('');
   const [editTarget, setEditTarget] = useState('');
   const [editSaved, setEditSaved] = useState('');
-  const [editIcon, setEditIcon] = useState('🏠');
+  const [editIcon, setEditIcon] = useState('home');
   const [editColor, setEditColor] = useState('#6C63FF');
 
   useEffect(() => {
@@ -53,7 +50,7 @@ export default function GoalsScreen() {
   const handleAddGoal = () => {
     if (!newName || !newTarget) return;
     setGoals([...goals, { id: Date.now().toString(), icon: newIcon, name: newName, saved: parseFloat(newSaved) || 0, target: parseFloat(newTarget), color: newColor }]);
-    setNewName(''); setNewTarget(''); setNewSaved(''); setNewIcon('🏠'); setNewColor('#6C63FF');
+    setNewName(''); setNewTarget(''); setNewSaved(''); setNewIcon('home'); setNewColor('#6C63FF');
     setAddGoalVisible(false);
   };
 
@@ -84,7 +81,7 @@ export default function GoalsScreen() {
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
         {GOAL_ICONS.map(ic => (
           <TouchableOpacity key={ic} onPress={() => setIcon(ic)} style={{ width: 42, height: 42, borderRadius: 10, backgroundColor: c.card2, justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, borderColor: icon === ic ? c.accent : 'transparent' }}>
-            <Text style={{ fontSize: 20 }}>{ic}</Text>
+            <Ionicons name={ic as any} size={20} color={icon === ic ? c.accent : c.muted} />
           </TouchableOpacity>
         ))}
       </View>
@@ -105,21 +102,11 @@ export default function GoalsScreen() {
     </>
   );
 
-  // ── Back button component ──────────────────────────────────────────────────
-  const BackBtn = () => (
-    <TouchableOpacity onPress={() => router.back()}
-      style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 56, marginBottom: 4, alignSelf: 'flex-start' }}>
-      <Ionicons name="chevron-back" size={20} color={c.accent} />
-      <Text style={{ color: c.accent, fontSize: 15, fontWeight: '600' }}>Back</Text>
-    </TouchableOpacity>
-  );
-
   return (
     <View style={{ flex: 1, backgroundColor: c.dark }}>
       <StarBackground />
       <ScrollView style={{ flex: 1, paddingHorizontal: 20 }} showsVerticalScrollIndicator={false}>
-        <BackBtn />
-        <Text style={{ color: c.text, fontSize: 26, fontWeight: '900', marginTop: 8, marginBottom: 20 }}>{t('savingGoals')}</Text>
+        <Text style={{ color: c.text, fontSize: 26, fontWeight: '900', marginTop: 60, marginBottom: 20 }}>{t('savingGoals')}</Text>
 
         {/* Summary */}
         <View style={{ backgroundColor: c.card, borderRadius: 24, padding: 20, borderWidth: 1, borderColor: c.border, marginBottom: 24 }}>
@@ -146,7 +133,7 @@ export default function GoalsScreen() {
             <View key={g.id} style={{ backgroundColor: c.card, borderRadius: 20, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: c.border }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
                 <View style={{ width: 46, height: 46, borderRadius: 14, backgroundColor: g.color + '22', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-                  <Text style={{ fontSize: 22 }}>{g.icon}</Text>
+                  <Ionicons name={g.icon as any} size={22} color={g.color} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={{ color: c.text, fontSize: 15, fontWeight: '700' }}>{g.name}</Text>
@@ -181,7 +168,7 @@ export default function GoalsScreen() {
               </View>
               {pct >= 100 && (
                 <View style={{ backgroundColor: '#00D4AA22', borderRadius: 12, padding: 10, marginTop: 10, alignItems: 'center', borderWidth: 1, borderColor: '#00D4AA44' }}>
-                  <Text style={{ color: '#00D4AA', fontSize: 13, fontWeight: '700' }}>🎉 Goal reached!</Text>
+                  <Text style={{ color: '#00D4AA', fontSize: 13, fontWeight: '700' }}>Goal reached!</Text>
                 </View>
               )}
             </View>
@@ -194,7 +181,7 @@ export default function GoalsScreen() {
           </TouchableOpacity>
         ) : (
           <TouchableOpacity onPress={() => setShowPaywall(true)} style={{ backgroundColor: c.card, borderRadius: 16, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: c.border, marginBottom: 40 }}>
-            <Text style={{ color: c.muted, fontSize: 13, textAlign: 'center' }}>🔒 {maxGoals <= 1 ? t('upgradeProGoals') : t('upgradePremiumGoals')}</Text>
+            <Text style={{ color: c.muted, fontSize: 13, textAlign: 'center' }}>{maxGoals <= 1 ? t('upgradeProGoals') : t('upgradePremiumGoals')}</Text>
           </TouchableOpacity>
         )}
 

@@ -2,7 +2,6 @@ import { useFinance } from '@/context/FinanceContext';
 import { useLocale } from '@/context/LocaleContext';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
@@ -17,17 +16,17 @@ type Budget = {
 };
 
 const BUDGET_CATEGORIES = [
-  { name: 'Housing', icon: '🏠', color: '#6C63FF' },
-  { name: 'Groceries', icon: '🛒', color: '#00D4AA' },
-  { name: 'Transport', icon: '🚗', color: '#FF6B6B' },
-  { name: 'Entertainment', icon: '🎬', color: '#FFD700' },
-  { name: 'Health', icon: '💊', color: '#FF9F43' },
-  { name: 'Clothing', icon: '👗', color: '#a89fff' },
-  { name: 'Utilities', icon: '⚡', color: '#00BFFF' },
-  { name: 'Subscriptions', icon: '📱', color: '#FF69B4' },
-  { name: 'Food', icon: '🍕', color: '#FFA07A' },
-  { name: 'Shopping', icon: '📦', color: '#FF6347' },
-  { name: 'Other', icon: '🎁', color: '#9370DB' },
+  { name: 'Housing', icon: 'home', color: '#6C63FF' },
+  { name: 'Groceries', icon: 'cart', color: '#00D4AA' },
+  { name: 'Transport', icon: 'car', color: '#FF6B6B' },
+  { name: 'Entertainment', icon: 'film', color: '#FFD700' },
+  { name: 'Health', icon: 'medkit', color: '#FF9F43' },
+  { name: 'Clothing', icon: 'shirt', color: '#a89fff' },
+  { name: 'Utilities', icon: 'flash', color: '#00BFFF' },
+  { name: 'Subscriptions', icon: 'phone-portrait', color: '#FF69B4' },
+  { name: 'Food', icon: 'restaurant', color: '#FFA07A' },
+  { name: 'Shopping', icon: 'bag', color: '#FF6347' },
+  { name: 'Other', icon: 'gift', color: '#9370DB' },
 ];
 
 // Get start of current month
@@ -52,8 +51,6 @@ export default function BudgetsScreen() {
   const { theme: c } = useTheme();
   const { transactions } = useFinance();
   const { formatAmount, currencySymbol, t } = useLocale();
-  const router = useRouter();
-
 
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [storageKey, setStorageKey] = useState('polar_budgets_local');
@@ -125,22 +122,12 @@ export default function BudgetsScreen() {
   const usedCats = new Set(budgets.map(b => b.cat));
   const available = BUDGET_CATEGORIES.filter(c => !usedCats.has(c.name));
 
-  // ── Back button component ──────────────────────────────────────────────────
-  const BackBtn = () => (
-    <TouchableOpacity onPress={() => router.back()}
-      style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 56, marginBottom: 4, alignSelf: 'flex-start' }}>
-      <Ionicons name="chevron-back" size={20} color={c.accent} />
-      <Text style={{ color: c.accent, fontSize: 15, fontWeight: '600' }}>Back</Text>
-    </TouchableOpacity>
-  );
-
   return (
     <ScrollView style={{ flex: 1, backgroundColor: c.dark, paddingHorizontal: 20 }} showsVerticalScrollIndicator={false}>
 
       {/* Header */}
-      <BackBtn />
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, marginBottom: 20 }}>
-        <Text style={{ color: c.text, fontSize: 26, fontWeight: '900' }}>Budgets 💰</Text>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 60, marginBottom: 20 }}>
+        <Text style={{ color: c.text, fontSize: 26, fontWeight: '900' }}>Budgets</Text>
         <TouchableOpacity
           onPress={openAdd}
           disabled={available.length === 0}
@@ -181,7 +168,7 @@ export default function BudgetsScreen() {
       {/* Empty state */}
       {budgets.length === 0 && (
         <View style={{ alignItems: 'center', padding: 50 }}>
-          <Text style={{ fontSize: 50, marginBottom: 16 }}>💰</Text>
+          <Ionicons name="wallet-outline" size={50} color={c.muted} style={{ marginBottom: 16 }} />
           <Text style={{ color: c.text, fontSize: 18, fontWeight: '800', marginBottom: 8 }}>No budgets yet</Text>
           <Text style={{ color: c.muted, fontSize: 13, textAlign: 'center', lineHeight: 20, marginBottom: 24 }}>
             Set monthly spending limits per category and track how close you are.
@@ -206,7 +193,7 @@ export default function BudgetsScreen() {
           <View key={budget.id} style={{ backgroundColor: c.card, borderRadius: 20, padding: 18, marginBottom: 14, borderWidth: 1, borderColor: isOver ? '#FF6B6B44' : isWarning ? '#FF9F4344' : c.border }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
               <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: budget.color + '22', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-                <Text style={{ fontSize: 22 }}>{budget.icon}</Text>
+                <Ionicons name={budget.icon as any} size={22} color={budget.color} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={{ color: c.text, fontSize: 15, fontWeight: '700' }}>{budget.cat}</Text>
@@ -250,7 +237,7 @@ export default function BudgetsScreen() {
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
           <View style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, borderWidth: 1, borderColor: c.border }}>
             <Text style={{ color: c.text, fontSize: 20, fontWeight: '900', marginBottom: 20, textAlign: 'center' }}>
-              {editBudget ? '✏️ Edit Budget' : '💰 New Budget'}
+              {editBudget ? 'Edit Budget' : 'New Budget'}
             </Text>
 
             {/* Category picker */}
@@ -261,7 +248,7 @@ export default function BudgetsScreen() {
                   {available.map(cat => (
                     <TouchableOpacity key={cat.name} onPress={() => setFCat(cat.name)}
                       style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 50, backgroundColor: fCat === cat.name ? cat.color + '33' : c.card2, borderWidth: 1, borderColor: fCat === cat.name ? cat.color : c.border, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <Text style={{ fontSize: 16 }}>{cat.icon}</Text>
+                      <Ionicons name={cat.icon as any} size={16} color={fCat === cat.name ? cat.color : c.muted} />
                       <Text style={{ color: fCat === cat.name ? cat.color : c.muted, fontSize: 12, fontWeight: '600' }}>{cat.name}</Text>
                     </TouchableOpacity>
                   ))}
@@ -270,7 +257,7 @@ export default function BudgetsScreen() {
             )}
             {editBudget && (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: c.card2, borderRadius: 12, padding: 14, marginBottom: 16 }}>
-                <Text style={{ fontSize: 22 }}>{editBudget.icon}</Text>
+                <Ionicons name={editBudget.icon as any} size={22} color={editBudget.color} />
                 <Text style={{ color: c.text, fontSize: 15, fontWeight: '700' }}>{editBudget.cat}</Text>
               </View>
             )}

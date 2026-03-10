@@ -1,17 +1,24 @@
 import { useFinance } from '@/context/FinanceContext';
 import { useLocale } from '@/context/LocaleContext';
+import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import StarBackground from '../../components/StarBackground';
 import { useTheme } from '../../context/ThemeContext';
 
 const categories = [
-  { icon: '🏠', name: 'Housing' }, { icon: '🛒', name: 'Groceries' },
-  { icon: '🚗', name: 'Transport' }, { icon: '🎬', name: 'Entertainment' },
-  { icon: '💊', name: 'Health' }, { icon: '👗', name: 'Clothing' },
-  { icon: '⚡', name: 'Utilities' }, { icon: '📱', name: 'Subscriptions' },
-  { icon: '🍕', name: 'Food' }, { icon: '💼', name: 'Income' },
-  { icon: '💰', name: 'Savings' }, { icon: '🎁', name: 'Other' },
+  { icon: 'home', name: 'Housing' },
+  { icon: 'cart', name: 'Groceries' },
+  { icon: 'car', name: 'Transport' },
+  { icon: 'film', name: 'Entertainment' },
+  { icon: 'medkit', name: 'Health' },
+  { icon: 'shirt', name: 'Clothing' },
+  { icon: 'flash', name: 'Utilities' },
+  { icon: 'phone-portrait', name: 'Subscriptions' },
+  { icon: 'restaurant', name: 'Food' },
+  { icon: 'briefcase', name: 'Income' },
+  { icon: 'wallet', name: 'Savings' },
+  { icon: 'gift', name: 'Other' },
 ];
 
 export default function AddScreen() {
@@ -28,7 +35,7 @@ export default function AddScreen() {
   const [submitted, setSubmitted] = useState(false);
   const [showRecent, setShowRecent] = useState(false);
 
-  const selectedCatIcon = categories.find(cat => cat.name === selectedCat)?.icon ?? '💳';
+  const selectedCatIcon = categories.find(cat => cat.name === selectedCat)?.icon ?? 'card';
   const isValid = amount && name && selectedCat;
   const recentAdded = transactions.slice(0, 10);
 
@@ -88,8 +95,8 @@ export default function AddScreen() {
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
             {categories.map(cat => (
               <TouchableOpacity key={cat.name} onPress={() => setSelectedCat(cat.name)}
-                style={{ backgroundColor: selectedCat === cat.name ? c.accent : c.card, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12, flexDirection: 'row', gap: 6, borderWidth: 1, borderColor: selectedCat === cat.name ? c.accent : c.border }}>
-                <Text style={{ fontSize: 16 }}>{cat.icon}</Text>
+                style={{ backgroundColor: selectedCat === cat.name ? c.accent : c.card, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12, flexDirection: 'row', gap: 6, borderWidth: 1, borderColor: selectedCat === cat.name ? c.accent : c.border, alignItems: 'center' }}>
+                <Ionicons name={cat.icon as any} size={15} color={selectedCat === cat.name ? '#fff' : c.muted} />
                 <Text style={{ color: selectedCat === cat.name ? '#fff' : c.muted, fontSize: 12, fontWeight: '600' }}>{cat.name}</Text>
               </TouchableOpacity>
             ))}
@@ -107,7 +114,7 @@ export default function AddScreen() {
         <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: c.card, borderRadius: 16, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: c.border, gap: 12 }}
           onPress={() => setRecurring(!recurring)}>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: c.text, fontSize: 14, fontWeight: '700' }}>🔁 {t('recurring')}</Text>
+            <Text style={{ color: c.text, fontSize: 14, fontWeight: '700' }}>{t('recurring')}</Text>
             <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>{t('recurringDesc')}</Text>
           </View>
           <View style={{ width: 46, height: 26, borderRadius: 50, backgroundColor: recurring ? c.accent : c.card2, borderWidth: 1, borderColor: recurring ? c.accent : c.border }}>
@@ -118,12 +125,12 @@ export default function AddScreen() {
         {/* Submit */}
         {submitted ? (
           <View style={{ backgroundColor: '#00D4AA', borderRadius: 16, padding: 18, alignItems: 'center', marginBottom: 10 }}>
-            <Text style={{ color: '#fff', fontSize: 16, fontWeight: '800' }}>✓ {t('transactionSaved')}</Text>
+            <Text style={{ color: '#fff', fontSize: 16, fontWeight: '800' }}>{t('transactionSaved')}</Text>
           </View>
         ) : (
           <TouchableOpacity style={{ backgroundColor: c.accent, borderRadius: 16, padding: 18, alignItems: 'center', marginBottom: 10, opacity: isValid ? 1 : 0.4 }}
             onPress={handleSubmit} disabled={!isValid}>
-            <Text style={{ color: '#fff', fontSize: 16, fontWeight: '800' }}>➕ {type === 'expense' ? t('addExpense') : t('addIncome')}</Text>
+            <Text style={{ color: '#fff', fontSize: 16, fontWeight: '800' }}>{type === 'expense' ? t('addExpense') : t('addIncome')}</Text>
           </TouchableOpacity>
         )}
 
@@ -135,13 +142,13 @@ export default function AddScreen() {
             <View style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, maxHeight: '75%', borderWidth: 1, borderColor: c.border }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <Text style={{ color: c.text, fontSize: 18, fontWeight: '800' }}>Recently Added</Text>
-                <TouchableOpacity onPress={() => setShowRecent(false)}><Text style={{ color: c.muted, fontSize: 18 }}>✕</Text></TouchableOpacity>
+                <TouchableOpacity onPress={() => setShowRecent(false)}><Ionicons name="close" size={18} color={c.muted} /></TouchableOpacity>
               </View>
               <ScrollView showsVerticalScrollIndicator={false}>
                 {recentAdded.map((txn: any) => (
                   <View key={txn.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: c.border }}>
                     <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: c.card2, justifyContent: 'center', alignItems: 'center' }}>
-                      <Text style={{ fontSize: 18 }}>{txn.icon}</Text>
+                      <Ionicons name={(txn.icon || 'card') as any} size={18} color={c.muted} />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={{ color: c.text, fontSize: 14, fontWeight: '600' }}>{txn.name}</Text>

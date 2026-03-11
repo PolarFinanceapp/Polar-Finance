@@ -55,11 +55,12 @@ function nextPaydate(paydayDay: number, freq: PayFrequency) {
 
 
 // ── Compact number formatter ─────────────────────────────────────────────────
-function formatCompact(val: string | number, formatAmount: (n: number) => string): string {
+function formatCompact(val: string | number, formatAmount: (n: number) => string, currencySymbol?: string): string {
+  const sym = currencySymbol || '';
   if (typeof val === 'number') {
-    if (Math.abs(val) >= 1_000_000) return (val / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M';
-    if (Math.abs(val) >= 10_000) return (val / 1_000).toFixed(1).replace(/\.0$/, '') + 'k';
-    return val.toString();
+    if (Math.abs(val) >= 1_000_000) return sym + (val / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M';
+    if (Math.abs(val) >= 1_000) return sym + (val / 1_000).toFixed(1).replace(/\.0$/, '') + 'k';
+    return formatAmount(val);
   }
   return val;
 }
@@ -242,7 +243,7 @@ export default function MoreScreen() {
         <View style={{ flexDirection: 'row', gap: 12, marginBottom: 24 }}>
           {[
             { icon: 'calendar-outline', color: c.accent, value: transactions.length, label: t('transactions') },
-            { icon: 'wallet-outline', color: totalSaved >= 0 ? '#00D4AA' : '#FF6B6B', value: formatCompact(Math.abs(totalSaved), formatAmount), label: totalSaved >= 0 ? t('saved') : t('overspent') },
+            { icon: 'wallet-outline', color: totalSaved >= 0 ? '#00D4AA' : '#FF6B6B', value: formatCompact(Math.abs(totalSaved), formatAmount, currencySymbol), label: totalSaved >= 0 ? t('saved') : t('overspent') },
             { icon: 'trending-down', color: '#FF6B6B', value: transactions.filter(tx => tx.type === 'expense').length, label: t('expenses') },
           ].map((item, i) => (
             <View key={i} style={{ flex: 1, backgroundColor: c.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: c.border, alignItems: 'center' }}>

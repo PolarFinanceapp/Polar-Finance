@@ -26,6 +26,14 @@ const ALL_TABS = [
   { icon: 'settings', label: 'settings', display: 'Settings', route: '/(tabs)/settings' },
 ] as const;
 
+const CAT_ICON_NAMES: Record<string, string> = {
+  Housing: 'home', Groceries: 'cart', Transport: 'car', Entertainment: 'film',
+  Health: 'medkit', Clothing: 'shirt', Utilities: 'flash', Subscriptions: 'phone-portrait',
+  Food: 'restaurant', Income: 'briefcase', Savings: 'wallet', Shopping: 'bag', Other: 'gift',
+  FOOD_AND_DRINK: 'restaurant', SHOPS: 'cart', TRANSPORTATION: 'car', PAYMENT: 'card',
+  TRANSFER: 'swap-horizontal', RECREATION: 'film', HEALTHCARE: 'medkit', HOME: 'home',
+};
+
 const CARD_COLORS = [
   '#1a1a4e', '#1a2a1a', '#2a1a00', '#1a001a', '#0a1428', '#000500',
   '#0a2a4a', '#0d1b4b', '#1a3a5c', '#0a3d62',
@@ -108,7 +116,7 @@ export default function HomeScreen() {
   const [newInvValue, setNewInvValue] = useState('');
   const [newInvChange, setNewInvChange] = useState('');
   const [newInvUp, setNewInvUp] = useState(true);
-  const [newInvIcon, setNewInvIcon] = useState('📈');
+  const [newInvIcon, setNewInvIcon] = useState('bar-chart-outline');
 
   // ── Investment edit ───────────────────────────────────────────────────────
   const [editInv, setEditInv] = useState<any | null>(null);
@@ -193,7 +201,7 @@ export default function HomeScreen() {
   const addInvestment = () => {
     if (!newInvName || !newInvValue) return;
     setInvestments([...investments, { id: Date.now().toString(), icon: newInvIcon, name: newInvName, sub: newInvSub, value: parseFloat(newInvValue), change: parseFloat(newInvChange) || 0, up: newInvUp }]);
-    setNewInvName(''); setNewInvSub(''); setNewInvValue(''); setNewInvChange(''); setNewInvIcon('📈');
+    setNewInvName(''); setNewInvSub(''); setNewInvValue(''); setNewInvChange(''); setNewInvIcon('bar-chart-outline');
     setShowAddInv(false);
   };
 
@@ -215,7 +223,7 @@ export default function HomeScreen() {
     if (!newTxnName || !newTxnAmt) return;
     const amt = parseFloat(newTxnAmt);
     setTransactions([{
-      id: Date.now().toString(), icon: CAT_ICONS[newTxnCat] || '💳',
+      id: Date.now().toString(), icon: CAT_ICON_NAMES[newTxnCat] || 'card',
       name: newTxnName, cat: newTxnCat,
       amount: newTxnType === 'expense' ? -Math.abs(amt) : Math.abs(amt),
       type: newTxnType, date: new Date().toLocaleDateString('en-GB'),
@@ -241,7 +249,7 @@ export default function HomeScreen() {
         ...tx,
         name: editTxnName,
         cat: editTxnCat,
-        icon: CAT_ICONS[editTxnCat] || tx.icon,
+        icon: CAT_ICON_NAMES[editTxnCat] || tx.icon,
         amount: editTxnType === 'expense' ? -Math.abs(amt) : Math.abs(amt),
         type: editTxnType,
       }
@@ -372,7 +380,7 @@ export default function HomeScreen() {
             {showInvest ? (
               <>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                  <Text style={{ color: c.muted, fontSize: 12, fontWeight: '700', textTransform: 'uppercase' }}>📈 {t('investments')}</Text>
+                  <Text style={{ color: c.muted, fontSize: 12, fontWeight: '700', textTransform: 'uppercase' }}>{t('investments')}</Text>
                   <TouchableOpacity style={{ backgroundColor: c.accent + '22', borderRadius: 50, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: c.accent + '55' }} onPress={() => setShowAddInv(true)}>
                     <Text style={{ color: c.accent, fontSize: 11, fontWeight: '700' }}>＋ {t('add')}</Text>
                   </TouchableOpacity>
@@ -382,7 +390,7 @@ export default function HomeScreen() {
                   <View key={inv.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: c.border }}>
                     <TouchableOpacity onLongPress={() => setInvestments(investments.filter(i => i.id !== inv.id))} style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
                       <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: c.card2, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-                        <Text style={{ fontSize: 20 }}>{inv.icon}</Text>
+                        <Ionicons name={(inv.icon || 'bar-chart-outline') as any} size={20} color={c.accent} />
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text style={{ color: c.text, fontSize: 14, fontWeight: '700' }}>{inv.name}</Text>
@@ -508,7 +516,7 @@ export default function HomeScreen() {
               onLongPress={() => deleteTxn(txn.id)}
               style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: c.card, borderRadius: 16, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: c.border }}>
               <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: c.card2, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-                <Text style={{ fontSize: 18 }}>{txn.icon}</Text>
+                <Ionicons name={(txn.icon || 'card') as any} size={18} color={c.muted} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={{ color: c.text, fontSize: 15, fontWeight: '600' }}>{txn.name}</Text>

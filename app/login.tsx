@@ -103,14 +103,7 @@ export default function LoginScreen() {
       Alert.alert('Sign Up Failed', error.message);
       return;
     }
-    // If session exists immediately, email confirmation is disabled — log straight in
-    if (data.session) {
-      await resetRateLimit('signup');
-      setLoading(false);
-      router.replace('/onboarding' as any);
-      return;
-    }
-    // Email confirmation required — try to sign in anyway in case it works
+    // Always try to sign in immediately — email confirmation disabled
     const { error: loginError } = await supabase.auth.signInWithPassword({
       email: email.trim().toLowerCase(),
       password,
@@ -120,11 +113,9 @@ export default function LoginScreen() {
       await resetRateLimit('signup');
       router.replace('/onboarding' as any);
     } else {
-      Alert.alert(
-        'Account Created!',
-        'Check your email for a confirmation link, then log in.',
-        [{ text: 'OK', onPress: () => setMode('login') }]
-      );
+      // Fallback if auto-login fails
+      setMode('login');
+      Alert.alert('Account Created!', 'Please log in with your new account.');
     }
   };
 

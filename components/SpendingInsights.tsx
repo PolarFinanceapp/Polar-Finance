@@ -1,9 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useState } from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Animated, Dimensions, ScrollView, Text, View } from 'react-native';
 import { useFinance } from '../context/FinanceContext';
 import { useLocale } from '../context/LocaleContext';
 import { useTheme } from '../context/ThemeContext';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const CARD_WIDTH = SCREEN_WIDTH - 40; // full width minus padding
 
 type Insight = {
   icon: string;
@@ -31,13 +34,15 @@ function getInsights(transactions: any[], formatAmount: (n: number) => string): 
 
   const thisExp = transactions.filter(t => t.type === 'expense' && isThisMonth(t));
   const lastExp = transactions.filter(t => t.type === 'expense' && isLastMonth(t));
+  const thisInc = transactions.filter(t => t.type === 'income' && isThisMonth(t));
 
   const thisTotal = thisExp.reduce((s, t) => s + Math.abs(t.amount), 0);
   const lastTotal = lastExp.reduce((s, t) => s + Math.abs(t.amount), 0);
+  const thisIncTotal = thisInc.reduce((s, t) => s + Math.abs(t.amount), 0);
 
   const insights: Insight[] = [];
 
-  // Month-over-month spending
+  // Month-over-month
   if (lastTotal > 0) {
     const diff = thisTotal - lastTotal;
     const pct = Math.round(Math.abs(diff / lastTotal) * 100);
@@ -51,7 +56,7 @@ function getInsights(transactions: any[], formatAmount: (n: number) => string): 
     });
   }
 
-  // Top category this month
+  // Top category
   const catMap: Record<string, number> = {};
   thisExp.forEach(t => { catMap[t.cat] = (catMap[t.cat] || 0) + Math.abs(t.amount); });
   const topCat = Object.entries(catMap).sort((a, b) => b[1] - a[1])[0];
@@ -66,17 +71,14 @@ function getInsights(transactions: any[], formatAmount: (n: number) => string): 
   }
 
   // Savings rate
-  const thisInc = transactions
-    .filter(t => t.type === 'income' && isThisMonth(t))
-    .reduce((s, t) => s + Math.abs(t.amount), 0);
-  if (thisInc > 0) {
-    const rate = Math.round(((thisInc - thisTotal) / thisInc) * 100);
+  if (thisIncTotal > 0) {
+    const rate = Math.round(((thisIncTotal - thisTotal) / thisIncTotal) * 100);
     const good = rate >= 20;
     insights.push({
       icon: good ? 'checkmark-circle' : 'alert-circle',
       iconColor: good ? '#00D4AA' : '#FF9F43',
       title: `Savings rate: ${Math.max(0, rate)}%`,
-      sub: good ? 'Great job — above the 20% target' : 'Aim for 20% of income saved',
+      sub: good ? 'Above the 20% target — great work' : 'Aim to save 20% of income',
       positive: good,
     });
   }
@@ -92,15 +94,17 @@ function getInsights(transactions: any[], formatAmount: (n: number) => string): 
     });
   }
 
-  return insights.slice(0, 3);
+  return insights;
 }
 
 export default function SpendingInsights() {
   const { theme: c } = useTheme();
   const { transactions } = useFinance();
-  const { formatAmount, t } = useLocale();
-  const [idx, setIdx] = useState(0);
+  const { formatAmount } = useLocale();
   const [insights, setInsights] = useState<Insight[]>([]);
+  const [activeIdx, setActiveIdx] = useState(0);
+  const scrollRef = useRef<ScrollView>(null);
+  const fadeAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     setInsights(getInsights(transactions, formatAmount));
@@ -108,39 +112,84 @@ export default function SpendingInsights() {
 
   if (insights.length === 0) return null;
 
-  const insight = insights[idx];
+  const handleScroll = (e: any) => {
+    const idx = Math.round(e.nativeEvent.contentOffset.x / CARD_WIDTH);
+    setActiveIdx(Math.max(0, Math.min(insights.length - 1, idx)));
+  };
 
   return (
-    <View style={{ backgroundColor: c.card, borderRadius: 20, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: c.border }}>
+    <View style={{ marginBottom: 14 }}>
       {/* Header */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Ionicons name="bulb-outline" size={15} color={c.accent} />
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, paddingHorizontal: 2 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Ionicons name="bulb-outline" size={13} color={c.accent} />
           <Text style={{ color: c.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' }}>
-            Spending Insight
+            Spending Insights
           </Text>
         </View>
         {insights.length > 1 && (
-          <View style={{ flexDirection: 'row', gap: 4 }}>
-            {insights.map((_, i) => (
-              <TouchableOpacity key={i} onPress={() => setIdx(i)}>
-                <View style={{ width: i === idx ? 16 : 6, height: 6, borderRadius: 3, backgroundColor: i === idx ? c.accent : c.border }} />
-              </TouchableOpacity>
-            ))}
-          </View>
+          <Text style={{ color: c.muted, fontSize: 11 }}>{activeIdx + 1}/{insights.length}</Text>
         )}
       </View>
 
-      {/* Insight row */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-        <View style={{ width: 46, height: 46, borderRadius: 14, backgroundColor: insight.iconColor + '18', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: insight.iconColor + '33' }}>
-          <Ionicons name={insight.icon as any} size={22} color={insight.iconColor} />
+      {/* Swipeable cards */}
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onMomentumScrollEnd={handleScroll}
+        decelerationRate="fast"
+        snapToInterval={CARD_WIDTH}
+        snapToAlignment="start"
+      >
+        {insights.map((insight, i) => (
+          <View
+            key={i}
+            style={{
+              width: CARD_WIDTH,
+              backgroundColor: c.card,
+              borderRadius: 18,
+              padding: 16,
+              borderWidth: 1,
+              borderColor: c.border,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 14,
+              marginRight: i < insights.length - 1 ? 0 : 0,
+            }}
+          >
+            <View style={{
+              width: 46, height: 46, borderRadius: 14,
+              backgroundColor: insight.iconColor + '18',
+              justifyContent: 'center', alignItems: 'center',
+              borderWidth: 1, borderColor: insight.iconColor + '33',
+            }}>
+              <Ionicons name={insight.icon as any} size={22} color={insight.iconColor} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: c.text, fontSize: 14, fontWeight: '700', marginBottom: 3 }}>{insight.title}</Text>
+              <Text style={{ color: c.muted, fontSize: 12, lineHeight: 17 }}>{insight.sub}</Text>
+            </View>
+            {insights.length > 1 && (
+              <Ionicons name="chevron-forward" size={16} color={c.muted + '66'} />
+            )}
+          </View>
+        ))}
+      </ScrollView>
+
+      {/* Dot indicators */}
+      {insights.length > 1 && (
+        <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 5, marginTop: 8 }}>
+          {insights.map((_, i) => (
+            <View key={i} style={{
+              width: i === activeIdx ? 16 : 5,
+              height: 5, borderRadius: 3,
+              backgroundColor: i === activeIdx ? c.accent : c.muted + '44',
+            }} />
+          ))}
         </View>
-        <View style={{ flex: 1 }}>
-          <Text style={{ color: c.text, fontSize: 14, fontWeight: '700', marginBottom: 2 }}>{insight.title}</Text>
-          <Text style={{ color: c.muted, fontSize: 12, lineHeight: 17 }}>{insight.sub}</Text>
-        </View>
-      </View>
+      )}
     </View>
   );
 }

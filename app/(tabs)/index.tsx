@@ -10,8 +10,8 @@ import { Image, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } fro
 import Paywall from '../../components/Paywall';
 import ProfileModal from '../../components/ProfileModal';
 import RecurringBills from '../../components/RecurringBills';
-import ReferralCard from '../../components/ReferralCard';
 import SpendingInsights from '../../components/SpendingInsights';
+import StarBackground from '../../components/StarBackground';
 import TrialPrompt from '../../components/TrialPrompt';
 import { useBills } from '../../context/BillsContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -258,6 +258,7 @@ export default function HomeScreen() {
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <View style={{ flex: 1, backgroundColor: c.dark }}>
+      <StarBackground />
       <ScrollView style={{ flex: 1, paddingHorizontal: 20 }} showsVerticalScrollIndicator={false}>
 
         {/* Header */}
@@ -480,9 +481,6 @@ export default function HomeScreen() {
 
         {/* Spending Insights */}
         <SpendingInsights />
-
-        {/* Referral */}
-        <ReferralCard />
 
         {/* Transactions */}
         <View style={{ marginBottom: 30 }}>

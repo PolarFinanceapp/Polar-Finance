@@ -2,6 +2,7 @@ import { useFinance } from '@/context/FinanceContext';
 import { useLocale } from '@/context/LocaleContext';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
@@ -29,6 +30,16 @@ const BUDGET_CATEGORIES = [
   { name: 'Other', icon: 'gift', color: '#9370DB' },
 ];
 
+
+// ── Migrate old emoji icons to Ionicons names ─────────────────────────────────
+const EMOJI_TO_ICON: Record<string, string> = {
+  '🏠': 'home', '🛒': 'cart', '🚗': 'car', '🎬': 'film',
+  '💊': 'medkit', '👗': 'shirt', '⚡': 'flash', '📱': 'phone-portrait',
+  '🍕': 'restaurant', '💼': 'briefcase', '💰': 'wallet', '📦': 'bag', '🎁': 'gift',
+};
+function migrateIcon(icon: string): string {
+  return EMOJI_TO_ICON[icon] || icon;
+}
 // Get start of current month
 function monthStart(): Date {
   const now = new Date();
@@ -49,6 +60,7 @@ function parseDate(s: string | undefined): Date | null {
 
 export default function BudgetsScreen() {
   const { theme: c } = useTheme();
+  const router = useRouter();
   const { transactions } = useFinance();
   const { formatAmount, currencySymbol, t } = useLocale();
 
@@ -68,7 +80,7 @@ export default function BudgetsScreen() {
       const key = `polar_budgets_${user?.id ?? 'local'}`;
       setStorageKey(key);
       const raw = await AsyncStorage.getItem(key);
-      if (raw) setBudgets(JSON.parse(raw));
+      if (raw) setBudgets(JSON.parse(raw).map((b: any) => ({ ...b, icon: migrateIcon(b.icon) })));
     })();
   }, []);
 
@@ -122,8 +134,18 @@ export default function BudgetsScreen() {
   const usedCats = new Set(budgets.map(b => b.cat));
   const available = BUDGET_CATEGORIES.filter(c => !usedCats.has(c.name));
 
+
+  // ── Back button — always goes to More ────────────────────────────────────
+  const BackBtn = () => (
+    <TouchableOpacity onPress={() => router.push('/(tabs)/more' as any)}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 56, marginBottom: 4, alignSelf: 'flex-start' }}>
+      <Ionicons name="chevron-back" size={20} color={c.accent} />
+      <Text style={{ color: c.accent, fontSize: 15, fontWeight: '600' }}>Back</Text>
+    </TouchableOpacity>
+  );
+
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: c.dark, paddingHorizontal: 20 }} showsVerticalScrollIndicator={false}>
+    <ScrollView style={{ flex: 1, backgroundColor: c.dark, paddingHorizontal: 20 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
 
       {/* Header */}
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 60, marginBottom: 20 }}>

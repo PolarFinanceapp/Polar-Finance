@@ -17,7 +17,6 @@ import { useTheme } from '../../context/ThemeContext';
 const DEFAULT_TABS = [
   { name: 'index', label: 'Home', active: 'home', inactive: 'home-outline' },
   { name: 'stats', label: 'Stats', active: 'bar-chart', inactive: 'bar-chart-outline' },
-  { name: 'credit', label: 'Credit', active: 'card', inactive: 'card-outline' },
   { name: 'more', label: 'More', active: 'grid', inactive: 'grid-outline' },
   { name: 'settings', label: 'Settings', active: 'settings', inactive: 'settings-outline' },
 ] as const;
@@ -367,10 +366,11 @@ export default function TabLayout() {
     >
       <Tabs.Screen name="index" options={{ title: 'Home' }} />
       <Tabs.Screen name="stats" options={{ title: 'Stats' }} />
-      <Tabs.Screen name="credit" options={{ title: 'Credit' }} />
+
       <Tabs.Screen name="more" options={{ title: 'More' }} />
       <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
 
+      <Tabs.Screen name="credit" options={{ href: null }} />
       {HIDDEN.map(name => (
         <Tabs.Screen key={name} name={name} options={{ href: null }} />
       ))}

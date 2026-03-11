@@ -11,7 +11,7 @@ import StarBackground from '../../components/StarBackground';
 import { useTheme } from '../../context/ThemeContext';
 
 type PayFrequency = 'weekly' | 'fortnightly' | 'monthly' | 'yearly';
-type IncomeSource = { id: string; label: string; amount: number; frequency: PayFrequency; paydayDay: number; icon: string };
+type IncomeSource = { id: string; label: string; amount: number; frequency: PayFrequency; paydayDay: number; emoji: string };
 
 const PAY_FREQS: { key: PayFrequency; label: string; tKey: string }[] = [
   { key: 'weekly', label: 'Weekly', tKey: 'weekly' },
@@ -20,20 +20,7 @@ const PAY_FREQS: { key: PayFrequency; label: string; tKey: string }[] = [
   { key: 'yearly', label: 'Yearly', tKey: 'yearly' },
 ];
 
-const INCOME_ICONS: { name: string; label: string }[] = [
-  { name: 'briefcase', label: 'Work' },
-  { name: 'cash', label: 'Money' },
-  { name: 'business', label: 'Bank' },
-  { name: 'bar-chart', label: 'Stocks' },
-  { name: 'desktop', label: 'Tech' },
-  { name: 'construct', label: 'Trade' },
-  { name: 'color-palette', label: 'Creative' },
-  { name: 'car', label: 'Driving' },
-  { name: 'medkit', label: 'Medical' },
-  { name: 'school', label: 'Teaching' },
-  { name: 'storefront', label: 'Retail' },
-  { name: 'phone-portrait', label: 'Digital' },
-];
+const INCOME_EMOJIS = ['💼', '💰', '🏦', '📊', '🖥️', '🔧', '🎨', '🚚', '👨‍⚕️', '👨‍🏫', '🏪', '📱'];
 
 const COMING_SOON_ITEMS = [
   { icon: 'business', titleKey: 'comingSoonBankSync', descKey: 'comingSoonBankSyncDesc' },
@@ -66,6 +53,16 @@ function nextPaydate(paydayDay: number, freq: PayFrequency) {
   return next.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+
+// ── Compact number formatter ─────────────────────────────────────────────────
+function formatCompact(val: string | number, formatAmount: (n: number) => string): string {
+  if (typeof val === 'number') {
+    if (Math.abs(val) >= 1_000_000) return (val / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M';
+    if (Math.abs(val) >= 10_000) return (val / 1_000).toFixed(1).replace(/\.0$/, '') + 'k';
+    return val.toString();
+  }
+  return val;
+}
 export default function MoreScreen() {
   const { theme: c } = useTheme();
   const { hasFeature } = usePlan();
@@ -85,7 +82,7 @@ export default function MoreScreen() {
   const [fAmount, setFAmount] = useState('');
   const [fFreq, setFFreq] = useState<PayFrequency>('monthly');
   const [fDay, setFDay] = useState('25');
-  const [fIcon, setFIcon] = useState('briefcase');
+  const [fEmoji, setFEmoji] = useState('💼');
   const [fSaved, setFSaved] = useState(false);
 
   useEffect(() => {
@@ -106,14 +103,14 @@ export default function MoreScreen() {
     await AsyncStorage.setItem(storageKey, JSON.stringify(data));
   };
 
-  const resetForm = () => { setFLabel(''); setFAmount(''); setFFreq('monthly'); setFDay('25'); setFIcon('briefcase'); setFSaved(false); setEditingIncome(null); };
+  const resetForm = () => { setFLabel(''); setFAmount(''); setFFreq('monthly'); setFDay('25'); setFEmoji('💼'); setFSaved(false); setEditingIncome(null); };
 
   const openAdd = () => { resetForm(); setShowAddIncome(true); };
-  const openEdit = (src: IncomeSource) => { setEditingIncome(src); setFLabel(src.label); setFAmount(src.amount.toString()); setFFreq(src.frequency); setFDay(src.paydayDay.toString()); setFIcon(src.icon || (src as any).emoji || 'briefcase'); setShowAddIncome(true); };
+  const openEdit = (src: IncomeSource) => { setEditingIncome(src); setFLabel(src.label); setFAmount(src.amount.toString()); setFFreq(src.frequency); setFDay(src.paydayDay.toString()); setFEmoji(src.emoji); setShowAddIncome(true); };
 
   const handleSave = async () => {
     if (!fLabel || !fAmount) return;
-    const entry: IncomeSource = { id: editingIncome?.id || Date.now().toString(), label: fLabel, amount: parseFloat(fAmount), frequency: fFreq, paydayDay: parseInt(fDay) || 1, icon: fIcon };
+    const entry: IncomeSource = { id: editingIncome?.id || Date.now().toString(), label: fLabel, amount: parseFloat(fAmount), frequency: fFreq, paydayDay: parseInt(fDay) || 1, emoji: fEmoji };
     const updated = editingIncome ? sources.map(s => s.id === editingIncome.id ? entry : s) : [...sources, entry];
     await saveSources(updated);
     setFSaved(true);
@@ -134,6 +131,7 @@ export default function MoreScreen() {
     { icon: 'calendar', label: t('calendar'), sub: 'View transactions by date', route: '/(tabs)/calendar', lock: false },
     { icon: 'flag', label: t('savingGoals'), sub: 'Track your saving goals', route: '/(tabs)/goals', lock: false },
     { icon: 'briefcase', label: t('assets'), sub: 'Cards, investments & property', route: '/(tabs)/assets', lock: true, feature: 'investmentTracking' },
+    { icon: 'card', label: 'Credit Score', sub: 'Check your free credit score', route: '/(tabs)/credit', lock: false },
     { icon: 'receipt', label: 'Tax Helper', sub: 'Estimate tax, bands & checklist', route: '/(tabs)/tax', lock: false },
   ] as const;
 
@@ -212,9 +210,7 @@ export default function MoreScreen() {
               {sources.map((src, i) => (
                 <View key={src.id} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderTopWidth: 1, borderTopColor: c.border, gap: 12 }}>
                   <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: '#00D4AA18', justifyContent: 'center', alignItems: 'center' }}>
-                    {src.icon && src.icon.length > 2
-                      ? <Text style={{ fontSize: 22 }}>{src.icon}</Text>
-                      : <Ionicons name={(src.icon || (src as any).emoji || 'briefcase') as any} size={22} color="#00D4AA" />}
+                    <Text style={{ fontSize: 22 }}>{src.emoji}</Text>
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: c.text, fontSize: 14, fontWeight: '700' }}>{src.label}</Text>
@@ -246,12 +242,12 @@ export default function MoreScreen() {
         <View style={{ flexDirection: 'row', gap: 12, marginBottom: 24 }}>
           {[
             { icon: 'calendar-outline', color: c.accent, value: transactions.length, label: t('transactions') },
-            { icon: 'wallet-outline', color: totalSaved >= 0 ? '#00D4AA' : '#FF6B6B', value: formatAmount(Math.round(Math.abs(totalSaved))), label: totalSaved >= 0 ? t('saved') : t('overspent') },
+            { icon: 'wallet-outline', color: totalSaved >= 0 ? '#00D4AA' : '#FF6B6B', value: formatCompact(Math.abs(totalSaved), formatAmount), label: totalSaved >= 0 ? t('saved') : t('overspent') },
             { icon: 'trending-down', color: '#FF6B6B', value: transactions.filter(tx => tx.type === 'expense').length, label: t('expenses') },
           ].map((item, i) => (
             <View key={i} style={{ flex: 1, backgroundColor: c.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: c.border, alignItems: 'center' }}>
               <Ionicons name={item.icon as any} size={24} color={item.color} />
-              <Text style={{ color: item.color, fontSize: typeof item.value === 'number' ? 20 : 15, fontWeight: '900', marginTop: 8 }}>{item.value}</Text>
+              <Text style={{ color: item.color, fontSize: 16, fontWeight: '900', marginTop: 8, textAlign: 'center' }}>{item.value}</Text>
               <Text style={{ color: c.muted, fontSize: 11, marginTop: 2, textAlign: 'center' }}>{item.label}</Text>
             </View>
           ))}
@@ -307,7 +303,7 @@ export default function MoreScreen() {
         {/* Upgrade */}
         {!hasFeature('customTheme') && (
           <View style={{ backgroundColor: c.accent + '18', borderRadius: 20, padding: 20, borderWidth: 1, borderColor: c.accent + '44', marginBottom: 40 }}>
-            <Text style={{ color: c.text, fontSize: 16, fontWeight: '800', marginBottom: 6 }}>👑 {t('upgradePremium')}</Text>
+            <Text style={{ color: c.text, fontSize: 16, fontWeight: '800', marginBottom: 6 }}>{t('upgradePremium')}</Text>
             <Text style={{ color: c.muted, fontSize: 13, lineHeight: 20, marginBottom: 14 }}>{t('unlockFeatures')}</Text>
             <TouchableOpacity onPress={() => setShowPaywall(true)} style={{ backgroundColor: c.accent, borderRadius: 12, padding: 14, alignItems: 'center' }}>
               <Text style={{ color: '#fff', fontWeight: '800', fontSize: 14 }}>{t('viewPlans')} — {t('from')} {convertPrice(3.99)}{t('perMonth')}</Text>
@@ -343,10 +339,10 @@ export default function MoreScreen() {
                   placeholder="e.g. 25" placeholderTextColor={c.muted} keyboardType="number-pad" value={fDay} onChangeText={setFDay} />
                 <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 8 }}>{t('pickIcon')}</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
-                  {INCOME_ICONS.map(ic => (
-                    <TouchableOpacity key={ic.name} onPress={() => setFIcon(ic.name)}
-                      style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: c.card2, justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, borderColor: fIcon === ic.name ? '#00D4AA' : 'transparent' }}>
-                      <Ionicons name={ic.name as any} size={22} color={fIcon === ic.name ? '#00D4AA' : c.muted} />
+                  {INCOME_EMOJIS.map(ic => (
+                    <TouchableOpacity key={ic} onPress={() => setFEmoji(ic)}
+                      style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: c.card2, justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, borderColor: fEmoji === ic ? '#00D4AA' : 'transparent' }}>
+                      <Text style={{ fontSize: 22 }}>{ic}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>

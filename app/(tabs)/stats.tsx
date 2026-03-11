@@ -49,81 +49,109 @@ function getPeriodLabel(period: Period): string {
   return `${now.getFullYear()}`;
 }
 
-// ── Simple SVG-style pie chart using absolute positioned Views ─────────────────
+// ── Donut chart using SVG path arcs ──────────────────────────────────────────
+// Uses react-native's View-based approach with proper arc segments
 function PieChart({ categories, total }: { categories: any[]; total: number }) {
-  const SIZE = 180;
+  const SIZE = 200;
   const R = SIZE / 2;
-  const INNER_R = 58;
+  const STROKE = 36; // ring thickness
+  const INNER_R = R - STROKE;
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.85)).current;
 
   useEffect(() => {
-    Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
-  }, []);
+    Animated.parallel([
+      Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
+      Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, speed: 12, bounciness: 4 }),
+    ]).start();
+  }, [categories.map(c => c.name).join()]);
 
-  // Build arc segments using transform rotations
-  let cumulative = 0;
-  const segments = categories.slice(0, 6).map((cat) => {
-    const pct = total > 0 ? cat.amount / total : 0;
-    const start = cumulative;
-    cumulative += pct;
-    return { ...cat, pct, start };
-  });
+  const segs = categories.slice(0, 6);
+  const total6 = segs.reduce((s, c) => s + c.amount, 0);
+  let cumAngle = -90; // start at top
+
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const cx = R;
+  const cy = R;
+
+  // Each segment is rendered as a series of thin wedge Views
+  // We use a simple approach: render colored quarter-circles stacked with rotations
+  // This is the most reliable approach without SVG
+
+  const SEGMENTS_PER_CAT = 90; // precision steps
 
   return (
-    <Animated.View style={{ alignItems: 'center', opacity: fadeAnim }}>
-      <View style={{ width: SIZE, height: SIZE, borderRadius: R, overflow: 'hidden', marginBottom: 16 }}>
-        {segments.map((seg, i) => {
-          const deg = seg.pct * 360;
-          const startDeg = seg.start * 360;
+    <Animated.View style={{ alignItems: 'center', opacity: fadeAnim, transform: [{ scale: scaleAnim }] }}>
+      <View style={{ width: SIZE, height: SIZE, position: 'relative', marginBottom: 20 }}>
+        {segs.map((seg, si) => {
+          const pct = total6 > 0 ? seg.amount / total6 : 0;
+          const degrees = pct * 360;
+          const startAngle = cumAngle;
+          cumAngle += degrees;
+
+          // Render segment using the "two half-rotation" technique
+          // Each segment = rotated container + clipped half-square
+          const firstHalf = Math.min(degrees, 180);
+          const secondHalf = Math.max(0, degrees - 180);
+          const segStart = startAngle + 90; // adjust for CSS rotation origin
+
           return (
-            <View key={i} style={{
-              position: 'absolute', width: SIZE, height: SIZE,
-              transform: [{ rotate: `${startDeg}deg` }],
-            }}>
+            <View key={si} style={{ position: 'absolute', width: SIZE, height: SIZE }}>
+              {/* First 0-180° */}
               <View style={{
-                position: 'absolute', width: R, height: SIZE,
-                left: R, overflow: 'hidden',
-                transform: [{ rotate: `${Math.min(deg, 180)}deg` }],
-                transformOrigin: 'left center',
-              }}>
-                <View style={{ width: R, height: SIZE, backgroundColor: seg.color }} />
-              </View>
-              {deg > 180 && (
+                position: 'absolute', width: SIZE, height: SIZE,
+                borderRadius: R,
+                borderWidth: STROKE,
+                borderColor: 'transparent',
+                borderRightColor: seg.color,
+                borderBottomColor: firstHalf > 90 ? seg.color : 'transparent',
+                transform: [{ rotate: `${segStart}deg` }],
+              }} />
+              {/* Second 180-360° if needed */}
+              {secondHalf > 0 && (
                 <View style={{
-                  position: 'absolute', width: R, height: SIZE,
-                  left: R, overflow: 'hidden',
-                  transform: [{ rotate: '180deg' }],
-                  transformOrigin: 'left center',
-                }}>
-                  <View style={{ width: R, height: SIZE, backgroundColor: seg.color }} />
-                </View>
+                  position: 'absolute', width: SIZE, height: SIZE,
+                  borderRadius: R,
+                  borderWidth: STROKE,
+                  borderColor: 'transparent',
+                  borderRightColor: seg.color,
+                  borderBottomColor: secondHalf > 90 ? seg.color : 'transparent',
+                  transform: [{ rotate: `${segStart + 180}deg` }],
+                }} />
               )}
             </View>
           );
         })}
-        {/* Inner circle cutout */}
+
+        {/* Inner circle */}
         <View style={{
           position: 'absolute',
-          width: INNER_R * 2, height: INNER_R * 2,
-          borderRadius: INNER_R,
+          width: SIZE - STROKE * 2,
+          height: SIZE - STROKE * 2,
+          borderRadius: (SIZE - STROKE * 2) / 2,
           backgroundColor: '#0D0D1A',
-          top: R - INNER_R, left: R - INNER_R,
+          top: STROKE, left: STROKE,
           justifyContent: 'center', alignItems: 'center',
         }}>
-          <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700', opacity: 0.5 }}>SPEND</Text>
-          <Text style={{ color: '#FF6B6B', fontSize: 13, fontWeight: '900' }}>
-            {total > 0 ? `${Math.round((categories[0]?.pct || 0))}%` : '—'}
+          <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, fontWeight: '700', letterSpacing: 1 }}>SPEND</Text>
+          <Text style={{ color: segs[0]?.color || '#FF6B6B', fontSize: 18, fontWeight: '900', marginTop: 2 }}>
+            {segs[0] ? `${Math.round((segs[0].amount / total6) * 100)}%` : '—'}
           </Text>
+          {segs[0] && (
+            <Text style={{ color: 'rgba(255,255,255,0.35)', fontSize: 9, marginTop: 1, textAlign: 'center', paddingHorizontal: 8 }}>
+              {segs[0].name}
+            </Text>
+          )}
         </View>
       </View>
 
       {/* Legend */}
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
-        {segments.map((seg, i) => (
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center', paddingHorizontal: 8 }}>
+        {segs.map((seg, i) => (
           <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
             <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: seg.color }} />
-            <Text style={{ color: '#7B7B9E', fontSize: 11, fontWeight: '600' }}>
-              {seg.name} {Math.round(seg.pct * 100)}%
+            <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: '600' }}>
+              {seg.name} {Math.round((seg.amount / total6) * 100)}%
             </Text>
           </View>
         ))}

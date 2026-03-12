@@ -6,14 +6,14 @@ import { useFinance } from '../context/FinanceContext';
 import { useLocale } from '../context/LocaleContext';
 import { useTheme } from '../context/ThemeContext';
 
-const BILL_ICONS  = ['💡','💧','🔥','📱','🌐','🏠','🚗','🎬','💪','🎵','📺','🛒','🏥','✈️','🎮'];
-const BILL_COLORS = ['#6C63FF','#00D4AA','#FF9F43','#FF6B6B','#a89fff','#FFD700'];
+const BILL_ICONS = ['💡', '💧', '🔥', '📱', '🌐', '🏠', '🚗', '🎬', '💪', '🎵', '📺', '🛒', '🏥', '✈️', '🎮'];
+const BILL_COLORS = ['#6C63FF', '#00D4AA', '#FF9F43', '#FF6B6B', '#a89fff', '#FFD700'];
 
 const FREQUENCIES: { key: Frequency; label: string }[] = [
-  { key: 'weekly',      label: 'Weekly'      },
+  { key: 'weekly', label: 'Weekly' },
   { key: 'fortnightly', label: 'Fortnightly' },
-  { key: 'monthly',     label: 'Monthly'     },
-  { key: 'yearly',      label: 'Yearly'      },
+  { key: 'monthly', label: 'Monthly' },
+  { key: 'yearly', label: 'Yearly' },
 ];
 
 type Props = { visible: boolean; onClose: () => void };
@@ -24,23 +24,23 @@ export default function RecurringBills({ visible, onClose }: Props) {
   const { bills, addBill, deleteBill, payBill } = useBills();
   const { cards, setCards, transactions, setTransactions } = useFinance();
 
-  const [showAdd,    setShowAdd]    = useState(false);
-  const [billName,   setBillName]   = useState('');
+  const [showAdd, setShowAdd] = useState(false);
+  const [billName, setBillName] = useState('');
   const [billAmount, setBillAmount] = useState('');
-  const [billFreq,   setBillFreq]   = useState<Frequency>('monthly');
-  const [billDue,    setBillDue]    = useState('');
+  const [billFreq, setBillFreq] = useState<Frequency>('monthly');
+  const [billDue, setBillDue] = useState('');
   const [billCardId, setBillCardId] = useState<string | null>(null);
-  const [billIcon,   setBillIcon]   = useState('💡');
-  const [billColor,  setBillColor]  = useState('#6C63FF');
+  const [billIcon, setBillIcon] = useState('💡');
+  const [billColor, setBillColor] = useState('#6C63FF');
 
   const freqLabel = (f: Frequency) => FREQUENCIES.find(x => x.key === f)?.label || f;
 
   const totalMonthly = bills.reduce((s, b) => {
     switch (b.frequency) {
-      case 'weekly':      return s + b.amount * 4.33;
+      case 'weekly': return s + b.amount * 4.33;
       case 'fortnightly': return s + b.amount * 2.17;
-      case 'monthly':     return s + b.amount;
-      case 'yearly':      return s + b.amount / 12;
+      case 'monthly': return s + b.amount;
+      case 'yearly': return s + b.amount / 12;
     }
   }, 0);
 

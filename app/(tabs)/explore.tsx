@@ -1,7 +1,7 @@
 import { useLocale } from '@/context/LocaleContext';
 import { usePlan } from '@/context/PlanContext';
 import { supabase } from '@/lib/supabase';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
@@ -19,11 +19,32 @@ const TIMEFRAMES = ['15m', '30m', '1h', '4h', '1d'] as const;
 const sigColor = (s: string, a: string) => s === 'buy' || s === 'strong_buy' ? '#00D4AA' : s === 'sell' || s === 'strong_sell' ? '#FF6B6B' : a;
 const sigLabel = (s: string) => s === 'strong_buy' ? 'STRONG BUY' : s === 'buy' ? 'BUY' : s === 'strong_sell' ? 'STRONG SELL' : s === 'sell' ? 'SELL' : 'NEUTRAL';
 const ratColor = (r: string) => r.includes('Buy') ? '#00D4AA' : r.includes('Sell') ? '#FF6B6B' : '#FFD700';
-const cryptoIcon: Record<string, string> = {
-  BTC: 'logo-bitcoin', ETH: 'diamond', SOL: 'flash', XRP: 'swap-horizontal',
-  BNB: 'cube', ADA: 'layers', DOGE: 'paw',
+// ── Crypto icon renderer ──────────────────────────────────────────────────────
+const CRYPTO_MCI: Record<string, string> = {
+  BTC: 'bitcoin', ETH: 'ethereum', SOL: 'cash', XRP: 'alpha-x-circle',
+  BNB: 'hexagon', ADA: 'alpha-a-circle', DOGE: 'dog',
 };
-const getCryptoIcon = (s: string) => cryptoIcon[s] || 'cash';
+const CRYPTO_COLOR: Record<string, string> = {
+  BTC: '#F7931A', ETH: '#627EEA', SOL: '#9945FF', XRP: '#00AAE4',
+  BNB: '#F3BA2F', ADA: '#0033AD', DOGE: '#C2A633',
+};
+
+// ── Commodity icon renderer ────────────────────────────────────────────────────
+const COMMODITY_MCI: Record<string, string> = {
+  GOLD: 'gold', SILVER: 'silver-mine', OIL: 'oil', GLD: 'gold',
+  SLV: 'silver-mine', USO: 'oil', NATGAS: 'gas-cylinder',
+};
+const COMMODITY_COLOR: Record<string, string> = {
+  GOLD: '#FFD700', GLD: '#FFD700', SILVER: '#C0C0C0', SLV: '#C0C0C0',
+  OIL: '#8B4513', USO: '#8B4513', NATGAS: '#00BFFF',
+};
+
+// ── Stock ticker badge ────────────────────────────────────────────────────────
+const STOCK_COLOR: Record<string, string> = {
+  AAPL: '#555', MSFT: '#00A4EF', GOOGL: '#4285F4', AMZN: '#FF9900',
+  TSLA: '#CC0000', NVDA: '#76B900', META: '#0866FF', NFLX: '#E50914',
+  BABA: '#FF6A00', SPY: '#6C63FF',
+};
 
 export default function ExploreScreen() {
   const { theme: c } = useTheme();
@@ -87,9 +108,10 @@ export default function ExploreScreen() {
     );
   }
 
-  // ── Back button component ──────────────────────────────────────────────────
+
+  // ── Back button — always goes to More ────────────────────────────────────
   const BackBtn = () => (
-    <TouchableOpacity onPress={() => router.back()}
+    <TouchableOpacity onPress={() => router.push('/(tabs)/more' as any)}
       style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 56, marginBottom: 4, alignSelf: 'flex-start' }}>
       <Ionicons name="chevron-back" size={20} color={c.accent} />
       <Text style={{ color: c.accent, fontSize: 15, fontWeight: '600' }}>Back</Text>
@@ -99,21 +121,20 @@ export default function ExploreScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: c.dark }}>
       <StarBackground />
-      <ScrollView style={{ flex: 1, paddingHorizontal: 20 }} showsVerticalScrollIndicator={false}
+      <ScrollView style={{ flex: 1, paddingHorizontal: 20 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.accent} />}>
 
-        <BackBtn />
-        <Text style={{ color: c.text, fontSize: 26, fontWeight: '900', marginTop: 8, marginBottom: 6 }}>{t('markets')}</Text>
+        <Text style={{ color: c.text, fontSize: 26, fontWeight: '900', marginTop: 60, marginBottom: 6 }}>{t('markets')}</Text>
         <Text style={{ color: c.muted, fontSize: 13, marginBottom: 20 }}>{t('liveSignals')} · {t('pullToRefresh')}</Text>
 
         {disclaimer && (
           <View style={{ backgroundColor: '#FFD70022', borderRadius: 14, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: '#FFD70055', flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
-            <Ionicons name="warning" size={20} color="#FFD700" />
+            <Text style={{ fontSize: 20 }}>⚠️</Text>
             <View style={{ flex: 1 }}>
               <Text style={{ color: '#FFD700', fontSize: 13, fontWeight: '700', marginBottom: 4 }}>{t('notFinancialAdvice')}</Text>
               <Text style={{ color: c.muted, fontSize: 12, lineHeight: 18 }}>{t('notFinancialAdviceDesc')}</Text>
             </View>
-            <TouchableOpacity onPress={() => setDisclaimer(false)}><Ionicons name="close" size={18} color={c.muted} /></TouchableOpacity>
+            <TouchableOpacity onPress={() => setDisclaimer(false)}><Text style={{ color: c.muted, fontSize: 18 }}>✕</Text></TouchableOpacity>
           </View>
         )}
 
@@ -151,8 +172,8 @@ export default function ExploreScreen() {
                   <View key={i} style={{ backgroundColor: c.card, borderRadius: 20, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: c.border }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                        <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: c.card2, justifyContent: 'center', alignItems: 'center' }}>
-                          <Ionicons name={getCryptoIcon(item.symbol) as any} size={20} color={c.accent} />
+                        <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: (CRYPTO_COLOR[item.symbol] || c.accent) + '22', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: (CRYPTO_COLOR[item.symbol] || c.accent) + '44' }}>
+                          <MaterialCommunityIcons name={(CRYPTO_MCI[item.symbol] || 'currency-usd') as any} size={22} color={CRYPTO_COLOR[item.symbol] || c.accent} />
                         </View>
                         <View>
                           <Text style={{ color: c.text, fontSize: 15, fontWeight: '700' }}>{item.name}</Text>
@@ -178,8 +199,11 @@ export default function ExploreScreen() {
                     <TouchableOpacity style={{ padding: 16 }} onPress={() => setExpanded(isOpen ? null : item.symbol)}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                          <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: c.card2, justifyContent: 'center', alignItems: 'center' }}>
-                            <Text style={{ color: c.accent, fontSize: 12, fontWeight: '900' }}>{item.symbol.slice(0, 3)}</Text>
+                          <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: (tab === 'commodities' ? (COMMODITY_COLOR[item.symbol] || '#FFD700') : (STOCK_COLOR[item.symbol] || c.accent)) + '22', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: (tab === 'commodities' ? (COMMODITY_COLOR[item.symbol] || '#FFD700') : (STOCK_COLOR[item.symbol] || c.accent)) + '44' }}>
+                            {tab === 'commodities'
+                              ? <MaterialCommunityIcons name={(COMMODITY_MCI[item.symbol] || 'chart-line') as any} size={20} color={COMMODITY_COLOR[item.symbol] || '#FFD700'} />
+                              : <Text style={{ color: STOCK_COLOR[item.symbol] || c.accent, fontSize: 11, fontWeight: '900' }}>{item.symbol.slice(0, 4)}</Text>
+                            }
                           </View>
                           <View>
                             <Text style={{ color: c.text, fontSize: 15, fontWeight: '700' }}>{item.name || item.symbol}</Text>
@@ -210,8 +234,10 @@ export default function ExploreScreen() {
                             const col = sigColor(sig.signal, c.accent);
                             return (
                               <View key={tf} style={{ flex: 1, backgroundColor: col + '22', borderRadius: 10, padding: 8, alignItems: 'center', borderWidth: 1, borderColor: col + '55' }}>
-                                <Text style={{ color: c.muted, fontSize: 9, marginBottom: 4 }}>{tf}</Text>
+                                <Text style={{ color: c.muted, fontSize: 9, marginBottom: 3 }}>{tf}</Text>
                                 <Text style={{ color: col, fontSize: 9, fontWeight: '800', textAlign: 'center' }}>{sigLabel(sig.signal)}</Text>
+                                <Text style={{ color: '#00D4AA', fontSize: 8, marginTop: 2 }}>B:{sig.buy}</Text>
+                                <Text style={{ color: '#FF6B6B', fontSize: 8 }}>S:{sig.sell}</Text>
                               </View>
                             );
                           })}
@@ -240,7 +266,7 @@ export default function ExploreScreen() {
                             })}
                           </>
                         )}
-                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, marginTop: 10 }}><Ionicons name="warning-outline" size={12} color={c.muted} /><Text style={{ color: c.muted, fontSize: 10 }}>{t('infoOnly')}</Text></View>
+                        <Text style={{ color: c.muted, fontSize: 10, marginTop: 10, textAlign: 'center' }}>⚠️ {t('infoOnly')}</Text>
                       </View>
                     )}
                   </View>

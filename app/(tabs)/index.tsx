@@ -1,4 +1,4 @@
-import { CAT_ICONS, useFinance } from '@/context/FinanceContext';
+import { useFinance } from '@/context/FinanceContext';
 import { useLocale } from '@/context/LocaleContext';
 import { usePlan } from '@/context/PlanContext';
 import { supabase } from '@/lib/supabase';
@@ -10,17 +10,11 @@ import { Image, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } fro
 import Paywall from '../../components/Paywall';
 import ProfileModal from '../../components/ProfileModal';
 import RecurringBills from '../../components/RecurringBills';
+import SpendingInsights from '../../components/SpendingInsights';
+import StarBackground from '../../components/StarBackground';
 import TrialPrompt from '../../components/TrialPrompt';
 import { useBills } from '../../context/BillsContext';
 import { useTheme } from '../../context/ThemeContext';
-
-const CAT_ICON_NAMES: Record<string, string> = {
-  Housing: 'home', Groceries: 'cart', Transport: 'car', Entertainment: 'film',
-  Health: 'medkit', Clothing: 'shirt', Utilities: 'flash', Subscriptions: 'phone-portrait',
-  Food: 'restaurant', Income: 'briefcase', Savings: 'wallet', Shopping: 'bag', Other: 'gift',
-  FOOD_AND_DRINK: 'restaurant', SHOPS: 'cart', TRANSPORTATION: 'car', PAYMENT: 'card',
-  TRANSFER: 'swap-horizontal', RECREATION: 'film', HEALTHCARE: 'medkit', HOME: 'home',
-};
 
 const ALL_TABS = [
   { icon: 'bar-chart', label: 'stats', display: 'Stats', route: '/(tabs)/stats' },
@@ -31,6 +25,12 @@ const ALL_TABS = [
   { icon: 'card', label: 'credit', display: 'Credit', route: '/(tabs)/credit' },
   { icon: 'settings', label: 'settings', display: 'Settings', route: '/(tabs)/settings' },
 ] as const;
+
+const CAT_ICON_NAMES: Record<string, string> = {
+  Housing: 'home', Groceries: 'cart', Transport: 'car', Entertainment: 'film',
+  Health: 'medkit', Clothing: 'shirt', Utilities: 'flash', Subscriptions: 'phone-portrait',
+  Food: 'restaurant', Income: 'briefcase', Savings: 'wallet', Shopping: 'bag', Other: 'gift',
+};
 
 const CARD_COLORS = [
   '#1a1a4e', '#1a2a1a', '#2a1a00', '#1a001a', '#0a1428', '#000500',
@@ -53,7 +53,6 @@ export default function HomeScreen() {
 
   const { cards, setCards, investments, setInvestments, transactions, setTransactions, customAssets } = useFinance();
 
-  // ── Greeting ──────────────────────────────────────────────────────────────
   const greeting = (() => {
     const h = new Date().getHours();
     if (h < 12) return t('goodMorning');
@@ -61,16 +60,13 @@ export default function HomeScreen() {
     return t('goodEvening');
   })();
 
-  // ── User info ─────────────────────────────────────────────────────────────
   const [userName, setUserName] = useState('');
   const [userInitial, setUserInitial] = useState('?');
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
 
   const loadProfilePhoto = async () => {
     const pairs = await AsyncStorage.multiGet(['profile_photo', 'profile_avatar']);
-    const photo = pairs[0][1];
-    const emoji = pairs[1][1];
-    setProfilePhoto(photo || emoji || null);
+    setProfilePhoto(pairs[0][1] || pairs[1][1] || null);
   };
 
   useEffect(() => {
@@ -83,12 +79,8 @@ export default function HomeScreen() {
     loadProfilePhoto();
   }, []);
 
-  const handleProfileClose = () => {
-    setShowProfile(false);
-    loadProfilePhoto();
-  };
+  const handleProfileClose = () => { setShowProfile(false); loadProfilePhoto(); };
 
-  // ── Modal state ───────────────────────────────────────────────────────────
   const [showPaywall, setShowPaywall] = useState(false);
   const [showExpiredPaywall, setShowExpiredPaywall] = useState(false);
   const [showAddCard, setShowAddCard] = useState(false);
@@ -100,7 +92,6 @@ export default function HomeScreen() {
   const [showSearch, setShowSearch] = useState(false);
   const [showBills, setShowBills] = useState(false);
 
-  // ── Card form ─────────────────────────────────────────────────────────────
   const [newBank, setNewBank] = useState('');
   const [newCardType, setNewCardType] = useState('Debit · Visa');
   const [newBalance, setNewBalance] = useState('');
@@ -108,7 +99,6 @@ export default function HomeScreen() {
   const [newCardColor, setNewCardColor] = useState('#1a1a4e');
   const [newBalanceNegative, setNewBalanceNegative] = useState(false);
 
-  // ── Investment form ───────────────────────────────────────────────────────
   const [newInvName, setNewInvName] = useState('');
   const [newInvSub, setNewInvSub] = useState('');
   const [newInvValue, setNewInvValue] = useState('');
@@ -116,7 +106,6 @@ export default function HomeScreen() {
   const [newInvUp, setNewInvUp] = useState(true);
   const [newInvIcon, setNewInvIcon] = useState('bar-chart-outline');
 
-  // ── Investment edit ───────────────────────────────────────────────────────
   const [editInv, setEditInv] = useState<any | null>(null);
   const [editInvName, setEditInvName] = useState('');
   const [editInvSub, setEditInvSub] = useState('');
@@ -124,25 +113,21 @@ export default function HomeScreen() {
   const [editInvChange, setEditInvChange] = useState('');
   const [editInvUp, setEditInvUp] = useState(true);
 
-  // ── Transaction form ──────────────────────────────────────────────────────
   const [newTxnName, setNewTxnName] = useState('');
   const [newTxnCat, setNewTxnCat] = useState('Groceries');
   const [newTxnAmt, setNewTxnAmt] = useState('');
   const [newTxnType, setNewTxnType] = useState<'income' | 'expense'>('expense');
 
-  // ── Transaction edit ──────────────────────────────────────────────────────
   const [editTxn, setEditTxn] = useState<any | null>(null);
   const [editTxnName, setEditTxnName] = useState('');
   const [editTxnCat, setEditTxnCat] = useState('Groceries');
   const [editTxnAmt, setEditTxnAmt] = useState('');
   const [editTxnType, setEditTxnType] = useState<'income' | 'expense'>('expense');
 
-  // ── Quick actions ─────────────────────────────────────────────────────────
   const [selectedTabs, setSelectedTabs] = useState<typeof ALL_TABS[number][]>([ALL_TABS[0], ALL_TABS[1], ALL_TABS[2]]);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | 'income' | 'expense'>('all');
 
-  // ── Force paywall on expired trial ────────────────────────────────────────
   useEffect(() => {
     if (needsPaywall) {
       const timer = setTimeout(() => setShowExpiredPaywall(true), 600);
@@ -150,7 +135,6 @@ export default function HomeScreen() {
     }
   }, [needsPaywall]);
 
-  // ── Derived totals ────────────────────────────────────────────────────────
   const totalIncome = transactions.filter(t => t.type === 'income').reduce((s, t) => s + Math.abs(t.amount), 0);
   const totalExpense = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + Math.abs(t.amount), 0);
   const totalInvest = showInvest ? investments.reduce((s, i) => s + i.value, 0) : 0;
@@ -158,7 +142,6 @@ export default function HomeScreen() {
   const totalCustomAssets = showInvest ? customAssets.reduce((s, a) => s + a.value, 0) : 0;
   const netWorth = totalIncome - totalExpense + totalInvest + totalCards + totalCustomAssets;
 
-  // Bills summary for bar
   const totalMonthlyBills = bills.reduce((s, b) => {
     switch (b.frequency) {
       case 'weekly': return s + b.amount * 4.33;
@@ -186,7 +169,6 @@ export default function HomeScreen() {
     ? filtered
     : filtered.slice(0, maxTransactions === Infinity ? filtered.length : maxTransactions);
 
-  // ── Actions ───────────────────────────────────────────────────────────────
   const addCard = () => {
     if (!newBank || !newBalance) return;
     const raw = parseFloat(newBalance);
@@ -221,7 +203,8 @@ export default function HomeScreen() {
     if (!newTxnName || !newTxnAmt) return;
     const amt = parseFloat(newTxnAmt);
     setTransactions([{
-      id: Date.now().toString(), icon: CAT_ICON_NAMES[newTxnCat] || 'card',
+      id: Date.now().toString(),
+      icon: CAT_ICON_NAMES[newTxnCat] || 'card',
       name: newTxnName, cat: newTxnCat,
       amount: newTxnType === 'expense' ? -Math.abs(amt) : Math.abs(amt),
       type: newTxnType, date: new Date().toLocaleDateString('en-GB'),
@@ -230,11 +213,8 @@ export default function HomeScreen() {
     setShowAddTxn(false);
   };
 
-  // ── Transaction edit helpers ──────────────────────────────────────────────
   const openEditTxn = (txn: any) => {
-    setEditTxn(txn);
-    setEditTxnName(txn.name);
-    setEditTxnCat(txn.cat);
+    setEditTxn(txn); setEditTxnName(txn.name); setEditTxnCat(txn.cat);
     setEditTxnAmt(Math.abs(txn.amount).toString());
     setEditTxnType(txn.type === 'income' ? 'income' : 'expense');
   };
@@ -243,28 +223,18 @@ export default function HomeScreen() {
     if (!editTxn || !editTxnName || !editTxnAmt) return;
     const amt = parseFloat(editTxnAmt);
     setTransactions(transactions.map(tx => tx.id === editTxn.id
-      ? {
-        ...tx,
-        name: editTxnName,
-        cat: editTxnCat,
-        icon: CAT_ICONS[editTxnCat] || tx.icon,
-        amount: editTxnType === 'expense' ? -Math.abs(amt) : Math.abs(amt),
-        type: editTxnType,
-      }
+      ? { ...tx, name: editTxnName, cat: editTxnCat, icon: CAT_ICON_NAMES[editTxnCat] || tx.icon, amount: editTxnType === 'expense' ? -Math.abs(amt) : Math.abs(amt), type: editTxnType }
       : tx
     ));
     setEditTxn(null);
   };
 
-  const deleteTxn = (id: string) => {
-    setTransactions(transactions.filter(tx => tx.id !== id));
-    setEditTxn(null);
-  };
+  const deleteTxn = (id: string) => { setTransactions(transactions.filter(tx => tx.id !== id)); setEditTxn(null); };
 
-  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <View style={{ flex: 1, backgroundColor: c.dark }}>
-      <ScrollView style={{ flex: 1, paddingHorizontal: 20 }} showsVerticalScrollIndicator={false}>
+      <StarBackground />
+      <ScrollView style={{ flex: 1, paddingHorizontal: 20 }} contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
 
         {/* Header */}
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 60, marginBottom: 24 }}>
@@ -345,7 +315,7 @@ export default function HomeScreen() {
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <Text style={{ color: c.muted, fontSize: 12, fontWeight: '700', textTransform: 'uppercase' }}>{t('cards')}</Text>
               <TouchableOpacity style={{ backgroundColor: c.accent + '22', borderRadius: 50, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: c.accent + '55' }} onPress={() => setShowAddCard(true)}>
-                <Text style={{ color: c.accent, fontSize: 11, fontWeight: '700' }}>＋ {t('add')}</Text>
+                <Text style={{ color: c.accent, fontSize: 11, fontWeight: '700' }}>+ {t('add')}</Text>
               </TouchableOpacity>
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
@@ -379,7 +349,7 @@ export default function HomeScreen() {
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                   <Text style={{ color: c.muted, fontSize: 12, fontWeight: '700', textTransform: 'uppercase' }}>{t('investments')}</Text>
                   <TouchableOpacity style={{ backgroundColor: c.accent + '22', borderRadius: 50, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: c.accent + '55' }} onPress={() => setShowAddInv(true)}>
-                    <Text style={{ color: c.accent, fontSize: 11, fontWeight: '700' }}>＋ {t('add')}</Text>
+                    <Text style={{ color: c.accent, fontSize: 11, fontWeight: '700' }}>+ {t('add')}</Text>
                   </TouchableOpacity>
                 </View>
                 {investments.length === 0 && <View style={{ alignItems: 'center', padding: 20 }}><Text style={{ color: c.muted, fontSize: 13, textAlign: 'center' }}>{t('noInvestments')}</Text></View>}
@@ -387,7 +357,7 @@ export default function HomeScreen() {
                   <View key={inv.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: c.border }}>
                     <TouchableOpacity onLongPress={() => setInvestments(investments.filter(i => i.id !== inv.id))} style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
                       <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: c.card2, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-                        <Text style={{ fontSize: 20 }}>{inv.icon}</Text>
+                        <Ionicons name={(inv.icon || 'bar-chart-outline') as any} size={20} color={c.accent} />
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text style={{ color: c.text, fontSize: 14, fontWeight: '700' }}>{inv.name}</Text>
@@ -466,9 +436,8 @@ export default function HomeScreen() {
           </TouchableOpacity>
         )}
 
-        {/* Recurring Bills bar — now shows live summary */}
-        <TouchableOpacity
-          onPress={() => setShowBills(true)}
+        {/* Recurring Bills */}
+        <TouchableOpacity onPress={() => setShowBills(true)}
           style={{ backgroundColor: c.card, borderRadius: 14, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: c.border, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: '#FF6B6B18', justifyContent: 'center', alignItems: 'center' }}>
             <Ionicons name="repeat" size={18} color="#FF6B6B" />
@@ -476,13 +445,14 @@ export default function HomeScreen() {
           <View style={{ flex: 1 }}>
             <Text style={{ color: c.text, fontSize: 14, fontWeight: '700' }}>Recurring Bills</Text>
             <Text style={{ color: c.muted, fontSize: 12, marginTop: 1 }}>
-              {bills.length > 0
-                ? `${bills.length} bill${bills.length !== 1 ? 's' : ''} · ${formatAmount(totalMonthlyBills)}/mo`
-                : 'Tap to manage recurring bills'}
+              {bills.length > 0 ? `${bills.length} bill${bills.length !== 1 ? 's' : ''} · ${formatAmount(totalMonthlyBills)}/mo` : 'Tap to manage recurring bills'}
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={c.muted} />
         </TouchableOpacity>
+
+        {/* Spending Insights */}
+        <SpendingInsights />
 
         {/* Transactions */}
         <View style={{ marginBottom: 30 }}>
@@ -503,14 +473,13 @@ export default function HomeScreen() {
             </View>
           )}
 
-          {/* FIX: tap opens edit modal, long press deletes */}
           {displayTxns.map(txn => (
             <TouchableOpacity key={txn.id}
               onPress={() => openEditTxn(txn)}
               onLongPress={() => deleteTxn(txn.id)}
               style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: c.card, borderRadius: 16, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: c.border }}>
               <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: c.card2, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-                <Text style={{ fontSize: 18 }}>{txn.icon}</Text>
+                <Ionicons name={(txn.icon || 'card') as any} size={18} color={c.muted} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={{ color: c.text, fontSize: 15, fontWeight: '600' }}>{txn.name}</Text>
@@ -531,9 +500,7 @@ export default function HomeScreen() {
           <Text style={{ color: c.muted, fontSize: 11, textAlign: 'center', marginTop: 4 }}>Tap to edit · Long press to delete</Text>
         </View>
 
-        {/* ── Modals ── */}
-
-        {/* Tab Picker */}
+        {/* Tab Picker Modal */}
         <Modal visible={showTabPicker} transparent animationType="slide">
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
             <View style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, borderWidth: 1, borderColor: c.border }}>
@@ -561,7 +528,7 @@ export default function HomeScreen() {
           </View>
         </Modal>
 
-        {/* Add Card */}
+        {/* Add Card Modal */}
         <Modal visible={showAddCard} transparent animationType="slide">
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
             <View style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, borderWidth: 1, borderColor: c.border }}>
@@ -608,7 +575,7 @@ export default function HomeScreen() {
           </View>
         </Modal>
 
-        {/* Add Investment */}
+        {/* Add Investment Modal */}
         <Modal visible={showAddInv} transparent animationType="slide">
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
             <View style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, borderWidth: 1, borderColor: c.border }}>
@@ -644,11 +611,11 @@ export default function HomeScreen() {
           </View>
         </Modal>
 
-        {/* Edit Investment */}
+        {/* Edit Investment Modal */}
         <Modal visible={!!editInv} transparent animationType="slide">
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
             <View style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, borderWidth: 1, borderColor: c.border }}>
-              <Text style={{ color: c.text, fontSize: 18, fontWeight: '900', marginBottom: 20 }}>✏️ Edit Investment</Text>
+              <Text style={{ color: c.text, fontSize: 18, fontWeight: '900', marginBottom: 20 }}>Edit Investment</Text>
               {[
                 { label: t('name'), val: editInvName, set: setEditInvName, ph: 'e.g. Apple Inc.', kb: 'default' as const },
                 { label: t('details'), val: editInvSub, set: setEditInvSub, ph: 'e.g. AAPL · 10 shares', kb: 'default' as const },
@@ -680,7 +647,7 @@ export default function HomeScreen() {
           </View>
         </Modal>
 
-        {/* Add Transaction */}
+        {/* Add Transaction Modal */}
         <Modal visible={showAddTxn} transparent animationType="slide">
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
             <View style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, borderWidth: 1, borderColor: c.border }}>
@@ -704,7 +671,7 @@ export default function HomeScreen() {
               ))}
               <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 8 }}>{t('category')}</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
-                {Object.keys(CAT_ICON_NAMES).slice(0, 13).map(cat => (
+                {Object.keys(CAT_ICON_NAMES).map(cat => (
                   <TouchableOpacity key={cat} style={{ backgroundColor: newTxnCat === cat ? c.accent : c.card2, borderRadius: 50, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: newTxnCat === cat ? c.accent : c.border, flexDirection: 'row', alignItems: 'center', gap: 5 }} onPress={() => setNewTxnCat(cat)}>
                     <Ionicons name={CAT_ICON_NAMES[cat] as any} size={12} color={newTxnCat === cat ? '#fff' : c.muted} />
                     <Text style={{ color: newTxnCat === cat ? '#fff' : c.muted, fontSize: 12, fontWeight: '600' }}>{cat}</Text>
@@ -723,12 +690,12 @@ export default function HomeScreen() {
           </View>
         </Modal>
 
-        {/* Edit Transaction */}
+        {/* Edit Transaction Modal */}
         <Modal visible={!!editTxn} transparent animationType="slide">
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
             <View style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, borderWidth: 1, borderColor: c.border }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                <Text style={{ color: c.text, fontSize: 18, fontWeight: '900' }}>✏️ Edit Transaction</Text>
+                <Text style={{ color: c.text, fontSize: 18, fontWeight: '900' }}>Edit Transaction</Text>
                 <TouchableOpacity onPress={() => editTxn && deleteTxn(editTxn.id)}
                   style={{ backgroundColor: '#FF6B6B18', borderRadius: 10, padding: 8, borderWidth: 1, borderColor: '#FF6B6B44' }}>
                   <Ionicons name="trash-outline" size={18} color="#FF6B6B" />
@@ -753,7 +720,7 @@ export default function HomeScreen() {
               ))}
               <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 8 }}>{t('category')}</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
-                {Object.keys(CAT_ICON_NAMES).slice(0, 13).map(cat => (
+                {Object.keys(CAT_ICON_NAMES).map(cat => (
                   <TouchableOpacity key={cat} style={{ backgroundColor: editTxnCat === cat ? c.accent : c.card2, borderRadius: 50, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: editTxnCat === cat ? c.accent : c.border, flexDirection: 'row', alignItems: 'center', gap: 5 }} onPress={() => setEditTxnCat(cat)}>
                     <Ionicons name={CAT_ICON_NAMES[cat] as any} size={12} color={editTxnCat === cat ? '#fff' : c.muted} />
                     <Text style={{ color: editTxnCat === cat ? '#fff' : c.muted, fontSize: 12, fontWeight: '600' }}>{cat}</Text>

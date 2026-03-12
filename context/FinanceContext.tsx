@@ -132,11 +132,14 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
     // Then fetch from Supabase — source of truth
     try {
+      console.log('[Finance] Fetching from Supabase for uid:', uid);
       const { data, error } = await supabase
         .from('user_finance_data')
         .select('cards, investments, transactions, assets')
         .eq('user_id', uid)
         .single();
+
+      console.log('[Finance] Supabase fetch result:', { data, error });
 
       if (!error && data) {
         const c = data.cards ?? [];
@@ -209,6 +212,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     syncTimer.current = setTimeout(async () => {
       setSyncing(true);
       try {
+        console.log('[Finance] Syncing to Supabase for uid:', uid, 'transactions:', data.transactions.length);
         const { error } = await supabase
           .from('user_finance_data')
           .upsert(
@@ -223,6 +227,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
             { onConflict: 'user_id' }
           );
 
+        console.log('[Finance] Sync result:', error ? error.message : 'success');
         if (error) console.warn('Supabase sync error:', error.message);
       } catch (e) {
         console.warn('Supabase sync failed:', e);

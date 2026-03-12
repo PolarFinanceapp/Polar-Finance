@@ -10,11 +10,17 @@ import { Image, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } fro
 import Paywall from '../../components/Paywall';
 import ProfileModal from '../../components/ProfileModal';
 import RecurringBills from '../../components/RecurringBills';
-import SpendingInsights from '../../components/SpendingInsights';
-import StarBackground from '../../components/StarBackground';
 import TrialPrompt from '../../components/TrialPrompt';
 import { useBills } from '../../context/BillsContext';
 import { useTheme } from '../../context/ThemeContext';
+
+const CAT_ICON_NAMES: Record<string, string> = {
+  Housing: 'home', Groceries: 'cart', Transport: 'car', Entertainment: 'film',
+  Health: 'medkit', Clothing: 'shirt', Utilities: 'flash', Subscriptions: 'phone-portrait',
+  Food: 'restaurant', Income: 'briefcase', Savings: 'wallet', Shopping: 'bag', Other: 'gift',
+  FOOD_AND_DRINK: 'restaurant', SHOPS: 'cart', TRANSPORTATION: 'car', PAYMENT: 'card',
+  TRANSFER: 'swap-horizontal', RECREATION: 'film', HEALTHCARE: 'medkit', HOME: 'home',
+};
 
 const ALL_TABS = [
   { icon: 'bar-chart', label: 'stats', display: 'Stats', route: '/(tabs)/stats' },
@@ -25,14 +31,6 @@ const ALL_TABS = [
   { icon: 'card', label: 'credit', display: 'Credit', route: '/(tabs)/credit' },
   { icon: 'settings', label: 'settings', display: 'Settings', route: '/(tabs)/settings' },
 ] as const;
-
-const CAT_ICON_NAMES: Record<string, string> = {
-  Housing: 'home', Groceries: 'cart', Transport: 'car', Entertainment: 'film',
-  Health: 'medkit', Clothing: 'shirt', Utilities: 'flash', Subscriptions: 'phone-portrait',
-  Food: 'restaurant', Income: 'briefcase', Savings: 'wallet', Shopping: 'bag', Other: 'gift',
-  FOOD_AND_DRINK: 'restaurant', SHOPS: 'cart', TRANSPORTATION: 'car', PAYMENT: 'card',
-  TRANSFER: 'swap-horizontal', RECREATION: 'film', HEALTHCARE: 'medkit', HOME: 'home',
-};
 
 const CARD_COLORS = [
   '#1a1a4e', '#1a2a1a', '#2a1a00', '#1a001a', '#0a1428', '#000500',
@@ -249,7 +247,7 @@ export default function HomeScreen() {
         ...tx,
         name: editTxnName,
         cat: editTxnCat,
-        icon: CAT_ICON_NAMES[editTxnCat] || tx.icon,
+        icon: CAT_ICONS[editTxnCat] || tx.icon,
         amount: editTxnType === 'expense' ? -Math.abs(amt) : Math.abs(amt),
         type: editTxnType,
       }
@@ -266,17 +264,16 @@ export default function HomeScreen() {
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <View style={{ flex: 1, backgroundColor: c.dark }}>
-      <StarBackground />
       <ScrollView style={{ flex: 1, paddingHorizontal: 20 }} showsVerticalScrollIndicator={false}>
 
         {/* Header */}
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 60, marginBottom: 24 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: c.accent, justifyContent: 'center', alignItems: 'center' }}>
-              <Text style={{ fontSize: 20 }}>🐻‍❄️</Text>
+              <Ionicons name="paw" size={20} color="#fff" />
             </View>
             <View>
-              <Text style={{ color: c.muted, fontSize: 12 }}>{greeting} 👋</Text>
+              <Text style={{ color: c.muted, fontSize: 12 }}>{greeting}</Text>
               <Text style={{ color: c.text, fontSize: 20, fontWeight: '900' }}>{userName || '...'}</Text>
             </View>
           </View>
@@ -302,13 +299,13 @@ export default function HomeScreen() {
             </Text>
             {plan === 'trial' && trialDaysLeft > 0 && (
               <View style={{ backgroundColor: '#FFD70022', borderRadius: 50, paddingHorizontal: 10, paddingVertical: 3, borderWidth: 1, borderColor: '#FFD70044' }}>
-                <Text style={{ color: '#FFD700', fontSize: 10, fontWeight: '700' }}>👑 {t('trialPlan')} · {trialDaysLeft}d</Text>
+                <Text style={{ color: '#FFD700', fontSize: 10, fontWeight: '700' }}>{t('trialPlan')} · {trialDaysLeft}d</Text>
               </View>
             )}
             {(plan === 'pro' || plan === 'premium') && (
               <View style={{ backgroundColor: plan === 'premium' ? '#FFD70022' : '#6C63FF22', borderRadius: 50, paddingHorizontal: 10, paddingVertical: 3, borderWidth: 1, borderColor: plan === 'premium' ? '#FFD70044' : '#6C63FF44' }}>
                 <Text style={{ color: plan === 'premium' ? '#FFD700' : '#6C63FF', fontSize: 10, fontWeight: '700' }}>
-                  {plan === 'premium' ? '👑' : '⚡'} {plan === 'premium' ? t('premiumPlan') : t('proPlan')}
+                  {plan === 'premium' ? t('premiumPlan') : t('proPlan')}
                 </Text>
               </View>
             )}
@@ -330,7 +327,7 @@ export default function HomeScreen() {
               <>
                 <View style={{ width: 1, height: 30, backgroundColor: 'rgba(255,255,255,0.1)' }} />
                 <View style={{ flex: 1, alignItems: 'center' }}>
-                  <Text style={{ color: c.muted, fontSize: 11 }}>💼 {t('assets')}</Text>
+                  <Text style={{ color: c.muted, fontSize: 11 }}>{t('assets')}</Text>
                   <Text style={{ color: '#a89fff', fontSize: 14, fontWeight: '700', marginTop: 2 }}>{formatAmount(totalCustomAssets + totalInvest)}</Text>
                 </View>
               </>
@@ -338,7 +335,7 @@ export default function HomeScreen() {
           </View>
           {showCardsOk
             ? <Text style={{ color: c.accent, fontSize: 11, fontWeight: '600', marginTop: 12, textAlign: 'center' }}>{showCards ? t('tapToHide') : t('tapToView')}</Text>
-            : <TouchableOpacity onPress={() => setShowPaywall(true)}><Text style={{ color: c.muted, fontSize: 11, marginTop: 10, textAlign: 'center' }}>🔒 {t('upgradeProCards')}</Text></TouchableOpacity>
+            : <TouchableOpacity onPress={() => setShowPaywall(true)}><Text style={{ color: c.muted, fontSize: 11, marginTop: 10, textAlign: 'center' }}>{t('upgradeProCards')}</Text></TouchableOpacity>
           }
         </TouchableOpacity>
 
@@ -346,7 +343,7 @@ export default function HomeScreen() {
         {showCards && showCardsOk && (
           <View style={{ backgroundColor: c.card, borderRadius: 20, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: c.border }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-              <Text style={{ color: c.muted, fontSize: 12, fontWeight: '700', textTransform: 'uppercase' }}>💳 {t('cards')}</Text>
+              <Text style={{ color: c.muted, fontSize: 12, fontWeight: '700', textTransform: 'uppercase' }}>{t('cards')}</Text>
               <TouchableOpacity style={{ backgroundColor: c.accent + '22', borderRadius: 50, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: c.accent + '55' }} onPress={() => setShowAddCard(true)}>
                 <Text style={{ color: c.accent, fontSize: 11, fontWeight: '700' }}>＋ {t('add')}</Text>
               </TouchableOpacity>
@@ -390,7 +387,7 @@ export default function HomeScreen() {
                   <View key={inv.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: c.border }}>
                     <TouchableOpacity onLongPress={() => setInvestments(investments.filter(i => i.id !== inv.id))} style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
                       <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: c.card2, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-                        <Ionicons name={(inv.icon || 'bar-chart-outline') as any} size={20} color={c.accent} />
+                        <Text style={{ fontSize: 20 }}>{inv.icon}</Text>
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text style={{ color: c.text, fontSize: 14, fontWeight: '700' }}>{inv.name}</Text>
@@ -487,9 +484,6 @@ export default function HomeScreen() {
           <Ionicons name="chevron-forward" size={18} color={c.muted} />
         </TouchableOpacity>
 
-        {/* Spending Insights */}
-        <SpendingInsights />
-
         {/* Transactions */}
         <View style={{ marginBottom: 30 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
@@ -516,7 +510,7 @@ export default function HomeScreen() {
               onLongPress={() => deleteTxn(txn.id)}
               style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: c.card, borderRadius: 16, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: c.border }}>
               <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: c.card2, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-                <Ionicons name={(txn.icon || 'card') as any} size={18} color={c.muted} />
+                <Text style={{ fontSize: 18 }}>{txn.icon}</Text>
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={{ color: c.text, fontSize: 15, fontWeight: '600' }}>{txn.name}</Text>
@@ -710,9 +704,10 @@ export default function HomeScreen() {
               ))}
               <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 8 }}>{t('category')}</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
-                {Object.keys(CAT_ICONS).slice(0, 13).map(cat => (
-                  <TouchableOpacity key={cat} style={{ backgroundColor: newTxnCat === cat ? c.accent : c.card2, borderRadius: 50, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: newTxnCat === cat ? c.accent : c.border }} onPress={() => setNewTxnCat(cat)}>
-                    <Text style={{ color: newTxnCat === cat ? '#fff' : c.muted, fontSize: 12, fontWeight: '600' }}>{CAT_ICONS[cat]} {cat}</Text>
+                {Object.keys(CAT_ICON_NAMES).slice(0, 13).map(cat => (
+                  <TouchableOpacity key={cat} style={{ backgroundColor: newTxnCat === cat ? c.accent : c.card2, borderRadius: 50, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: newTxnCat === cat ? c.accent : c.border, flexDirection: 'row', alignItems: 'center', gap: 5 }} onPress={() => setNewTxnCat(cat)}>
+                    <Ionicons name={CAT_ICON_NAMES[cat] as any} size={12} color={newTxnCat === cat ? '#fff' : c.muted} />
+                    <Text style={{ color: newTxnCat === cat ? '#fff' : c.muted, fontSize: 12, fontWeight: '600' }}>{cat}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -758,9 +753,10 @@ export default function HomeScreen() {
               ))}
               <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 8 }}>{t('category')}</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
-                {Object.keys(CAT_ICONS).slice(0, 13).map(cat => (
-                  <TouchableOpacity key={cat} style={{ backgroundColor: editTxnCat === cat ? c.accent : c.card2, borderRadius: 50, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: editTxnCat === cat ? c.accent : c.border }} onPress={() => setEditTxnCat(cat)}>
-                    <Text style={{ color: editTxnCat === cat ? '#fff' : c.muted, fontSize: 12, fontWeight: '600' }}>{CAT_ICONS[cat]} {cat}</Text>
+                {Object.keys(CAT_ICON_NAMES).slice(0, 13).map(cat => (
+                  <TouchableOpacity key={cat} style={{ backgroundColor: editTxnCat === cat ? c.accent : c.card2, borderRadius: 50, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: editTxnCat === cat ? c.accent : c.border, flexDirection: 'row', alignItems: 'center', gap: 5 }} onPress={() => setEditTxnCat(cat)}>
+                    <Ionicons name={CAT_ICON_NAMES[cat] as any} size={12} color={editTxnCat === cat ? '#fff' : c.muted} />
+                    <Text style={{ color: editTxnCat === cat ? '#fff' : c.muted, fontSize: 12, fontWeight: '600' }}>{cat}</Text>
                   </TouchableOpacity>
                 ))}
               </View>

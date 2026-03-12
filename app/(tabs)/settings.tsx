@@ -616,7 +616,6 @@ export default function SettingsScreen() {
 
         <View style={{ alignItems: 'center', marginBottom: 40 }}>
           <Text style={{ color: c.muted, fontSize: 12 }}>James Finance v1.0.0 (Beta)</Text>
-          <Text style={{ color: c.muted, fontSize: 11, marginTop: 4 }}>Made with ❤️ in the UK</Text>
           <Text style={{ color: c.muted, fontSize: 11, marginTop: 2 }}>© 2026 James Finance.</Text>
         </View>
 

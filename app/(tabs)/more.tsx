@@ -3,9 +3,10 @@ import { useLocale } from '@/context/LocaleContext';
 import { usePlan } from '@/context/PlanContext';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Paywall from '../../components/Paywall';
 import StarBackground from '../../components/StarBackground';
 import { useTheme } from '../../context/ThemeContext';
@@ -53,8 +54,6 @@ function nextPaydate(paydayDay: number, freq: PayFrequency) {
   return next.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-
-// ── Compact number formatter ─────────────────────────────────────────────────
 function formatCompact(val: string | number, formatAmount: (n: number) => string, currencySymbol?: string): string {
   const sym = currencySymbol || '';
   if (typeof val === 'number') {
@@ -64,6 +63,7 @@ function formatCompact(val: string | number, formatAmount: (n: number) => string
   }
   return val;
 }
+
 export default function MoreScreen() {
   const { theme: c } = useTheme();
   const { hasFeature } = usePlan();
@@ -79,6 +79,10 @@ export default function MoreScreen() {
   const [sources, setSources] = useState<IncomeSource[]>([]);
   const [storageKey, setStorageKey] = useState('polar_income_local');
 
+  // Profile picture — stored in Supabase user metadata so it survives OTA updates
+  const [profileUri, setProfileUri] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+
   const [fLabel, setFLabel] = useState('');
   const [fAmount, setFAmount] = useState('');
   const [fFreq, setFFreq] = useState<PayFrequency>('monthly');
@@ -86,15 +90,34 @@ export default function MoreScreen() {
   const [fEmoji, setFEmoji] = useState('💼');
   const [fSaved, setFSaved] = useState(false);
 
+  // ── Load income sources + profile pic ────────────────────────────────────
   useEffect(() => {
     (async () => {
       try {
         const { supabase } = await import('../../lib/supabase');
         const { data: { user } } = await supabase.auth.getUser();
-        const key = `polar_income_${user?.id || 'local'}`;
+        const uid = user?.id;
+        setUserId(uid || null);
+
+        // Income sources
+        const key = `polar_income_${uid || 'local'}`;
         setStorageKey(key);
         const raw = await AsyncStorage.getItem(key);
         if (raw) setSources(JSON.parse(raw));
+
+        // Profile picture — read from Supabase user metadata first
+        // This survives OTA updates because it lives in the database, not on device storage
+        if (uid) {
+          const metaPic = user?.user_metadata?.profile_picture_uri as string | undefined;
+          if (metaPic) {
+            setProfileUri(metaPic);
+            await AsyncStorage.setItem(`jf_profile_pic_${uid}`, metaPic);
+          } else {
+            // Fall back to local cache for instant load
+            const localCache = await AsyncStorage.getItem(`jf_profile_pic_${uid}`);
+            if (localCache) setProfileUri(localCache);
+          }
+        }
       } catch { }
     })();
   }, []);
@@ -104,14 +127,49 @@ export default function MoreScreen() {
     await AsyncStorage.setItem(storageKey, JSON.stringify(data));
   };
 
-  const resetForm = () => { setFLabel(''); setFAmount(''); setFFreq('monthly'); setFDay('25'); setFEmoji('💼'); setFSaved(false); setEditingIncome(null); };
+  // ── Profile picture picker ───────────────────────────────────────────────
+  const handlePickProfilePic = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'Please allow access to your photo library to set a profile picture.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.4,
+      base64: true,
+    });
+    if (result.canceled || !result.assets[0]) return;
 
+    const dataUri = `data:image/jpeg;base64,${result.assets[0].base64}`;
+    setProfileUri(dataUri);
+
+    // Save to Supabase user metadata — persists across OTA updates and reinstalls
+    try {
+      const { supabase } = await import('../../lib/supabase');
+      await supabase.auth.updateUser({ data: { profile_picture_uri: dataUri } });
+      if (userId) await AsyncStorage.setItem(`jf_profile_pic_${userId}`, dataUri);
+    } catch { }
+  };
+
+  const resetForm = () => { setFLabel(''); setFAmount(''); setFFreq('monthly'); setFDay('25'); setFEmoji('💼'); setFSaved(false); setEditingIncome(null); };
   const openAdd = () => { resetForm(); setShowAddIncome(true); };
-  const openEdit = (src: IncomeSource) => { setEditingIncome(src); setFLabel(src.label); setFAmount(src.amount.toString()); setFFreq(src.frequency); setFDay(src.paydayDay.toString()); setFEmoji(src.emoji); setShowAddIncome(true); };
+  const openEdit = (src: IncomeSource) => {
+    setEditingIncome(src);
+    setFLabel(src.label); setFAmount(src.amount.toString());
+    setFFreq(src.frequency); setFDay(src.paydayDay.toString()); setFEmoji(src.emoji);
+    setShowAddIncome(true);
+  };
 
   const handleSave = async () => {
     if (!fLabel || !fAmount) return;
-    const entry: IncomeSource = { id: editingIncome?.id || Date.now().toString(), label: fLabel, amount: parseFloat(fAmount), frequency: fFreq, paydayDay: parseInt(fDay) || 1, emoji: fEmoji };
+    const entry: IncomeSource = {
+      id: editingIncome?.id || Date.now().toString(),
+      label: fLabel, amount: parseFloat(fAmount),
+      frequency: fFreq, paydayDay: parseInt(fDay) || 1, emoji: fEmoji,
+    };
     const updated = editingIncome ? sources.map(s => s.id === editingIncome.id ? entry : s) : [...sources, entry];
     await saveSources(updated);
     setFSaved(true);
@@ -139,9 +197,34 @@ export default function MoreScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: c.dark }}>
       <StarBackground />
-      <ScrollView style={{ flex: 1, paddingHorizontal: 20 }} showsVerticalScrollIndicator={false}>
-        <Text style={{ color: c.text, fontSize: 26, fontWeight: '900', marginTop: 60, marginBottom: 8 }}>{t('more')}</Text>
-        <Text style={{ color: c.muted, fontSize: 14, marginBottom: 28 }}>{t('allFeatures')}</Text>
+
+      {/* contentContainerStyle paddingBottom ensures bottom content is never hidden behind the tab bar */}
+      <ScrollView
+        style={{ flex: 1, paddingHorizontal: 20 }}
+        contentContainerStyle={{ paddingBottom: 120 }}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 60, marginBottom: 28 }}>
+          <View>
+            <Text style={{ color: c.text, fontSize: 26, fontWeight: '900' }}>{t('more')}</Text>
+            <Text style={{ color: c.muted, fontSize: 14, marginTop: 4 }}>{t('allFeatures')}</Text>
+          </View>
+
+          {/* Profile picture — stored in Supabase, survives OTA updates */}
+          <TouchableOpacity onPress={handlePickProfilePic} style={{ position: 'relative' }}>
+            {profileUri ? (
+              <Image source={{ uri: profileUri }} style={{ width: 52, height: 52, borderRadius: 26, borderWidth: 2, borderColor: c.accent }} />
+            ) : (
+              <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: c.accent + '22', borderWidth: 2, borderColor: c.accent + '44', justifyContent: 'center', alignItems: 'center' }}>
+                <Ionicons name="person" size={26} color={c.accent} />
+              </View>
+            )}
+            <View style={{ position: 'absolute', bottom: 0, right: 0, width: 18, height: 18, borderRadius: 9, backgroundColor: c.accent, justifyContent: 'center', alignItems: 'center' }}>
+              <Ionicons name="camera" size={10} color="#fff" />
+            </View>
+          </TouchableOpacity>
+        </View>
 
         {/* Features */}
         <Text style={{ color: c.muted, fontSize: 12, fontWeight: '700', letterSpacing: .8, textTransform: 'uppercase', marginBottom: 12 }}>{t('features')}</Text>
@@ -176,7 +259,9 @@ export default function MoreScreen() {
             <View style={{ flex: 1 }}>
               <Text style={{ color: c.text, fontSize: 15, fontWeight: '700' }}>{t('myIncome')}</Text>
               <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>
-                {sources.length > 0 ? `${sources.length} source${sources.length !== 1 ? 's' : ''} · ${formatAmount(totalMonthlyIncome)}${t('perMonth')}` : t('addIncomePrompt')}
+                {sources.length > 0
+                  ? `${sources.length} source${sources.length !== 1 ? 's' : ''} · ${formatAmount(totalMonthlyIncome)}${t('perMonth')}`
+                  : t('addIncomePrompt')}
               </Text>
             </View>
             <Ionicons name={incomeOpen ? 'chevron-up' : 'chevron-down'} size={18} color={c.muted} />
@@ -203,12 +288,12 @@ export default function MoreScreen() {
               )}
               {sources.length === 0 && (
                 <View style={{ alignItems: 'center', paddingVertical: 28, paddingHorizontal: 20 }}>
-                  <Text style={{ fontSize: 40, marginBottom: 10 }}>💰</Text>
+                  <Ionicons name="wallet-outline" size={40} color={c.muted} style={{ marginBottom: 10 }} />
                   <Text style={{ color: c.text, fontSize: 15, fontWeight: '700', marginBottom: 6 }}>{t('noIncomeSet')}</Text>
                   <Text style={{ color: c.muted, fontSize: 13, textAlign: 'center', lineHeight: 20 }}>{t('addIncomePrompt')}</Text>
                 </View>
               )}
-              {sources.map((src, i) => (
+              {sources.map((src) => (
                 <View key={src.id} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderTopWidth: 1, borderTopColor: c.border, gap: 12 }}>
                   <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: '#00D4AA18', justifyContent: 'center', alignItems: 'center' }}>
                     <Text style={{ fontSize: 22 }}>{src.emoji}</Text>
@@ -303,11 +388,13 @@ export default function MoreScreen() {
 
         {/* Upgrade */}
         {!hasFeature('customTheme') && (
-          <View style={{ backgroundColor: c.accent + '18', borderRadius: 20, padding: 20, borderWidth: 1, borderColor: c.accent + '44', marginBottom: 40 }}>
+          <View style={{ backgroundColor: c.accent + '18', borderRadius: 20, padding: 20, borderWidth: 1, borderColor: c.accent + '44', marginBottom: 16 }}>
             <Text style={{ color: c.text, fontSize: 16, fontWeight: '800', marginBottom: 6 }}>{t('upgradePremium')}</Text>
             <Text style={{ color: c.muted, fontSize: 13, lineHeight: 20, marginBottom: 14 }}>{t('unlockFeatures')}</Text>
             <TouchableOpacity onPress={() => setShowPaywall(true)} style={{ backgroundColor: c.accent, borderRadius: 12, padding: 14, alignItems: 'center' }}>
-              <Text style={{ color: '#fff', fontWeight: '800', fontSize: 14 }}>{t('viewPlans')} — {t('from')} {convertPrice(3.99)}{t('perMonth')}</Text>
+              <Text style={{ color: '#fff', fontWeight: '800', fontSize: 14 }}>
+                {t('viewPlans')} — {t('from')} {convertPrice(3.99)}{t('perMonth')}
+              </Text>
             </TouchableOpacity>
           </View>
         )}
@@ -315,7 +402,11 @@ export default function MoreScreen() {
         {/* Add / Edit Income Modal */}
         <Modal visible={showAddIncome} transparent animationType="slide">
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
-            <ScrollView style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, borderColor: c.border }} showsVerticalScrollIndicator={false}>
+            <ScrollView
+              style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, borderColor: c.border }}
+              contentContainerStyle={{ paddingBottom: 40 }}
+              showsVerticalScrollIndicator={false}
+            >
               <View style={{ padding: 24 }}>
                 <Text style={{ color: c.text, fontSize: 20, fontWeight: '900', marginBottom: 20, textAlign: 'center' }}>
                   {editingIncome ? t('editIncome') : t('addIncomeSource')}
@@ -348,12 +439,13 @@ export default function MoreScreen() {
                   ))}
                 </View>
                 {fSaved ? (
-                  <View style={{ backgroundColor: '#00D4AA', borderRadius: 14, padding: 16, alignItems: 'center', marginBottom: 40 }}>
+                  <View style={{ backgroundColor: '#00D4AA', borderRadius: 14, padding: 16, alignItems: 'center' }}>
                     <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800' }}>✓ {t('incomeAdded')}</Text>
                   </View>
                 ) : (
-                  <View style={{ flexDirection: 'row', gap: 10, marginBottom: 40 }}>
-                    <TouchableOpacity style={{ flex: 1, backgroundColor: c.card2, borderRadius: 14, padding: 16, alignItems: 'center' }} onPress={() => { setShowAddIncome(false); resetForm(); }}>
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <TouchableOpacity style={{ flex: 1, backgroundColor: c.card2, borderRadius: 14, padding: 16, alignItems: 'center' }}
+                      onPress={() => { setShowAddIncome(false); resetForm(); }}>
                       <Text style={{ color: c.muted, fontWeight: '700' }}>{t('cancel')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={{ flex: 1, backgroundColor: '#00D4AA', borderRadius: 14, padding: 16, alignItems: 'center', opacity: (!fLabel || !fAmount) ? 0.4 : 1 }}

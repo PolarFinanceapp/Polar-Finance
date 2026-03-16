@@ -12,17 +12,31 @@ import { supabase } from '../lib/supabase';
 const { width } = Dimensions.get('window');
 
 const CURRENCIES = [
-  { key: 'GBP', symbol: '£', name: 'British Pound', flag: '🇬🇧' },
-  { key: 'USD', symbol: '$', name: 'US Dollar', flag: '🇺🇸' },
-  { key: 'EUR', symbol: '€', name: 'Euro', flag: '🇪🇺' },
-  { key: 'CAD', symbol: '$', name: 'Canadian Dollar', flag: '🇨🇦' },
-  { key: 'AUD', symbol: '$', name: 'Australian Dollar', flag: '🇦🇺' },
-  { key: 'JPY', symbol: '¥', name: 'Japanese Yen', flag: '🇯🇵' },
-  { key: 'INR', symbol: '₹', name: 'Indian Rupee', flag: '🇮🇳' },
-  { key: 'CHF', symbol: 'Fr', name: 'Swiss Franc', flag: '🇨🇭' },
-  { key: 'SEK', symbol: 'kr', name: 'Swedish Krona', flag: '🇸🇪' },
-  { key: 'NZD', symbol: '$', name: 'New Zealand Dollar', flag: '🇳🇿' },
+  { key: 'GBP', symbol: '£', name: 'British Pound' },
+  { key: 'USD', symbol: '$', name: 'US Dollar' },
+  { key: 'EUR', symbol: '€', name: 'Euro' },
+  { key: 'CAD', symbol: 'C$', name: 'Canadian Dollar' },
+  { key: 'AUD', symbol: 'A$', name: 'Australian Dollar' },
+  { key: 'JPY', symbol: '¥', name: 'Japanese Yen' },
+  { key: 'INR', symbol: '₹', name: 'Indian Rupee' },
+  { key: 'CHF', symbol: 'Fr', name: 'Swiss Franc' },
+  { key: 'SEK', symbol: 'kr', name: 'Swedish Krona' },
+  { key: 'NZD', symbol: 'NZ$', name: 'New Zealand Dollar' },
 ];
+
+// Map currency key to Ionicon name for flag-like display
+const CURRENCY_ICONS: Record<string, { icon: string; color: string }> = {
+  GBP: { icon: 'cash', color: '#00D4AA' },
+  USD: { icon: 'cash', color: '#00D4AA' },
+  EUR: { icon: 'cash', color: '#6C63FF' },
+  CAD: { icon: 'cash', color: '#FF6B6B' },
+  AUD: { icon: 'cash', color: '#FF9F43' },
+  JPY: { icon: 'cash', color: '#FF6B6B' },
+  INR: { icon: 'cash', color: '#FFD700' },
+  CHF: { icon: 'cash', color: '#00BFFF' },
+  SEK: { icon: 'cash', color: '#a89fff' },
+  NZD: { icon: 'cash', color: '#00D4AA' },
+};
 
 const GOALS = [
   { key: 'save', label: 'Save More', icon: 'wallet' },
@@ -38,23 +52,24 @@ const COMMON_SUBS = [
   { name: 'Spotify', icon: 'musical-notes', color: '#1DB954' },
   { name: 'Amazon Prime', icon: 'cart', color: '#FF9900' },
   { name: 'Disney+', icon: 'star', color: '#113CCF' },
-  { name: 'Apple TV+', icon: 'tv', color: '#555' },
+  { name: 'Apple TV+', icon: 'tv', color: '#888' },
   { name: 'YouTube Premium', icon: 'logo-youtube', color: '#FF0000' },
   { name: 'Sky', icon: 'cloud', color: '#0078D7' },
   { name: 'Gym', icon: 'barbell', color: '#FF6B6B' },
   { name: 'iCloud', icon: 'cloud-upload', color: '#007AFF' },
   { name: 'Microsoft 365', icon: 'grid', color: '#D83B01' },
   { name: 'Adobe CC', icon: 'color-palette', color: '#FF0000' },
-  { name: 'Deliveroo+', icon: 'bicycle', color: '#00CCBC' },
   { name: 'NOW TV', icon: 'play', color: '#00B140' },
-  { name: 'BT Sport', icon: 'football', color: '#003087' },
   { name: 'Headspace', icon: 'leaf', color: '#FF6D00' },
+  { name: 'Deliveroo+', icon: 'bicycle', color: '#00CCBC' },
+  { name: 'BT Sport', icon: 'football', color: '#003087' },
   { name: 'Other', icon: 'add-circle', color: '#7B7B9E' },
 ];
 
 const ACCENT = '#6C63FF';
-// 7 slides: Welcome, Name, Currency, Income, Subscriptions, Goal, Trial
 const TOTAL = 7;
+
+type SubEntry = { name: string; price: string };
 
 export default function OnboardingScreen() {
   const router = useRouter();
@@ -66,8 +81,9 @@ export default function OnboardingScreen() {
   const [currency, setCurrency] = useState('GBP');
   const [income, setIncome] = useState('');
   const [goal, setGoal] = useState('');
-  const [selectedSubs, setSelectedSubs] = useState<string[]>([]);
-  const [trialLoading, setTrialLoading] = useState(false);
+  // Subscriptions: map of name -> price string
+  const [subPrices, setSubPrices] = useState<Record<string, string>>({});
+  const [activeSub, setActiveSub] = useState<string | null>(null);
 
   const goTo = (i: number) => {
     scrollRef.current?.scrollTo({ x: i * width, animated: true });
@@ -79,22 +95,29 @@ export default function OnboardingScreen() {
   const back = () => { if (cur > 0) goTo(cur - 1); };
 
   const toggleSub = (subName: string) => {
-    setSelectedSubs(prev =>
-      prev.includes(subName) ? prev.filter(s => s !== subName) : [...prev, subName]
-    );
+    setSubPrices(prev => {
+      if (prev[subName] !== undefined) {
+        const next = { ...prev };
+        delete next[subName];
+        if (activeSub === subName) setActiveSub(null);
+        return next;
+      }
+      setActiveSub(subName);
+      return { ...prev, [subName]: '' };
+    });
   };
+
+  const selectedSubs = Object.keys(subPrices);
 
   const finish = async () => {
     const curr = CURRENCIES.find(c => c.key === currency)!;
 
-    // Get user ID for keyed storage
     let uid = 'local';
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (user?.id) uid = user.id;
     } catch { }
 
-    // Save basic onboarding keys
     await AsyncStorage.multiSet([
       ['onboarding_complete', 'true'],
       ['jf_currency', currency],
@@ -105,7 +128,7 @@ export default function OnboardingScreen() {
       ['jf_user_name', name],
     ]);
 
-    // Save income to polar_income format so More page shows it immediately
+    // Save income to polar_income format (what More page reads)
     if (income && parseFloat(income) > 0) {
       const incomeEntry = [{
         id: Date.now().toString(),
@@ -118,42 +141,38 @@ export default function OnboardingScreen() {
       await AsyncStorage.setItem(`polar_income_${uid}`, JSON.stringify(incomeEntry));
     }
 
-    // Save selected subscriptions as transactions so they appear in the app
+    // Save subscriptions as recurring transactions
     if (selectedSubs.length > 0) {
-      const subTransactions = selectedSubs
+      const subTxns = selectedSubs
         .filter(s => s !== 'Other')
         .map(subName => {
           const sub = COMMON_SUBS.find(s => s.name === subName)!;
+          const price = parseFloat(subPrices[subName] || '0') || 9.99;
           return {
-            id: Date.now().toString() + Math.random(),
+            id: Date.now().toString() + Math.random().toString(36).slice(2),
             icon: sub.icon,
             name: subName,
             cat: 'Subscriptions',
-            amount: -9.99, // placeholder amount
+            amount: -Math.abs(price),
             type: 'expense',
             date: new Date().toLocaleDateString('en-GB'),
             recurring: true,
             note: 'Added during setup',
           };
         });
-      // Store separately so the app can import them
-      await AsyncStorage.setItem('jf_onboarding_subs', JSON.stringify(subTransactions));
+      await AsyncStorage.setItem('jf_onboarding_subs', JSON.stringify(subTxns));
     }
 
     router.replace('/(tabs)' as any);
   };
 
   const activateTrial = async () => {
-    setTrialLoading(true);
-    try {
-      // Store trial activation — PlanContext reads this
-      const trialEnd = Date.now() + 3 * 24 * 60 * 60 * 1000; // 3 days
-      await AsyncStorage.multiSet([
-        ['jf_plan', 'trial'],
-        ['jf_trial_end', trialEnd.toString()],
-      ]);
-    } catch { }
-    setTrialLoading(false);
+    // Use the correct keys PlanContext reads: trial_start + user_plan
+    await AsyncStorage.multiSet([
+      ['user_plan', 'trial'],
+      ['trial_start', new Date().toISOString()],
+      ['trial_prompt_seen', 'true'],
+    ]);
     finish();
   };
 
@@ -164,7 +183,7 @@ export default function OnboardingScreen() {
   });
 
   const isLastSlide = cur === TOTAL - 1;
-  const isGoalSlide = cur === TOTAL - 2; // slide 6 = goal
+  const isGoalSlide = cur === TOTAL - 2;
   const canContinue = !isGoalSlide || !!goal;
 
   return (
@@ -185,8 +204,8 @@ export default function OnboardingScreen() {
         </TouchableOpacity>
       )}
 
-      {/* Skip — hide on trial slide */}
-      {cur < TOTAL - 1 && (
+      {/* Skip */}
+      {!isLastSlide && (
         <TouchableOpacity onPress={finish} style={{ position: 'absolute', top: 52, right: 24, zIndex: 10, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 50, paddingHorizontal: 16, paddingVertical: 8 }}>
           <Text style={{ color: '#7B7B9E', fontSize: 13, fontWeight: '600' }}>Skip</Text>
         </TouchableOpacity>
@@ -250,17 +269,22 @@ export default function OnboardingScreen() {
             All amounts will show in your chosen currency.
           </Text>
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
-            {CURRENCIES.map(c => (
-              <TouchableOpacity key={c.key} onPress={() => setCurrency(c.key)}
-                style={{ flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 14, marginBottom: 8, backgroundColor: currency === c.key ? ACCENT + '22' : '#13132A', borderWidth: 1, borderColor: currency === c.key ? ACCENT : 'rgba(108,99,255,0.15)', gap: 12 }}>
-                <Text style={{ fontSize: 22 }}>{c.flag}</Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: '#E8E8F0', fontSize: 14, fontWeight: '700' }}>{c.name}</Text>
-                  <Text style={{ color: '#7B7B9E', fontSize: 12, marginTop: 1 }}>{c.key} · {c.symbol}</Text>
-                </View>
-                {currency === c.key && <Ionicons name="checkmark-circle" size={20} color={ACCENT} />}
-              </TouchableOpacity>
-            ))}
+            {CURRENCIES.map(c => {
+              const meta = CURRENCY_ICONS[c.key];
+              return (
+                <TouchableOpacity key={c.key} onPress={() => setCurrency(c.key)}
+                  style={{ flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 14, marginBottom: 8, backgroundColor: currency === c.key ? ACCENT + '22' : '#13132A', borderWidth: 1, borderColor: currency === c.key ? ACCENT : 'rgba(108,99,255,0.15)', gap: 12 }}>
+                  <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: meta.color + '22', justifyContent: 'center', alignItems: 'center' }}>
+                    <Text style={{ color: meta.color, fontSize: 13, fontWeight: '900' }}>{c.symbol}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: '#E8E8F0', fontSize: 14, fontWeight: '700' }}>{c.name}</Text>
+                    <Text style={{ color: '#7B7B9E', fontSize: 12, marginTop: 1 }}>{c.key} · {c.symbol}</Text>
+                  </View>
+                  {currency === c.key && <Ionicons name="checkmark-circle" size={20} color={ACCENT} />}
+                </TouchableOpacity>
+              );
+            })}
           </ScrollView>
         </View>
 
@@ -273,7 +297,7 @@ export default function OnboardingScreen() {
             Monthly income?
           </Text>
           <Text style={{ color: '#7B7B9E', fontSize: 15, marginBottom: 32, lineHeight: 22 }}>
-            Used to show your savings rate and budget health. Saved to your profile automatically.
+            Saved to your profile so your budgets and insights are accurate.
           </Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#13132A', borderRadius: 16, borderWidth: 1, borderColor: income ? '#FF9F4355' : 'rgba(108,99,255,0.2)', marginBottom: 16, overflow: 'hidden' }}>
             <View style={{ paddingHorizontal: 18, paddingVertical: 18, borderRightWidth: 1, borderRightColor: 'rgba(108,99,255,0.15)' }}>
@@ -312,15 +336,15 @@ export default function OnboardingScreen() {
             Your subscriptions
           </Text>
           <Text style={{ color: '#7B7B9E', fontSize: 14, marginBottom: 20, lineHeight: 21 }}>
-            Select any you pay for — we'll add them to your tracker.
+            Tap to select, then enter the monthly cost.
           </Text>
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
               {COMMON_SUBS.map(sub => {
-                const sel = selectedSubs.includes(sub.name);
+                const sel = subPrices[sub.name] !== undefined;
                 return (
                   <TouchableOpacity key={sub.name} onPress={() => toggleSub(sub.name)}
-                    style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 11, borderRadius: 50, backgroundColor: sel ? sub.color + '28' : '#13132A', borderWidth: 1.5, borderColor: sel ? sub.color : 'rgba(108,99,255,0.15)' }}>
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 14, paddingVertical: 11, borderRadius: 50, backgroundColor: sel ? sub.color + '28' : '#13132A', borderWidth: 1.5, borderColor: sel ? sub.color : 'rgba(108,99,255,0.15)' }}>
                     <Ionicons name={sub.icon as any} size={15} color={sel ? sub.color : '#7B7B9E'} />
                     <Text style={{ color: sel ? sub.color : '#7B7B9E', fontSize: 13, fontWeight: '700' }}>{sub.name}</Text>
                     {sel && <Ionicons name="checkmark" size={13} color={sub.color} />}
@@ -328,11 +352,29 @@ export default function OnboardingScreen() {
                 );
               })}
             </View>
-            {selectedSubs.length > 0 && (
-              <View style={{ backgroundColor: '#13132A', borderRadius: 14, padding: 14, marginTop: 20, borderWidth: 1, borderColor: 'rgba(108,99,255,0.2)' }}>
-                <Text style={{ color: '#7B7B9E', fontSize: 12, textAlign: 'center' }}>
-                  {selectedSubs.length} subscription{selectedSubs.length !== 1 ? 's' : ''} selected — we'll add these to your spending tracker
-                </Text>
+
+            {/* Price inputs for selected subs */}
+            {selectedSubs.filter(s => s !== 'Other').length > 0 && (
+              <View style={{ backgroundColor: '#13132A', borderRadius: 18, padding: 16, borderWidth: 1, borderColor: 'rgba(108,99,255,0.2)', gap: 10 }}>
+                <Text style={{ color: '#7B7B9E', fontSize: 12, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 4 }}>Monthly Cost</Text>
+                {selectedSubs.filter(s => s !== 'Other').map(subName => {
+                  const sub = COMMON_SUBS.find(s => s.name === subName)!;
+                  return (
+                    <View key={subName} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#0D0D1A', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderColor: subPrices[subName] ? sub.color + '55' : 'rgba(108,99,255,0.1)' }}>
+                      <Ionicons name={sub.icon as any} size={16} color={sub.color} />
+                      <Text style={{ color: '#E8E8F0', fontSize: 14, fontWeight: '600', flex: 1 }}>{subName}</Text>
+                      <Text style={{ color: '#7B7B9E', fontSize: 16, fontWeight: '700' }}>{selectedCurr.symbol}</Text>
+                      <TextInput
+                        style={{ color: '#E8E8F0', fontSize: 16, fontWeight: '800', minWidth: 60, textAlign: 'right' }}
+                        placeholder="0.00"
+                        placeholderTextColor="#3a3a5e"
+                        keyboardType="decimal-pad"
+                        value={subPrices[subName]}
+                        onChangeText={val => setSubPrices(prev => ({ ...prev, [subName]: val }))}
+                      />
+                    </View>
+                  );
+                })}
               </View>
             )}
           </ScrollView>
@@ -365,29 +407,28 @@ export default function OnboardingScreen() {
 
         {/* ── Slide 7: Free Trial ── */}
         <View style={{ width, flex: 1, justifyContent: 'center', paddingHorizontal: 28 }}>
-          {/* Badge */}
-          <View style={{ alignSelf: 'center', backgroundColor: '#FFD70022', borderRadius: 50, paddingHorizontal: 16, paddingVertical: 6, borderWidth: 1, borderColor: '#FFD70055', marginBottom: 24 }}>
+          <View style={{ alignSelf: 'center', backgroundColor: '#FFD70022', borderRadius: 50, paddingHorizontal: 16, paddingVertical: 6, borderWidth: 1, borderColor: '#FFD70055', marginBottom: 24, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Ionicons name="trophy" size={12} color="#FFD700" />
             <Text style={{ color: '#FFD700', fontSize: 12, fontWeight: '800', letterSpacing: 1 }}>LIMITED OFFER</Text>
           </View>
 
           <Text style={{ color: '#E8E8F0', fontSize: 32, fontWeight: '900', textAlign: 'center', lineHeight: 38, marginBottom: 12 }}>
-            Try James Finance{'\n'}Premium free
+            Try Premium{'\n'}free for 3 days
           </Text>
-          <Text style={{ color: '#7B7B9E', fontSize: 15, textAlign: 'center', lineHeight: 24, marginBottom: 32 }}>
-            Get 3 days of Premium — completely free.{'\n'}No card required.
+          <Text style={{ color: '#7B7B9E', fontSize: 15, textAlign: 'center', lineHeight: 24, marginBottom: 28 }}>
+            No card required. Cancel anytime.
           </Text>
 
-          {/* Feature list */}
-          <View style={{ backgroundColor: '#13132A', borderRadius: 20, padding: 20, marginBottom: 24, borderWidth: 1, borderColor: 'rgba(108,99,255,0.2)', gap: 14 }}>
+          <View style={{ backgroundColor: '#13132A', borderRadius: 20, padding: 20, marginBottom: 28, borderWidth: 1, borderColor: 'rgba(108,99,255,0.2)', gap: 14 }}>
             {[
-              { icon: 'trending-up', color: '#00D4AA', text: 'Live market signals & analyst forecasts' },
-              { icon: 'briefcase', color: '#a89fff', text: 'Track investments, assets & net worth' },
-              { icon: 'color-palette', color: '#FF9F43', text: 'Custom themes & no ads' },
-              { icon: 'flag', color: '#6C63FF', text: 'Unlimited saving goals' },
+              { icon: 'trending-up', color: '#00D4AA', text: 'Live market signals & forecasts' },
+              { icon: 'briefcase', color: '#a89fff', text: 'Investments, assets & net worth' },
+              { icon: 'color-palette', color: '#FF9F43', text: 'Custom themes — no ads' },
+              { icon: 'flag', color: ACCENT, text: 'Unlimited saving goals' },
               { icon: 'bar-chart', color: '#FFD700', text: 'Advanced spending insights' },
             ].map((f, i) => (
               <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: f.color + '22', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: f.color + '33' }}>
+                <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: f.color + '22', justifyContent: 'center', alignItems: 'center' }}>
                   <Ionicons name={f.icon as any} size={18} color={f.color} />
                 </View>
                 <Text style={{ color: '#C0C0D8', fontSize: 14, flex: 1 }}>{f.text}</Text>
@@ -395,27 +436,21 @@ export default function OnboardingScreen() {
             ))}
           </View>
 
-          {/* CTA buttons */}
           <TouchableOpacity
-            style={{ backgroundColor: '#FFD700', borderRadius: 16, padding: 18, alignItems: 'center', marginBottom: 12, opacity: trialLoading ? 0.7 : 1 }}
-            onPress={activateTrial}
-            disabled={trialLoading}>
-            <Text style={{ color: '#0D0D1A', fontSize: 17, fontWeight: '900' }}>
-              Start 3-Day Free Trial
-            </Text>
-            <Text style={{ color: '#0D0D1A88', fontSize: 12, marginTop: 3 }}>No card needed · Cancel anytime</Text>
+            style={{ backgroundColor: '#FFD700', borderRadius: 16, padding: 18, alignItems: 'center', marginBottom: 12 }}
+            onPress={activateTrial}>
+            <Text style={{ color: '#0D0D1A', fontSize: 17, fontWeight: '900' }}>Start Free Trial</Text>
+            <Text style={{ color: '#0D0D1A88', fontSize: 12, marginTop: 3 }}>3 days Premium — no card needed</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={{ alignItems: 'center', paddingVertical: 14 }}
-            onPress={finish}>
+          <TouchableOpacity style={{ alignItems: 'center', paddingVertical: 14 }} onPress={finish}>
             <Text style={{ color: '#7B7B9E', fontSize: 14, fontWeight: '600' }}>No thanks, start on Free</Text>
           </TouchableOpacity>
         </View>
 
       </ScrollView>
 
-      {/* Bottom controls — hide on trial slide */}
+      {/* Bottom controls — hidden on trial slide */}
       {!isLastSlide && (
         <View style={{ paddingHorizontal: 28, paddingBottom: 52 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 6, marginBottom: 20 }}>

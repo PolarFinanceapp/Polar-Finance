@@ -8,91 +8,134 @@ import {
 } from 'react-native';
 import { usePlan } from '../context/PlanContext';
 import { useTheme } from '../context/ThemeContext';
+import { supabase } from '../lib/supabase';
 
-// Suitable avatar icons from Ionicons
-const AVATAR_ICONS: { name: string; label: string }[] = [
-  { name: 'person-circle', label: 'Person' },
-  { name: 'happy', label: 'Happy' },
-  { name: 'star', label: 'Star' },
-  { name: 'heart', label: 'Heart' },
-  { name: 'trophy', label: 'Trophy' },
-  { name: 'rocket', label: 'Rocket' },
-  { name: 'diamond', label: 'Diamond' },
-  { name: 'leaf', label: 'Leaf' },
-  { name: 'flame', label: 'Flame' },
-  { name: 'moon', label: 'Moon' },
-  { name: 'sunny', label: 'Sun' },
-  { name: 'planet', label: 'Planet' },
-  { name: 'musical-notes', label: 'Music' },
-  { name: 'football', label: 'Football' },
-  { name: 'bicycle', label: 'Cycling' },
-  { name: 'car', label: 'Car' },
-  { name: 'home', label: 'Home' },
-  { name: 'airplane', label: 'Travel' },
-  { name: 'briefcase', label: 'Work' },
-  { name: 'cafe', label: 'Coffee' },
-  { name: 'barbell', label: 'Fitness' },
-  { name: 'book', label: 'Reading' },
-  { name: 'camera', label: 'Camera' },
-  { name: 'game-controller', label: 'Gaming' },
-  { name: 'headset', label: 'Music' },
-  { name: 'paw', label: 'Pets' },
-  { name: 'pizza', label: 'Food' },
-  { name: 'rose', label: 'Rose' },
-  { name: 'thunderstorm', label: 'Storm' },
-  { name: 'skull', label: 'Skull' },
+const AVATAR_ICONS: { name: string }[] = [
+  { name: 'person-circle' }, { name: 'happy' }, { name: 'star' },
+  { name: 'heart' }, { name: 'trophy' }, { name: 'rocket' },
+  { name: 'diamond' }, { name: 'leaf' }, { name: 'flame' },
+  { name: 'moon' }, { name: 'sunny' }, { name: 'planet' },
+  { name: 'musical-notes' }, { name: 'football' }, { name: 'bicycle' },
+  { name: 'car' }, { name: 'home' }, { name: 'airplane' },
+  { name: 'briefcase' }, { name: 'cafe' }, { name: 'barbell' },
+  { name: 'book' }, { name: 'camera' }, { name: 'game-controller' },
+  { name: 'paw' }, { name: 'pizza' }, { name: 'rose' },
+  { name: 'headset' }, { name: 'thunderstorm' }, { name: 'skull' },
 ];
 
 type Props = { visible: boolean; onClose: () => void };
 
 export default function ProfileModal({ visible, onClose }: Props) {
   const { theme: c } = useTheme();
-
-  // ── Use PlanContext directly — never read polar_plan from AsyncStorage ──────
-  // Reading from AsyncStorage gives stale/wrong data because the tabs layout
-  // had a duplicate PlanProvider that reset to 'free'. usePlan() reads from
-  // the correct root provider which has the real subscription state.
   const { plan, trialDaysLeft } = usePlan();
 
   const [selectedIcon, setSelectedIcon] = useState<string | null>(null);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [userInitial, setUserInitial] = useState('?');
+  const [userName, setUserName] = useState('');
+  const [userEmail, setUserEmail] = useState('');
 
   useEffect(() => {
     if (!visible) return;
     (async () => {
+      // Load profile photo
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const name = user.user_metadata?.full_name
+            || (await AsyncStorage.getItem('jf_user_name'))
+            || user.email?.split('@')[0]
+            || '';
+          setUserName(name);
+          setUserInitial(name.charAt(0).toUpperCase() || '?');
+          setUserEmail(user.email || '');
+
+          const metaPic = user.user_metadata?.profile_picture_uri as string | undefined;
+          if (metaPic) { setPhotoUri(metaPic); return; }
+          const cached = await AsyncStorage.getItem(`jf_profile_pic_${user.id}`);
+          if (cached) { setPhotoUri(cached); return; }
+        }
+      } catch { }
+
       const pairs = await AsyncStorage.multiGet(['profile_photo', 'profile_avatar']);
-      setPhotoUri(pairs[0][1] ?? null);
-      setSelectedIcon(pairs[1][1] ?? null);
+      if (pairs[0][1]) setPhotoUri(pairs[0][1]);
+      else if (pairs[1][1]) setSelectedIcon(pairs[1][1]);
     })();
   }, [visible]);
+
+  const savePhoto = async (uri: string) => {
+    setPhotoUri(uri);
+    setSelectedIcon(null);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        // Convert to base64 for cross-device sync
+        const resp = await fetch(uri);
+        const blob = await resp.blob();
+        const reader = new FileReader();
+        reader.readAsDataURL(blob);
+        reader.onloadend = async () => {
+          const dataUri = reader.result as string;
+          await supabase.auth.updateUser({ data: { profile_picture_uri: dataUri } });
+          await AsyncStorage.setItem(`jf_profile_pic_${user.id}`, dataUri);
+        };
+      }
+    } catch {
+      await AsyncStorage.multiSet([['profile_photo', uri], ['profile_avatar', '']]);
+    }
+  };
 
   const pickFromGallery = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') { Alert.alert('Permission needed', 'Allow photo access in Settings.'); return; }
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, aspect: [1, 1], quality: 0.7 });
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true, aspect: [1, 1], quality: 0.5, base64: true,
+    });
     if (!result.canceled && result.assets[0]) {
-      const uri = result.assets[0].uri;
-      setPhotoUri(uri);
+      const dataUri = `data:image/jpeg;base64,${result.assets[0].base64}`;
+      setPhotoUri(dataUri);
       setSelectedIcon(null);
-      await AsyncStorage.multiSet([['profile_photo', uri], ['profile_avatar', '']]);
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          await supabase.auth.updateUser({ data: { profile_picture_uri: dataUri } });
+          await AsyncStorage.setItem(`jf_profile_pic_${user.id}`, dataUri);
+        }
+      } catch { }
     }
   };
 
   const pickFromCamera = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') { Alert.alert('Permission needed', 'Allow camera access in Settings.'); return; }
-    const result = await ImagePicker.launchCameraAsync({ allowsEditing: true, aspect: [1, 1], quality: 0.7 });
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true, aspect: [1, 1], quality: 0.5, base64: true,
+    });
     if (!result.canceled && result.assets[0]) {
-      const uri = result.assets[0].uri;
-      setPhotoUri(uri);
+      const dataUri = `data:image/jpeg;base64,${result.assets[0].base64}`;
+      setPhotoUri(dataUri);
       setSelectedIcon(null);
-      await AsyncStorage.multiSet([['profile_photo', uri], ['profile_avatar', '']]);
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          await supabase.auth.updateUser({ data: { profile_picture_uri: dataUri } });
+          await AsyncStorage.setItem(`jf_profile_pic_${user.id}`, dataUri);
+        }
+      } catch { }
     }
   };
 
   const removePhoto = async () => {
     setPhotoUri(null);
     setSelectedIcon(null);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.auth.updateUser({ data: { profile_picture_uri: null } });
+        await AsyncStorage.removeItem(`jf_profile_pic_${user.id}`);
+      }
+    } catch { }
     await AsyncStorage.multiSet([['profile_photo', ''], ['profile_avatar', '']]);
   };
 
@@ -103,9 +146,10 @@ export default function ProfileModal({ visible, onClose }: Props) {
   };
 
   const planLabel = plan === 'trial' ? `Premium Trial · ${trialDaysLeft}d left`
-    : plan === 'pro' ? 'Pro' : plan === 'premium' ? 'Premium' : 'Free';
-
-  const planColor = plan === 'premium' ? '#FFD700' : plan === 'pro' ? c.accent : plan === 'trial' ? '#FF9F43' : c.muted;
+    : plan === 'pro' ? 'Pro Plan' : plan === 'premium' ? 'Premium Plan' : 'Free Plan';
+  const planColor = plan === 'premium' ? '#FFD700' : plan === 'pro' ? '#6C63FF' : plan === 'trial' ? '#FF9F43' : c.muted;
+  const planIcon = plan === 'premium' ? 'trophy' : plan === 'pro' ? 'flash' : plan === 'trial' ? 'time' : 'person';
+  const isFree = plan === 'free' || plan === 'expired';
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
@@ -114,7 +158,7 @@ export default function ProfileModal({ visible, onClose }: Props) {
         {/* Header */}
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingTop: 28, borderBottomWidth: 1, borderBottomColor: c.border }}>
           <TouchableOpacity onPress={onClose}>
-            <Text style={{ color: c.accent, fontSize: 16, fontWeight: '600' }}>← Close</Text>
+            <Ionicons name="close" size={24} color={c.muted} />
           </TouchableOpacity>
           <Text style={{ color: c.text, fontSize: 17, fontWeight: '800' }}>Profile</Text>
           <TouchableOpacity onPress={onClose}>
@@ -122,43 +166,132 @@ export default function ProfileModal({ visible, onClose }: Props) {
           </TouchableOpacity>
         </View>
 
-        <ScrollView showsVerticalScrollIndicator={false}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
 
-          {/* Current avatar preview */}
-          <View style={{ alignItems: 'center', paddingVertical: 24 }}>
-            <View style={{ width: 90, height: 90, borderRadius: 45, backgroundColor: c.accent + '22', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: c.accent }}>
-              {photoUri ? (
-                <Image source={{ uri: photoUri }} style={{ width: 90, height: 90, borderRadius: 45 }} />
-              ) : selectedIcon ? (
-                <Ionicons name={selectedIcon as any} size={48} color={c.accent} />
-              ) : (
-                <Ionicons name="person-circle" size={52} color={c.muted} />
-              )}
+          {/* Avatar preview */}
+          <View style={{ alignItems: 'center', paddingVertical: 28 }}>
+            <View style={{ width: 96, height: 96, borderRadius: 48, backgroundColor: c.accent, justifyContent: 'center', alignItems: 'center', borderWidth: 3, borderColor: c.accent + '66', overflow: 'hidden' }}>
+              {photoUri && (photoUri.startsWith('data:image') || photoUri.startsWith('http') || photoUri.startsWith('file'))
+                ? <Image source={{ uri: photoUri }} style={{ width: 96, height: 96, borderRadius: 48 }} />
+                : selectedIcon
+                  ? <Ionicons name={selectedIcon as any} size={52} color="#fff" />
+                  : <Text style={{ color: '#fff', fontSize: 42, fontWeight: '900' }}>{userInitial}</Text>
+              }
             </View>
+            {!!userName && (
+              <Text style={{ color: c.text, fontSize: 20, fontWeight: '800', marginTop: 12 }}>{userName}</Text>
+            )}
+            {!!userEmail && (
+              <Text style={{ color: c.muted, fontSize: 13, marginTop: 4 }}>{userEmail}</Text>
+            )}
           </View>
 
           <View style={{ paddingHorizontal: 20 }}>
 
-            {/* Photo buttons */}
-            <Text style={{ color: c.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>PHOTO</Text>
+            {/* Plan card */}
+            <View style={{ backgroundColor: c.card, borderRadius: 18, padding: 18, borderWidth: 1, borderColor: planColor + '44', marginBottom: 24 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: planColor + '22', justifyContent: 'center', alignItems: 'center' }}>
+                  <Ionicons name={planIcon as any} size={22} color={planColor} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: planColor, fontSize: 16, fontWeight: '800' }}>{planLabel}</Text>
+                  <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>
+                    {isFree ? 'Limited features — upgrade to unlock everything'
+                      : plan === 'trial' ? 'Enjoying Premium free — subscribe to keep it'
+                        : 'Thank you for supporting James Finance'}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Upgrade options — only show for free/expired users */}
+            {isFree && (
+              <>
+                <Text style={{ color: c.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 14 }}>Upgrade Your Plan</Text>
+
+                {/* Pro */}
+                <View style={{ backgroundColor: c.card, borderRadius: 18, padding: 18, borderWidth: 1, borderColor: '#6C63FF44', marginBottom: 12 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                    <View style={{ backgroundColor: '#6C63FF22', borderRadius: 10, padding: 8 }}>
+                      <Ionicons name="flash" size={20} color="#6C63FF" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: c.text, fontSize: 16, fontWeight: '800' }}>Pro</Text>
+                      <Text style={{ color: '#6C63FF', fontSize: 13, fontWeight: '700' }}>£3.99 / month</Text>
+                    </View>
+                  </View>
+                  {[
+                    'Card & investment tracking',
+                    'Up to 5 saving goals',
+                    'Unlimited transactions',
+                    'Custom themes',
+                    'No ads',
+                  ].map((f, i) => (
+                    <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                      <Ionicons name="checkmark-circle" size={15} color="#6C63FF" />
+                      <Text style={{ color: c.muted, fontSize: 13 }}>{f}</Text>
+                    </View>
+                  ))}
+                  <TouchableOpacity style={{ backgroundColor: '#6C63FF', borderRadius: 12, padding: 14, alignItems: 'center', marginTop: 10 }}>
+                    <Text style={{ color: '#fff', fontSize: 14, fontWeight: '800' }}>Upgrade to Pro</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Premium */}
+                <View style={{ backgroundColor: c.card, borderRadius: 18, padding: 18, borderWidth: 1.5, borderColor: '#FFD70055', marginBottom: 24 }}>
+                  <View style={{ position: 'absolute', top: -10, right: 16, backgroundColor: '#FFD700', borderRadius: 50, paddingHorizontal: 12, paddingVertical: 4 }}>
+                    <Text style={{ color: '#0D0D1A', fontSize: 10, fontWeight: '900' }}>BEST VALUE</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                    <View style={{ backgroundColor: '#FFD70022', borderRadius: 10, padding: 8 }}>
+                      <Ionicons name="trophy" size={20} color="#FFD700" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: c.text, fontSize: 16, fontWeight: '800' }}>Premium</Text>
+                      <Text style={{ color: '#FFD700', fontSize: 13, fontWeight: '700' }}>£7.99 / month</Text>
+                    </View>
+                  </View>
+                  {[
+                    'Everything in Pro',
+                    'Live market signals & analyst forecasts',
+                    'Asset & property tracking',
+                    'Unlimited saving goals',
+                    'Tax helper & export',
+                    'Receipt scanning with AI',
+                  ].map((f, i) => (
+                    <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                      <Ionicons name="checkmark-circle" size={15} color="#FFD700" />
+                      <Text style={{ color: c.muted, fontSize: 13 }}>{f}</Text>
+                    </View>
+                  ))}
+                  <TouchableOpacity style={{ backgroundColor: '#FFD700', borderRadius: 12, padding: 14, alignItems: 'center', marginTop: 10 }}>
+                    <Text style={{ color: '#0D0D1A', fontSize: 14, fontWeight: '900' }}>Upgrade to Premium</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+
+            {/* Photo section */}
+            <Text style={{ color: c.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>Profile Photo</Text>
             <View style={{ flexDirection: 'row', gap: 10, marginBottom: 28 }}>
-              <TouchableOpacity onPress={pickFromGallery} style={{ flex: 1, backgroundColor: c.accent + '18', borderRadius: 14, padding: 16, alignItems: 'center', gap: 6, borderWidth: 1, borderColor: c.accent + '44' }}>
-                <Ionicons name="image" size={24} color={c.accent} />
-                <Text style={{ color: c.accent, fontSize: 13, fontWeight: '700' }}>Gallery</Text>
+              <TouchableOpacity onPress={pickFromGallery} style={{ flex: 1, backgroundColor: c.accent + '18', borderRadius: 14, padding: 14, alignItems: 'center', gap: 6, borderWidth: 1, borderColor: c.accent + '44' }}>
+                <Ionicons name="image" size={22} color={c.accent} />
+                <Text style={{ color: c.accent, fontSize: 12, fontWeight: '700' }}>Gallery</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={pickFromCamera} style={{ flex: 1, backgroundColor: '#00D4AA18', borderRadius: 14, padding: 16, alignItems: 'center', gap: 6, borderWidth: 1, borderColor: '#00D4AA44' }}>
-                <Ionicons name="camera" size={24} color="#00D4AA" />
-                <Text style={{ color: '#00D4AA', fontSize: 13, fontWeight: '700' }}>Camera</Text>
+              <TouchableOpacity onPress={pickFromCamera} style={{ flex: 1, backgroundColor: '#00D4AA18', borderRadius: 14, padding: 14, alignItems: 'center', gap: 6, borderWidth: 1, borderColor: '#00D4AA44' }}>
+                <Ionicons name="camera" size={22} color="#00D4AA" />
+                <Text style={{ color: '#00D4AA', fontSize: 12, fontWeight: '700' }}>Camera</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={removePhoto} style={{ flex: 1, backgroundColor: '#FF6B6B18', borderRadius: 14, padding: 16, alignItems: 'center', gap: 6, borderWidth: 1, borderColor: '#FF6B6B44' }}>
-                <Ionicons name="trash" size={24} color="#FF6B6B" />
-                <Text style={{ color: '#FF6B6B', fontSize: 13, fontWeight: '700' }}>Remove</Text>
+              <TouchableOpacity onPress={removePhoto} style={{ flex: 1, backgroundColor: '#FF6B6B18', borderRadius: 14, padding: 14, alignItems: 'center', gap: 6, borderWidth: 1, borderColor: '#FF6B6B44' }}>
+                <Ionicons name="trash" size={22} color="#FF6B6B" />
+                <Text style={{ color: '#FF6B6B', fontSize: 12, fontWeight: '700' }}>Remove</Text>
               </TouchableOpacity>
             </View>
 
             {/* Icon grid */}
-            <Text style={{ color: c.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>OR CHOOSE AN ICON</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 32 }}>
+            <Text style={{ color: c.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>Choose an Icon</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
               {AVATAR_ICONS.map(({ name }) => {
                 const active = selectedIcon === name && !photoUri;
                 return (
@@ -166,23 +299,16 @@ export default function ProfileModal({ visible, onClose }: Props) {
                     key={name}
                     onPress={() => selectIcon(name)}
                     style={{
-                      width: 58, height: 58, borderRadius: 16,
+                      width: 56, height: 56, borderRadius: 14,
                       backgroundColor: active ? c.accent + '33' : c.card,
                       justifyContent: 'center', alignItems: 'center',
                       borderWidth: active ? 2 : 1,
                       borderColor: active ? c.accent : c.border,
                     }}>
-                    <Ionicons name={name as any} size={28} color={active ? c.accent : c.muted} />
+                    <Ionicons name={name as any} size={26} color={active ? c.accent : c.muted} />
                   </TouchableOpacity>
                 );
               })}
-            </View>
-
-            {/* Plan */}
-            <Text style={{ color: c.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>YOUR PLAN</Text>
-            <View style={{ backgroundColor: c.card, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: planColor + '44', flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 40 }}>
-              <Ionicons name="ribbon" size={24} color={planColor} />
-              <Text style={{ color: planColor, fontSize: 15, fontWeight: '700' }}>{planLabel}</Text>
             </View>
 
           </View>

@@ -163,6 +163,12 @@ export default function OnboardingScreen() {
       await AsyncStorage.setItem('jf_onboarding_subs', JSON.stringify(subTxns));
     }
 
+    // Explicitly set free plan so PlanContext doesn't fall into wrong state
+    await AsyncStorage.multiSet([
+      ['user_plan', 'free'],
+      ['trial_prompt_seen', 'true'],
+    ]);
+
     router.replace('/(tabs)' as any);
   };
 
@@ -405,47 +411,104 @@ export default function OnboardingScreen() {
           </Text>
         </View>
 
-        {/* ── Slide 7: Free Trial ── */}
-        <View style={{ width, flex: 1, justifyContent: 'center', paddingHorizontal: 28 }}>
-          <View style={{ alignSelf: 'center', backgroundColor: '#FFD70022', borderRadius: 50, paddingHorizontal: 16, paddingVertical: 6, borderWidth: 1, borderColor: '#FFD70055', marginBottom: 24, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <Ionicons name="trophy" size={12} color="#FFD700" />
-            <Text style={{ color: '#FFD700', fontSize: 12, fontWeight: '800', letterSpacing: 1 }}>LIMITED OFFER</Text>
-          </View>
-
-          <Text style={{ color: '#E8E8F0', fontSize: 32, fontWeight: '900', textAlign: 'center', lineHeight: 38, marginBottom: 12 }}>
-            Try Premium{'\n'}free for 3 days
+        {/* ── Slide 7: Choose Your Plan ── */}
+        <View style={{ width, flex: 1, paddingHorizontal: 22, paddingTop: 80 }}>
+          <Text style={{ color: '#E8E8F0', fontSize: 28, fontWeight: '900', textAlign: 'center', marginBottom: 6 }}>
+            Choose your plan
           </Text>
-          <Text style={{ color: '#7B7B9E', fontSize: 15, textAlign: 'center', lineHeight: 24, marginBottom: 28 }}>
-            No card required. Cancel anytime.
+          <Text style={{ color: '#7B7B9E', fontSize: 14, textAlign: 'center', marginBottom: 24, lineHeight: 20 }}>
+            Start free or unlock everything with a 3-day Premium trial. No card needed.
           </Text>
 
-          <View style={{ backgroundColor: '#13132A', borderRadius: 20, padding: 20, marginBottom: 28, borderWidth: 1, borderColor: 'rgba(108,99,255,0.2)', gap: 14 }}>
-            {[
-              { icon: 'trending-up', color: '#00D4AA', text: 'Live market signals & forecasts' },
-              { icon: 'briefcase', color: '#a89fff', text: 'Investments, assets & net worth' },
-              { icon: 'color-palette', color: '#FF9F43', text: 'Custom themes — no ads' },
-              { icon: 'flag', color: ACCENT, text: 'Unlimited saving goals' },
-              { icon: 'bar-chart', color: '#FFD700', text: 'Advanced spending insights' },
-            ].map((f, i) => (
-              <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: f.color + '22', justifyContent: 'center', alignItems: 'center' }}>
-                  <Ionicons name={f.icon as any} size={18} color={f.color} />
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+
+            {/* Free */}
+            <TouchableOpacity
+              onPress={finish}
+              style={{ backgroundColor: '#13132A', borderRadius: 18, padding: 16, borderWidth: 1, borderColor: 'rgba(108,99,255,0.2)', marginBottom: 12 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                <View style={{ width: 38, height: 38, borderRadius: 10, backgroundColor: '#ffffff11', justifyContent: 'center', alignItems: 'center' }}>
+                  <Ionicons name="person" size={20} color="#7B7B9E" />
                 </View>
-                <Text style={{ color: '#C0C0D8', fontSize: 14, flex: 1 }}>{f.text}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: '#E8E8F0', fontSize: 15, fontWeight: '800' }}>Free</Text>
+                  <Text style={{ color: '#7B7B9E', fontSize: 12 }}>Always free</Text>
+                </View>
               </View>
-            ))}
-          </View>
+              {['Up to 10 transactions', '1 saving goal', 'Basic budgets & calendar'].map((f, i) => (
+                <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 5 }}>
+                  <Ionicons name="checkmark" size={13} color="#7B7B9E" />
+                  <Text style={{ color: '#7B7B9E', fontSize: 12 }}>{f}</Text>
+                </View>
+              ))}
+              <View style={{ backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 10, padding: 10, alignItems: 'center', marginTop: 10 }}>
+                <Text style={{ color: '#7B7B9E', fontSize: 13, fontWeight: '700' }}>Continue on Free</Text>
+              </View>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={{ backgroundColor: '#FFD700', borderRadius: 16, padding: 18, alignItems: 'center', marginBottom: 12 }}
-            onPress={activateTrial}>
-            <Text style={{ color: '#0D0D1A', fontSize: 17, fontWeight: '900' }}>Start Free Trial</Text>
-            <Text style={{ color: '#0D0D1A88', fontSize: 12, marginTop: 3 }}>3 days Premium — no card needed</Text>
-          </TouchableOpacity>
+            {/* Pro */}
+            <TouchableOpacity
+              onPress={async () => {
+                await AsyncStorage.multiSet([
+                  ['user_plan', 'pro'],
+                  ['trial_prompt_seen', 'true'],
+                ]);
+                finish();
+              }}
+              style={{ backgroundColor: '#13132A', borderRadius: 18, padding: 16, borderWidth: 1.5, borderColor: '#6C63FF66', marginBottom: 12 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                <View style={{ width: 38, height: 38, borderRadius: 10, backgroundColor: '#6C63FF22', justifyContent: 'center', alignItems: 'center' }}>
+                  <Ionicons name="flash" size={20} color="#6C63FF" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: '#E8E8F0', fontSize: 15, fontWeight: '800' }}>Pro</Text>
+                  <Text style={{ color: '#6C63FF', fontSize: 12, fontWeight: '700' }}>£3.99 / month</Text>
+                </View>
+              </View>
+              {['Unlimited transactions', 'Card & investment tracking', 'Up to 5 saving goals', 'Custom themes — no ads'].map((f, i) => (
+                <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 5 }}>
+                  <Ionicons name="checkmark-circle" size={13} color="#6C63FF" />
+                  <Text style={{ color: '#C0C0D8', fontSize: 12 }}>{f}</Text>
+                </View>
+              ))}
+              <View style={{ backgroundColor: '#6C63FF', borderRadius: 10, padding: 10, alignItems: 'center', marginTop: 10 }}>
+                <Text style={{ color: '#fff', fontSize: 13, fontWeight: '800' }}>Start with Pro</Text>
+              </View>
+            </TouchableOpacity>
 
-          <TouchableOpacity style={{ alignItems: 'center', paddingVertical: 14 }} onPress={finish}>
-            <Text style={{ color: '#7B7B9E', fontSize: 14, fontWeight: '600' }}>No thanks, start on Free</Text>
-          </TouchableOpacity>
+            {/* Premium — highlighted, with free trial */}
+            <View style={{ backgroundColor: '#13132A', borderRadius: 18, padding: 16, borderWidth: 2, borderColor: '#FFD700AA', marginBottom: 8 }}>
+              <View style={{ position: 'absolute', top: -11, right: 16, backgroundColor: '#FFD700', borderRadius: 50, paddingHorizontal: 12, paddingVertical: 4 }}>
+                <Text style={{ color: '#0D0D1A', fontSize: 10, fontWeight: '900' }}>3 DAYS FREE</Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                <View style={{ width: 38, height: 38, borderRadius: 10, backgroundColor: '#FFD70022', justifyContent: 'center', alignItems: 'center' }}>
+                  <Ionicons name="trophy" size={20} color="#FFD700" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: '#E8E8F0', fontSize: 15, fontWeight: '800' }}>Premium</Text>
+                  <Text style={{ color: '#FFD700', fontSize: 12, fontWeight: '700' }}>£7.99 / month · 3 days free</Text>
+                </View>
+              </View>
+              {['Everything in Pro', 'Live market signals & forecasts', 'Asset & property tracking', 'Unlimited goals · Tax helper · AI receipts'].map((f, i) => (
+                <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 5 }}>
+                  <Ionicons name="checkmark-circle" size={13} color="#FFD700" />
+                  <Text style={{ color: '#C0C0D8', fontSize: 12 }}>{f}</Text>
+                </View>
+              ))}
+              <TouchableOpacity
+                style={{ backgroundColor: '#FFD700', borderRadius: 10, padding: 12, alignItems: 'center', marginTop: 10 }}
+                onPress={activateTrial}>
+                <Text style={{ color: '#0D0D1A', fontSize: 14, fontWeight: '900' }}>Start 3-Day Free Trial</Text>
+                <Text style={{ color: '#0D0D1A88', fontSize: 11, marginTop: 2 }}>No card needed · Cancel anytime</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={{ color: '#7B7B9E44', fontSize: 11, textAlign: 'center', marginTop: 8 }}>
+              Subscriptions managed in Settings
+            </Text>
+
+          </ScrollView>
         </View>
 
       </ScrollView>

@@ -1,4 +1,4 @@
-import { CAT_ICONS, useFinance } from '@/context/FinanceContext';
+import { useFinance } from '@/context/FinanceContext';
 import { useLocale } from '@/context/LocaleContext';
 import { usePlan } from '@/context/PlanContext';
 import { supabase } from '@/lib/supabase';
@@ -33,6 +33,26 @@ const CARD_COLORS = [
   '#1a1a2e', '#2d2d2d', '#1c1c1c', '#0f0f1a',
 ];
 
+const INV_ICONS = [
+  'trending-up', 'trending-down', 'bar-chart', 'pie-chart',
+  'cash', 'wallet', 'briefcase', 'home', 'car', 'diamond', 'logo-bitcoin', 'planet',
+] as const;
+
+const CAT_IONICONS: Record<string, string> = {
+  Housing: 'home',
+  Groceries: 'cart',
+  Transport: 'car',
+  Entertainment: 'film',
+  Health: 'medkit',
+  Clothing: 'shirt',
+  Utilities: 'flash',
+  Subscriptions: 'phone-portrait',
+  Food: 'restaurant',
+  Income: 'briefcase',
+  Savings: 'wallet',
+  Other: 'gift',
+};
+
 export default function HomeScreen() {
   const { hasFeature, trialDaysLeft, plan, maxTransactions, needsPaywall } = usePlan();
   const { theme: c } = useTheme();
@@ -60,8 +80,6 @@ export default function HomeScreen() {
 
   const loadProfilePhoto = async () => {
     try {
-      // Read from Supabase user metadata first — survives OTA updates
-      // This syncs with the profile pic set in the More tab
       const { data: { user } } = await supabase.auth.getUser();
       const uid = user?.id;
       const supabasePic = user?.user_metadata?.profile_picture_uri as string | undefined;
@@ -70,16 +88,12 @@ export default function HomeScreen() {
         if (uid) await AsyncStorage.setItem(`jf_profile_pic_${uid}`, supabasePic);
         return;
       }
-      // Fall back to local cache
       if (uid) {
         const cached = await AsyncStorage.getItem(`jf_profile_pic_${uid}`);
         if (cached) { setProfilePhoto(cached); return; }
       }
-      // Legacy keys from older versions
       const pairs = await AsyncStorage.multiGet(['profile_photo', 'profile_avatar']);
-      const photo = pairs[0][1];
-      const avatar = pairs[1][1];
-      setProfilePhoto(photo || avatar || null);
+      setProfilePhoto(pairs[0][1] || pairs[1][1] || null);
     } catch {
       const pairs = await AsyncStorage.multiGet(['profile_photo', 'profile_avatar']);
       setProfilePhoto(pairs[0][1] || pairs[1][1] || null);
@@ -127,7 +141,7 @@ export default function HomeScreen() {
   const [newInvValue, setNewInvValue] = useState('');
   const [newInvChange, setNewInvChange] = useState('');
   const [newInvUp, setNewInvUp] = useState(true);
-  const [newInvIcon, setNewInvIcon] = useState('📈');
+  const [newInvIcon, setNewInvIcon] = useState<string>('trending-up');
 
   // ── Investment edit ───────────────────────────────────────────────────────
   const [editInv, setEditInv] = useState<any | null>(null);
@@ -136,6 +150,7 @@ export default function HomeScreen() {
   const [editInvValue, setEditInvValue] = useState('');
   const [editInvChange, setEditInvChange] = useState('');
   const [editInvUp, setEditInvUp] = useState(true);
+  const [editInvIcon, setEditInvIcon] = useState<string>('trending-up');
 
   // ── Transaction form ──────────────────────────────────────────────────────
   const [newTxnName, setNewTxnName] = useState('');
@@ -171,7 +186,6 @@ export default function HomeScreen() {
   const totalCustomAssets = showInvest ? customAssets.reduce((s, a) => s + a.value, 0) : 0;
   const netWorth = totalIncome - totalExpense + totalInvest + totalCards + totalCustomAssets;
 
-  // Bills summary for bar
   const totalMonthlyBills = bills.reduce((s, b) => {
     switch (b.frequency) {
       case 'weekly': return s + b.amount * 4.33;
@@ -212,19 +226,24 @@ export default function HomeScreen() {
   const addInvestment = () => {
     if (!newInvName || !newInvValue) return;
     setInvestments([...investments, { id: Date.now().toString(), icon: newInvIcon, name: newInvName, sub: newInvSub, value: parseFloat(newInvValue), change: parseFloat(newInvChange) || 0, up: newInvUp }]);
-    setNewInvName(''); setNewInvSub(''); setNewInvValue(''); setNewInvChange(''); setNewInvIcon('📈');
+    setNewInvName(''); setNewInvSub(''); setNewInvValue(''); setNewInvChange(''); setNewInvIcon('trending-up');
     setShowAddInv(false);
   };
 
   const openEditInv = (inv: any) => {
-    setEditInv(inv); setEditInvName(inv.name); setEditInvSub(inv.sub);
-    setEditInvValue(inv.value.toString()); setEditInvChange(inv.change.toString()); setEditInvUp(inv.up);
+    setEditInv(inv);
+    setEditInvName(inv.name);
+    setEditInvSub(inv.sub);
+    setEditInvValue(inv.value.toString());
+    setEditInvChange(inv.change.toString());
+    setEditInvUp(inv.up);
+    setEditInvIcon(inv.icon || 'trending-up');
   };
 
   const saveEditInv = () => {
     if (!editInv) return;
     setInvestments(investments.map(i => i.id === editInv.id
-      ? { ...i, name: editInvName, sub: editInvSub, value: parseFloat(editInvValue) || 0, change: parseFloat(editInvChange) || 0, up: editInvUp }
+      ? { ...i, name: editInvName, sub: editInvSub, value: parseFloat(editInvValue) || 0, change: parseFloat(editInvChange) || 0, up: editInvUp, icon: editInvIcon }
       : i
     ));
     setEditInv(null);
@@ -234,7 +253,8 @@ export default function HomeScreen() {
     if (!newTxnName || !newTxnAmt) return;
     const amt = parseFloat(newTxnAmt);
     setTransactions([{
-      id: Date.now().toString(), icon: CAT_ICONS[newTxnCat] || '💳',
+      id: Date.now().toString(),
+      icon: CAT_IONICONS[newTxnCat] || 'card',
       name: newTxnName, cat: newTxnCat,
       amount: newTxnType === 'expense' ? -Math.abs(amt) : Math.abs(amt),
       type: newTxnType, date: new Date().toLocaleDateString('en-GB'),
@@ -243,7 +263,6 @@ export default function HomeScreen() {
     setShowAddTxn(false);
   };
 
-  // ── Transaction edit helpers ──────────────────────────────────────────────
   const openEditTxn = (txn: any) => {
     setEditTxn(txn);
     setEditTxnName(txn.name);
@@ -260,7 +279,7 @@ export default function HomeScreen() {
         ...tx,
         name: editTxnName,
         cat: editTxnCat,
-        icon: CAT_ICONS[editTxnCat] || tx.icon,
+        icon: CAT_IONICONS[editTxnCat] || tx.icon,
         amount: editTxnType === 'expense' ? -Math.abs(amt) : Math.abs(amt),
         type: editTxnType,
       }
@@ -283,10 +302,10 @@ export default function HomeScreen() {
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 60, marginBottom: 24 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: c.accent, justifyContent: 'center', alignItems: 'center' }}>
-              <Text style={{ fontSize: 20 }}>🐻‍❄️</Text>
+              <Ionicons name="bar-chart" size={20} color="#fff" />
             </View>
             <View>
-              <Text style={{ color: c.muted, fontSize: 12 }}>{greeting} 👋</Text>
+              <Text style={{ color: c.muted, fontSize: 12 }}>{greeting}</Text>
               <Text style={{ color: c.text, fontSize: 20, fontWeight: '900' }}>{userName || '...'}</Text>
             </View>
           </View>
@@ -295,9 +314,7 @@ export default function HomeScreen() {
             onPress={() => setShowProfile(true)}>
             {profilePhoto && (profilePhoto.startsWith('data:image') || profilePhoto.startsWith('http') || profilePhoto.startsWith('file'))
               ? <Image source={{ uri: profilePhoto }} style={{ width: 44, height: 44, borderRadius: 22 }} />
-              : profilePhoto && !profilePhoto.startsWith('data:')
-                ? <Ionicons name={profilePhoto as any} size={24} color="#fff" />
-                : <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>{userInitial}</Text>}
+              : <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>{userInitial}</Text>}
           </TouchableOpacity>
         </View>
 
@@ -311,14 +328,16 @@ export default function HomeScreen() {
               {t('netWorth')}  {showCardsOk ? (showCards ? '▲' : '▼') : ''}
             </Text>
             {plan === 'trial' && trialDaysLeft > 0 && (
-              <View style={{ backgroundColor: '#FFD70022', borderRadius: 50, paddingHorizontal: 10, paddingVertical: 3, borderWidth: 1, borderColor: '#FFD70044' }}>
-                <Text style={{ color: '#FFD700', fontSize: 10, fontWeight: '700' }}>👑 {t('trialPlan')} · {trialDaysLeft}d</Text>
+              <View style={{ backgroundColor: '#FFD70022', borderRadius: 50, paddingHorizontal: 10, paddingVertical: 3, borderWidth: 1, borderColor: '#FFD70044', flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Ionicons name="trophy" size={10} color="#FFD700" />
+                <Text style={{ color: '#FFD700', fontSize: 10, fontWeight: '700' }}>{t('trialPlan')} · {trialDaysLeft}d</Text>
               </View>
             )}
             {(plan === 'pro' || plan === 'premium') && (
-              <View style={{ backgroundColor: plan === 'premium' ? '#FFD70022' : '#6C63FF22', borderRadius: 50, paddingHorizontal: 10, paddingVertical: 3, borderWidth: 1, borderColor: plan === 'premium' ? '#FFD70044' : '#6C63FF44' }}>
+              <View style={{ backgroundColor: plan === 'premium' ? '#FFD70022' : '#6C63FF22', borderRadius: 50, paddingHorizontal: 10, paddingVertical: 3, borderWidth: 1, borderColor: plan === 'premium' ? '#FFD70044' : '#6C63FF44', flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Ionicons name={plan === 'premium' ? 'trophy' : 'flash'} size={10} color={plan === 'premium' ? '#FFD700' : '#6C63FF'} />
                 <Text style={{ color: plan === 'premium' ? '#FFD700' : '#6C63FF', fontSize: 10, fontWeight: '700' }}>
-                  {plan === 'premium' ? '👑' : '⚡'} {plan === 'premium' ? t('premiumPlan') : t('proPlan')}
+                  {plan === 'premium' ? t('premiumPlan') : t('proPlan')}
                 </Text>
               </View>
             )}
@@ -340,7 +359,7 @@ export default function HomeScreen() {
               <>
                 <View style={{ width: 1, height: 30, backgroundColor: 'rgba(255,255,255,0.1)' }} />
                 <View style={{ flex: 1, alignItems: 'center' }}>
-                  <Text style={{ color: c.muted, fontSize: 11 }}>💼 {t('assets')}</Text>
+                  <Text style={{ color: c.muted, fontSize: 11 }}>{t('assets')}</Text>
                   <Text style={{ color: '#a89fff', fontSize: 14, fontWeight: '700', marginTop: 2 }}>{formatAmount(totalCustomAssets + totalInvest)}</Text>
                 </View>
               </>
@@ -348,7 +367,14 @@ export default function HomeScreen() {
           </View>
           {showCardsOk
             ? <Text style={{ color: c.accent, fontSize: 11, fontWeight: '600', marginTop: 12, textAlign: 'center' }}>{showCards ? t('tapToHide') : t('tapToView')}</Text>
-            : <TouchableOpacity onPress={() => setShowPaywall(true)}><Text style={{ color: c.muted, fontSize: 11, marginTop: 10, textAlign: 'center' }}>🔒 {t('upgradeProCards')}</Text></TouchableOpacity>
+            : (
+              <TouchableOpacity onPress={() => setShowPaywall(true)}>
+                <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 4, marginTop: 10 }}>
+                  <Ionicons name="lock-closed" size={11} color={c.muted} />
+                  <Text style={{ color: c.muted, fontSize: 11 }}>{t('upgradeProCards')}</Text>
+                </View>
+              </TouchableOpacity>
+            )
           }
         </TouchableOpacity>
 
@@ -356,7 +382,10 @@ export default function HomeScreen() {
         {showCards && showCardsOk && (
           <View style={{ backgroundColor: c.card, borderRadius: 20, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: c.border }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-              <Text style={{ color: c.muted, fontSize: 12, fontWeight: '700', textTransform: 'uppercase' }}>💳 {t('cards')}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Ionicons name="card" size={14} color={c.muted} />
+                <Text style={{ color: c.muted, fontSize: 12, fontWeight: '700', textTransform: 'uppercase' }}>{t('cards')}</Text>
+              </View>
               <TouchableOpacity style={{ backgroundColor: c.accent + '22', borderRadius: 50, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: c.accent + '55' }} onPress={() => setShowAddCard(true)}>
                 <Text style={{ color: c.accent, fontSize: 11, fontWeight: '700' }}>＋ {t('add')}</Text>
               </TouchableOpacity>
@@ -390,17 +419,24 @@ export default function HomeScreen() {
             {showInvest ? (
               <>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                  <Text style={{ color: c.muted, fontSize: 12, fontWeight: '700', textTransform: 'uppercase' }}>📈 {t('investments')}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Ionicons name="trending-up" size={14} color={c.muted} />
+                    <Text style={{ color: c.muted, fontSize: 12, fontWeight: '700', textTransform: 'uppercase' }}>{t('investments')}</Text>
+                  </View>
                   <TouchableOpacity style={{ backgroundColor: c.accent + '22', borderRadius: 50, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: c.accent + '55' }} onPress={() => setShowAddInv(true)}>
                     <Text style={{ color: c.accent, fontSize: 11, fontWeight: '700' }}>＋ {t('add')}</Text>
                   </TouchableOpacity>
                 </View>
-                {investments.length === 0 && <View style={{ alignItems: 'center', padding: 20 }}><Text style={{ color: c.muted, fontSize: 13, textAlign: 'center' }}>{t('noInvestments')}</Text></View>}
+                {investments.length === 0 && (
+                  <View style={{ alignItems: 'center', padding: 20 }}>
+                    <Text style={{ color: c.muted, fontSize: 13, textAlign: 'center' }}>{t('noInvestments')}</Text>
+                  </View>
+                )}
                 {investments.map(inv => (
                   <View key={inv.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: c.border }}>
                     <TouchableOpacity onLongPress={() => setInvestments(investments.filter(i => i.id !== inv.id))} style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
                       <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: c.card2, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-                        <Text style={{ fontSize: 20 }}>{inv.icon}</Text>
+                        <Ionicons name={(inv.icon || 'trending-up') as any} size={20} color={c.accent} />
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text style={{ color: c.text, fontSize: 14, fontWeight: '700' }}>{inv.name}</Text>
@@ -479,7 +515,7 @@ export default function HomeScreen() {
           </TouchableOpacity>
         )}
 
-        {/* Recurring Bills bar — now shows live summary */}
+        {/* Recurring Bills bar */}
         <TouchableOpacity
           onPress={() => setShowBills(true)}
           style={{ backgroundColor: c.card, borderRadius: 14, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: c.border, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -516,14 +552,13 @@ export default function HomeScreen() {
             </View>
           )}
 
-          {/* FIX: tap opens edit modal, long press deletes */}
           {displayTxns.map(txn => (
             <TouchableOpacity key={txn.id}
               onPress={() => openEditTxn(txn)}
               onLongPress={() => deleteTxn(txn.id)}
               style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: c.card, borderRadius: 16, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: c.border }}>
               <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: c.card2, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-                <Text style={{ fontSize: 18 }}>{txn.icon}</Text>
+                <Ionicons name={(CAT_IONICONS[txn.cat] || txn.icon || 'card') as any} size={20} color={c.muted} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={{ color: c.text, fontSize: 15, fontWeight: '600' }}>{txn.name}</Text>
@@ -637,6 +672,15 @@ export default function HomeScreen() {
                   <TextInput style={{ backgroundColor: c.card2, borderRadius: 12, padding: 14, color: c.text, fontSize: 15, borderWidth: 1, borderColor: c.border }} placeholder={f.ph} placeholderTextColor={c.muted} value={f.val} onChangeText={f.set} keyboardType={f.kb} />
                 </View>
               ))}
+              <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 8 }}>Icon</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+                {INV_ICONS.map(ic => (
+                  <TouchableOpacity key={ic} onPress={() => setNewInvIcon(ic)}
+                    style={{ width: 42, height: 42, borderRadius: 10, backgroundColor: c.card2, justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, borderColor: newInvIcon === ic ? c.accent : 'transparent' }}>
+                    <Ionicons name={ic} size={20} color={newInvIcon === ic ? c.accent : c.muted} />
+                  </TouchableOpacity>
+                ))}
+              </View>
               <View style={{ flexDirection: 'row', gap: 10, marginBottom: 20 }}>
                 <TouchableOpacity style={{ flex: 1, backgroundColor: newInvUp ? '#00D4AA22' : c.card2, borderRadius: 12, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: newInvUp ? '#00D4AA' : c.border }} onPress={() => setNewInvUp(true)}>
                   <Text style={{ color: newInvUp ? '#00D4AA' : c.muted, fontWeight: '700' }}>▲ Up</Text>
@@ -661,7 +705,10 @@ export default function HomeScreen() {
         <Modal visible={!!editInv} transparent animationType="slide">
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
             <View style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, borderWidth: 1, borderColor: c.border }}>
-              <Text style={{ color: c.text, fontSize: 18, fontWeight: '900', marginBottom: 20 }}>✏️ Edit Investment</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 20 }}>
+                <Ionicons name="create-outline" size={20} color={c.accent} />
+                <Text style={{ color: c.text, fontSize: 18, fontWeight: '900' }}>Edit Investment</Text>
+              </View>
               {[
                 { label: t('name'), val: editInvName, set: setEditInvName, ph: 'e.g. Apple Inc.', kb: 'default' as const },
                 { label: t('details'), val: editInvSub, set: setEditInvSub, ph: 'e.g. AAPL · 10 shares', kb: 'default' as const },
@@ -673,6 +720,15 @@ export default function HomeScreen() {
                   <TextInput style={{ backgroundColor: c.card2, borderRadius: 12, padding: 14, color: c.text, fontSize: 15, borderWidth: 1, borderColor: c.border }} placeholder={f.ph} placeholderTextColor={c.muted} value={f.val} onChangeText={f.set} keyboardType={f.kb} />
                 </View>
               ))}
+              <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 8 }}>Icon</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+                {INV_ICONS.map(ic => (
+                  <TouchableOpacity key={ic} onPress={() => setEditInvIcon(ic)}
+                    style={{ width: 42, height: 42, borderRadius: 10, backgroundColor: c.card2, justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, borderColor: editInvIcon === ic ? c.accent : 'transparent' }}>
+                    <Ionicons name={ic} size={20} color={editInvIcon === ic ? c.accent : c.muted} />
+                  </TouchableOpacity>
+                ))}
+              </View>
               <View style={{ flexDirection: 'row', gap: 10, marginBottom: 20 }}>
                 <TouchableOpacity style={{ flex: 1, backgroundColor: editInvUp ? '#00D4AA22' : c.card2, borderRadius: 12, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: editInvUp ? '#00D4AA' : c.border }} onPress={() => setEditInvUp(true)}>
                   <Text style={{ color: editInvUp ? '#00D4AA' : c.muted, fontWeight: '700' }}>▲ Up</Text>
@@ -717,9 +773,12 @@ export default function HomeScreen() {
               ))}
               <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 8 }}>{t('category')}</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
-                {Object.keys(CAT_ICONS).slice(0, 13).map(cat => (
-                  <TouchableOpacity key={cat} style={{ backgroundColor: newTxnCat === cat ? c.accent : c.card2, borderRadius: 50, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: newTxnCat === cat ? c.accent : c.border }} onPress={() => setNewTxnCat(cat)}>
-                    <Text style={{ color: newTxnCat === cat ? '#fff' : c.muted, fontSize: 12, fontWeight: '600' }}>{CAT_ICONS[cat]} {cat}</Text>
+                {Object.keys(CAT_IONICONS).map(cat => (
+                  <TouchableOpacity key={cat}
+                    style={{ backgroundColor: newTxnCat === cat ? c.accent : c.card2, borderRadius: 50, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: newTxnCat === cat ? c.accent : c.border, flexDirection: 'row', alignItems: 'center', gap: 5 }}
+                    onPress={() => setNewTxnCat(cat)}>
+                    <Ionicons name={CAT_IONICONS[cat] as any} size={12} color={newTxnCat === cat ? '#fff' : c.muted} />
+                    <Text style={{ color: newTxnCat === cat ? '#fff' : c.muted, fontSize: 12, fontWeight: '600' }}>{cat}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -740,7 +799,10 @@ export default function HomeScreen() {
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
             <View style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, borderWidth: 1, borderColor: c.border }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                <Text style={{ color: c.text, fontSize: 18, fontWeight: '900' }}>✏️ Edit Transaction</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Ionicons name="create-outline" size={20} color={c.accent} />
+                  <Text style={{ color: c.text, fontSize: 18, fontWeight: '900' }}>Edit Transaction</Text>
+                </View>
                 <TouchableOpacity onPress={() => editTxn && deleteTxn(editTxn.id)}
                   style={{ backgroundColor: '#FF6B6B18', borderRadius: 10, padding: 8, borderWidth: 1, borderColor: '#FF6B6B44' }}>
                   <Ionicons name="trash-outline" size={18} color="#FF6B6B" />
@@ -765,9 +827,12 @@ export default function HomeScreen() {
               ))}
               <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 8 }}>{t('category')}</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
-                {Object.keys(CAT_ICONS).slice(0, 13).map(cat => (
-                  <TouchableOpacity key={cat} style={{ backgroundColor: editTxnCat === cat ? c.accent : c.card2, borderRadius: 50, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: editTxnCat === cat ? c.accent : c.border }} onPress={() => setEditTxnCat(cat)}>
-                    <Text style={{ color: editTxnCat === cat ? '#fff' : c.muted, fontSize: 12, fontWeight: '600' }}>{CAT_ICONS[cat]} {cat}</Text>
+                {Object.keys(CAT_IONICONS).map(cat => (
+                  <TouchableOpacity key={cat}
+                    style={{ backgroundColor: editTxnCat === cat ? c.accent : c.card2, borderRadius: 50, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: editTxnCat === cat ? c.accent : c.border, flexDirection: 'row', alignItems: 'center', gap: 5 }}
+                    onPress={() => setEditTxnCat(cat)}>
+                    <Ionicons name={CAT_IONICONS[cat] as any} size={12} color={editTxnCat === cat ? '#fff' : c.muted} />
+                    <Text style={{ color: editTxnCat === cat ? '#fff' : c.muted, fontSize: 12, fontWeight: '600' }}>{cat}</Text>
                   </TouchableOpacity>
                 ))}
               </View>

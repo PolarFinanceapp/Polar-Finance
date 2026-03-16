@@ -3,10 +3,9 @@ import { useLocale } from '@/context/LocaleContext';
 import { usePlan } from '@/context/PlanContext';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { Alert, Image, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Paywall from '../../components/Paywall';
 import StarBackground from '../../components/StarBackground';
 import { useTheme } from '../../context/ThemeContext';
@@ -21,7 +20,10 @@ const PAY_FREQS: { key: PayFrequency; label: string; tKey: string }[] = [
   { key: 'yearly', label: 'Yearly', tKey: 'yearly' },
 ];
 
-const INCOME_EMOJIS = ['💼', '💰', '🏦', '📊', '🖥️', '🔧', '🎨', '🚚', '👨‍⚕️', '👨‍🏫', '🏪', '📱'];
+const INCOME_ICONS = [
+  'briefcase', 'cash', 'business', 'bar-chart', 'desktop',
+  'construct', 'color-palette', 'car', 'medkit', 'school', 'storefront', 'phone-portrait',
+] as const;
 
 const COMING_SOON_ITEMS = [
   { icon: 'business', titleKey: 'comingSoonBankSync', descKey: 'comingSoonBankSyncDesc' },
@@ -79,45 +81,24 @@ export default function MoreScreen() {
   const [sources, setSources] = useState<IncomeSource[]>([]);
   const [storageKey, setStorageKey] = useState('polar_income_local');
 
-  // Profile picture — stored in Supabase user metadata so it survives OTA updates
-  const [profileUri, setProfileUri] = useState<string | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
-
   const [fLabel, setFLabel] = useState('');
   const [fAmount, setFAmount] = useState('');
   const [fFreq, setFFreq] = useState<PayFrequency>('monthly');
   const [fDay, setFDay] = useState('25');
-  const [fEmoji, setFEmoji] = useState('💼');
+  const [fEmoji, setFEmoji] = useState<string>('briefcase');
   const [fSaved, setFSaved] = useState(false);
 
-  // ── Load income sources + profile pic ────────────────────────────────────
+  // ── Load income sources ───────────────────────────────────────────────────
   useEffect(() => {
     (async () => {
       try {
         const { supabase } = await import('../../lib/supabase');
         const { data: { user } } = await supabase.auth.getUser();
         const uid = user?.id;
-        setUserId(uid || null);
-
-        // Income sources
         const key = `polar_income_${uid || 'local'}`;
         setStorageKey(key);
         const raw = await AsyncStorage.getItem(key);
         if (raw) setSources(JSON.parse(raw));
-
-        // Profile picture — read from Supabase user metadata first
-        // This survives OTA updates because it lives in the database, not on device storage
-        if (uid) {
-          const metaPic = user?.user_metadata?.profile_picture_uri as string | undefined;
-          if (metaPic) {
-            setProfileUri(metaPic);
-            await AsyncStorage.setItem(`jf_profile_pic_${uid}`, metaPic);
-          } else {
-            // Fall back to local cache for instant load
-            const localCache = await AsyncStorage.getItem(`jf_profile_pic_${uid}`);
-            if (localCache) setProfileUri(localCache);
-          }
-        }
       } catch { }
     })();
   }, []);
@@ -127,39 +108,18 @@ export default function MoreScreen() {
     await AsyncStorage.setItem(storageKey, JSON.stringify(data));
   };
 
-  // ── Profile picture picker ───────────────────────────────────────────────
-  const handlePickProfilePic = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Please allow access to your photo library to set a profile picture.');
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.4,
-      base64: true,
-    });
-    if (result.canceled || !result.assets[0]) return;
-
-    const dataUri = `data:image/jpeg;base64,${result.assets[0].base64}`;
-    setProfileUri(dataUri);
-
-    // Save to Supabase user metadata — persists across OTA updates and reinstalls
-    try {
-      const { supabase } = await import('../../lib/supabase');
-      await supabase.auth.updateUser({ data: { profile_picture_uri: dataUri } });
-      if (userId) await AsyncStorage.setItem(`jf_profile_pic_${userId}`, dataUri);
-    } catch { }
+  const resetForm = () => {
+    setFLabel(''); setFAmount(''); setFFreq('monthly'); setFDay('25');
+    setFEmoji('briefcase'); setFSaved(false); setEditingIncome(null);
   };
 
-  const resetForm = () => { setFLabel(''); setFAmount(''); setFFreq('monthly'); setFDay('25'); setFEmoji('💼'); setFSaved(false); setEditingIncome(null); };
   const openAdd = () => { resetForm(); setShowAddIncome(true); };
+
   const openEdit = (src: IncomeSource) => {
     setEditingIncome(src);
     setFLabel(src.label); setFAmount(src.amount.toString());
-    setFFreq(src.frequency); setFDay(src.paydayDay.toString()); setFEmoji(src.emoji);
+    setFFreq(src.frequency); setFDay(src.paydayDay.toString());
+    setFEmoji(src.emoji || 'briefcase');
     setShowAddIncome(true);
   };
 
@@ -170,7 +130,9 @@ export default function MoreScreen() {
       label: fLabel, amount: parseFloat(fAmount),
       frequency: fFreq, paydayDay: parseInt(fDay) || 1, emoji: fEmoji,
     };
-    const updated = editingIncome ? sources.map(s => s.id === editingIncome.id ? entry : s) : [...sources, entry];
+    const updated = editingIncome
+      ? sources.map(s => s.id === editingIncome.id ? entry : s)
+      : [...sources, entry];
     await saveSources(updated);
     setFSaved(true);
     setTimeout(() => { setShowAddIncome(false); resetForm(); }, 1200);
@@ -198,32 +160,15 @@ export default function MoreScreen() {
     <View style={{ flex: 1, backgroundColor: c.dark }}>
       <StarBackground />
 
-      {/* contentContainerStyle paddingBottom ensures bottom content is never hidden behind the tab bar */}
       <ScrollView
         style={{ flex: 1, paddingHorizontal: 20 }}
         contentContainerStyle={{ paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 60, marginBottom: 28 }}>
-          <View>
-            <Text style={{ color: c.text, fontSize: 26, fontWeight: '900' }}>{t('more')}</Text>
-            <Text style={{ color: c.muted, fontSize: 14, marginTop: 4 }}>{t('allFeatures')}</Text>
-          </View>
-
-          {/* Profile picture — stored in Supabase, survives OTA updates */}
-          <TouchableOpacity onPress={handlePickProfilePic} style={{ position: 'relative' }}>
-            {profileUri ? (
-              <Image source={{ uri: profileUri }} style={{ width: 52, height: 52, borderRadius: 26, borderWidth: 2, borderColor: c.accent }} />
-            ) : (
-              <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: c.accent + '22', borderWidth: 2, borderColor: c.accent + '44', justifyContent: 'center', alignItems: 'center' }}>
-                <Ionicons name="person" size={26} color={c.accent} />
-              </View>
-            )}
-            <View style={{ position: 'absolute', bottom: 0, right: 0, width: 18, height: 18, borderRadius: 9, backgroundColor: c.accent, justifyContent: 'center', alignItems: 'center' }}>
-              <Ionicons name="camera" size={10} color="#fff" />
-            </View>
-          </TouchableOpacity>
+        {/* Header — no profile picture */}
+        <View style={{ marginTop: 60, marginBottom: 28 }}>
+          <Text style={{ color: c.text, fontSize: 26, fontWeight: '900' }}>{t('more')}</Text>
+          <Text style={{ color: c.muted, fontSize: 14, marginTop: 4 }}>{t('allFeatures')}</Text>
         </View>
 
         {/* Features */}
@@ -242,7 +187,9 @@ export default function MoreScreen() {
                   <Text style={{ color: c.text, fontSize: 15, fontWeight: '700' }}>{item.label}</Text>
                   <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>{item.sub}</Text>
                 </View>
-                {locked ? <Ionicons name="lock-closed" size={16} color={c.muted} /> : <Ionicons name="chevron-forward" size={18} color={c.muted} />}
+                {locked
+                  ? <Ionicons name="lock-closed" size={16} color={c.muted} />
+                  : <Ionicons name="chevron-forward" size={18} color={c.muted} />}
               </TouchableOpacity>
             );
           })}
@@ -296,7 +243,7 @@ export default function MoreScreen() {
               {sources.map((src) => (
                 <View key={src.id} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderTopWidth: 1, borderTopColor: c.border, gap: 12 }}>
                   <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: '#00D4AA18', justifyContent: 'center', alignItems: 'center' }}>
-                    <Text style={{ fontSize: 22 }}>{src.emoji}</Text>
+                    <Ionicons name={(src.emoji || 'briefcase') as any} size={22} color="#00D4AA" />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: c.text, fontSize: 14, fontWeight: '700' }}>{src.label}</Text>
@@ -307,8 +254,12 @@ export default function MoreScreen() {
                   <View style={{ alignItems: 'flex-end', gap: 6 }}>
                     <Text style={{ color: '#00D4AA', fontSize: 14, fontWeight: '800' }}>{formatAmount(src.amount)}</Text>
                     <View style={{ flexDirection: 'row', gap: 10 }}>
-                      <TouchableOpacity onPress={() => openEdit(src)}><Ionicons name="create-outline" size={16} color={c.accent} /></TouchableOpacity>
-                      <TouchableOpacity onPress={() => handleDelete(src.id)}><Ionicons name="trash-outline" size={16} color="#FF6B6B" /></TouchableOpacity>
+                      <TouchableOpacity onPress={() => openEdit(src)}>
+                        <Ionicons name="create-outline" size={16} color={c.accent} />
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => handleDelete(src.id)}>
+                        <Ionicons name="trash-outline" size={16} color="#FF6B6B" />
+                      </TouchableOpacity>
                     </View>
                   </View>
                 </View>
@@ -412,11 +363,17 @@ export default function MoreScreen() {
                   {editingIncome ? t('editIncome') : t('addIncomeSource')}
                 </Text>
                 <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 6 }}>{t('incomeSource')}</Text>
-                <TextInput style={{ backgroundColor: c.card2, borderRadius: 12, padding: 14, color: c.text, fontSize: 15, borderWidth: 1, borderColor: c.border, marginBottom: 14 }}
-                  placeholder="e.g. Main Job, Freelance" placeholderTextColor={c.muted} value={fLabel} onChangeText={setFLabel} />
+                <TextInput
+                  style={{ backgroundColor: c.card2, borderRadius: 12, padding: 14, color: c.text, fontSize: 15, borderWidth: 1, borderColor: c.border, marginBottom: 14 }}
+                  placeholder="e.g. Main Job, Freelance" placeholderTextColor={c.muted}
+                  value={fLabel} onChangeText={setFLabel}
+                />
                 <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 6 }}>{t('salaryAmount')} ({currencySymbol})</Text>
-                <TextInput style={{ backgroundColor: c.card2, borderRadius: 12, padding: 14, color: c.text, fontSize: 15, borderWidth: 1, borderColor: c.border, marginBottom: 14 }}
-                  placeholder="e.g. 2500" placeholderTextColor={c.muted} keyboardType="decimal-pad" value={fAmount} onChangeText={setFAmount} />
+                <TextInput
+                  style={{ backgroundColor: c.card2, borderRadius: 12, padding: 14, color: c.text, fontSize: 15, borderWidth: 1, borderColor: c.border, marginBottom: 14 }}
+                  placeholder="e.g. 2500" placeholderTextColor={c.muted}
+                  keyboardType="decimal-pad" value={fAmount} onChangeText={setFAmount}
+                />
                 <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 8 }}>{t('incomeFrequency')}</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
                   {PAY_FREQS.map(f => (
@@ -427,20 +384,24 @@ export default function MoreScreen() {
                   ))}
                 </View>
                 <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 6 }}>Payday (1-31)</Text>
-                <TextInput style={{ backgroundColor: c.card2, borderRadius: 12, padding: 14, color: c.text, fontSize: 15, borderWidth: 1, borderColor: c.border, marginBottom: 14 }}
-                  placeholder="e.g. 25" placeholderTextColor={c.muted} keyboardType="number-pad" value={fDay} onChangeText={setFDay} />
+                <TextInput
+                  style={{ backgroundColor: c.card2, borderRadius: 12, padding: 14, color: c.text, fontSize: 15, borderWidth: 1, borderColor: c.border, marginBottom: 14 }}
+                  placeholder="e.g. 25" placeholderTextColor={c.muted}
+                  keyboardType="number-pad" value={fDay} onChangeText={setFDay}
+                />
                 <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 8 }}>{t('pickIcon')}</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
-                  {INCOME_EMOJIS.map(ic => (
+                  {INCOME_ICONS.map(ic => (
                     <TouchableOpacity key={ic} onPress={() => setFEmoji(ic)}
                       style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: c.card2, justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, borderColor: fEmoji === ic ? '#00D4AA' : 'transparent' }}>
-                      <Text style={{ fontSize: 22 }}>{ic}</Text>
+                      <Ionicons name={ic as any} size={22} color={fEmoji === ic ? '#00D4AA' : c.muted} />
                     </TouchableOpacity>
                   ))}
                 </View>
                 {fSaved ? (
-                  <View style={{ backgroundColor: '#00D4AA', borderRadius: 14, padding: 16, alignItems: 'center' }}>
-                    <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800' }}>✓ {t('incomeAdded')}</Text>
+                  <View style={{ backgroundColor: '#00D4AA', borderRadius: 14, padding: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}>
+                    <Ionicons name="checkmark-circle" size={18} color="#fff" />
+                    <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800' }}>{t('incomeAdded')}</Text>
                   </View>
                 ) : (
                   <View style={{ flexDirection: 'row', gap: 10 }}>

@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import React, { useRef, useState } from 'react';
 import {
-  Animated, Dimensions, KeyboardAvoidingView, Platform,
+  Animated, Dimensions, Keyboard, KeyboardAvoidingView, Platform,
   ScrollView, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import StarBackground from '../components/StarBackground';
@@ -91,7 +91,10 @@ export default function OnboardingScreen() {
     Animated.spring(progressAnim, { toValue: i / (TOTAL - 1), useNativeDriver: false, speed: 20 }).start();
   };
 
-  const next = () => { if (cur < TOTAL - 1) goTo(cur + 1); else finish(); };
+  const next = () => {
+    Keyboard.dismiss();
+    if (cur < TOTAL - 1) goTo(cur + 1); else finish();
+  };
   const back = () => { if (cur > 0) goTo(cur - 1); };
 
   const toggleSub = (subName: string) => {
@@ -189,8 +192,18 @@ export default function OnboardingScreen() {
   });
 
   const isLastSlide = cur === TOTAL - 1;
-  const isGoalSlide = cur === TOTAL - 2;
-  const canContinue = !isGoalSlide || !!goal;
+
+  // Per-slide validation — what must be filled before continuing
+  const canContinue = (() => {
+    switch (cur) {
+      case 1: return name.trim().length >= 2;        // Name: at least 2 chars
+      case 2: return !!currency;                      // Currency: always has default
+      case 3: return !!income && parseFloat(income) > 0; // Income: must enter amount
+      case 4: return true;                            // Subscriptions: optional
+      case 5: return !!goal;                          // Goal: must pick one
+      default: return true;
+    }
+  })();
 
   return (
     <KeyboardAvoidingView
@@ -210,8 +223,8 @@ export default function OnboardingScreen() {
         </TouchableOpacity>
       )}
 
-      {/* Skip */}
-      {!isLastSlide && (
+      {/* Skip — only show on optional slides (currency, subscriptions) */}
+      {!isLastSlide && (cur === 2 || cur === 4) && (
         <TouchableOpacity onPress={finish} style={{ position: 'absolute', top: 52, right: 24, zIndex: 10, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 50, paddingHorizontal: 16, paddingVertical: 8 }}>
           <Text style={{ color: '#7B7B9E', fontSize: 13, fontWeight: '600' }}>Skip</Text>
         </TouchableOpacity>
@@ -260,9 +273,6 @@ export default function OnboardingScreen() {
             returnKeyType="next"
             onSubmitEditing={next}
           />
-          <TouchableOpacity onPress={next} style={{ alignItems: 'center', paddingVertical: 8 }}>
-            <Text style={{ color: '#7B7B9E', fontSize: 13, fontWeight: '600' }}>Skip for now</Text>
-          </TouchableOpacity>
         </View>
 
         {/* ── Slide 3: Currency ── */}
@@ -328,9 +338,6 @@ export default function OnboardingScreen() {
               </TouchableOpacity>
             ))}
           </View>
-          <TouchableOpacity onPress={() => { setIncome(''); next(); }} style={{ alignItems: 'center', paddingVertical: 16 }}>
-            <Text style={{ color: '#7B7B9E', fontSize: 13, fontWeight: '600' }}>Prefer not to say</Text>
-          </TouchableOpacity>
         </View>
 
         {/* ── Slide 5: Subscriptions ── */}
@@ -522,11 +529,19 @@ export default function OnboardingScreen() {
             ))}
           </View>
           <TouchableOpacity
-            style={{ backgroundColor: ACCENT, borderRadius: 18, padding: 18, alignItems: 'center', opacity: canContinue ? 1 : 0.45 }}
+            style={{ backgroundColor: canContinue ? ACCENT : '#2a2a4a', borderRadius: 18, padding: 18, alignItems: 'center' }}
             onPress={next}
             disabled={!canContinue}>
-            <Text style={{ color: '#fff', fontSize: 17, fontWeight: '900' }}>Continue</Text>
+            <Text style={{ color: canContinue ? '#fff' : '#7B7B9E', fontSize: 17, fontWeight: '900' }}>Continue</Text>
           </TouchableOpacity>
+          {!canContinue && (
+            <Text style={{ color: '#7B7B9E', fontSize: 13, textAlign: 'center', marginTop: 12 }}>
+              {cur === 1 ? 'Enter your name to continue'
+                : cur === 3 ? 'Enter your monthly income to continue'
+                  : cur === 5 ? 'Pick a goal to continue'
+                    : ''}
+            </Text>
+          )}
         </View>
       )}
     </KeyboardAvoidingView>

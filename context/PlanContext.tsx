@@ -6,83 +6,83 @@ export type Plan = 'free' | 'trial' | 'pro' | 'premium' | 'expired';
 export const planFeatures = {
   free: {
     unlimitedTransactions: false,
-    yearlyBudget:          false,
-    unlimitedGoals:        false,
-    receiptPhoto:          false,
-    advancedCharts:        false,
-    calendarView:          false,
-    themes:                false,
-    customTheme:           false,
-    investmentTracking:    false,
-    assetGraph:            false,
-    doubleEntry:           false,
-    cardTracking:          false,
-    advancedFiltering:     false,
-    adFree:                false,
+    yearlyBudget: false,
+    unlimitedGoals: false,
+    receiptPhoto: false,
+    advancedCharts: false,
+    calendarView: false,
+    themes: false,
+    customTheme: false,
+    investmentTracking: false,
+    assetGraph: false,
+    doubleEntry: false,
+    cardTracking: false,
+    advancedFiltering: false,
+    adFree: false,
   },
   trial: {
     unlimitedTransactions: true,
-    yearlyBudget:          true,
-    unlimitedGoals:        true,
-    receiptPhoto:          true,
-    advancedCharts:        true,
-    calendarView:          true,
-    themes:                true,
-    customTheme:           true,
-    investmentTracking:    true,
-    assetGraph:            true,
-    doubleEntry:           true,
-    cardTracking:          true,
-    advancedFiltering:     true,
-    adFree:                true,
+    yearlyBudget: true,
+    unlimitedGoals: true,
+    receiptPhoto: true,
+    advancedCharts: true,
+    calendarView: true,
+    themes: true,
+    customTheme: true,
+    investmentTracking: true,
+    assetGraph: true,
+    doubleEntry: true,
+    cardTracking: true,
+    advancedFiltering: true,
+    adFree: true,
   },
   pro: {
     unlimitedTransactions: true,
-    yearlyBudget:          true,
-    unlimitedGoals:        false,
-    receiptPhoto:          true,
-    advancedCharts:        true,
-    calendarView:          true,
-    themes:                true,
-    customTheme:           false,
-    investmentTracking:    false,
-    assetGraph:            false,
-    doubleEntry:           false,
-    cardTracking:          true,
-    advancedFiltering:     true,
-    adFree:                true,
+    yearlyBudget: true,
+    unlimitedGoals: false,
+    receiptPhoto: true,
+    advancedCharts: true,
+    calendarView: true,
+    themes: true,
+    customTheme: false,
+    investmentTracking: false,
+    assetGraph: false,
+    doubleEntry: false,
+    cardTracking: true,
+    advancedFiltering: true,
+    adFree: true,
   },
   premium: {
     unlimitedTransactions: true,
-    yearlyBudget:          true,
-    unlimitedGoals:        true,
-    receiptPhoto:          true,
-    advancedCharts:        true,
-    calendarView:          true,
-    themes:                true,
-    customTheme:           true,
-    investmentTracking:    true,
-    assetGraph:            true,
-    doubleEntry:           true,
-    cardTracking:          true,
-    advancedFiltering:     true,
-    adFree:                true,
+    yearlyBudget: true,
+    unlimitedGoals: true,
+    receiptPhoto: true,
+    advancedCharts: true,
+    calendarView: true,
+    themes: true,
+    customTheme: true,
+    investmentTracking: true,
+    assetGraph: true,
+    doubleEntry: true,
+    cardTracking: true,
+    advancedFiltering: true,
+    adFree: true,
   },
   expired: {
     unlimitedTransactions: false,
-    yearlyBudget:          false,
-    unlimitedGoals:        false,
-    receiptPhoto:          false,
-    advancedCharts:        false,
-    calendarView:          false,
-    themes:                false,
-    customTheme:           false,
-    investmentTracking:    false,
-    assetGraph:            false,
-    doubleEntry:           false,
-    cardTracking:          false,
-    advancedFiltering:     false,
-    adFree:                false,
+    yearlyBudget: false,
+    unlimitedGoals: false,
+    receiptPhoto: false,
+    advancedCharts: false,
+    calendarView: false,
+    themes: false,
+    customTheme: false,
+    investmentTracking: false,
+    assetGraph: false,
+    doubleEntry: false,
+    cardTracking: false,
+    advancedFiltering: false,
+    adFree: false,
   },
 };
 
@@ -105,13 +105,13 @@ export type PlanContextType = {
 const PlanContext = createContext<PlanContextType>({
   plan: 'free',
   hasFeature: () => false,
-  upgradeTo: async () => {},
-  resetPlan: async () => {},
+  upgradeTo: async () => { },
+  resetPlan: async () => { },
   trialDaysLeft: 0,
   needsPaywall: false,
   showTrialPrompt: false,
-  dismissTrialPrompt: async () => {},
-  startTrial: async () => {},
+  dismissTrialPrompt: async () => { },
+  startTrial: async () => { },
   maxTransactions: 10,
   maxGoals: 1,
 });
@@ -119,8 +119,8 @@ const PlanContext = createContext<PlanContextType>({
 const TRIAL_DAYS = 3;
 
 export const PlanProvider = ({ children }: { children: React.ReactNode }) => {
-  const [plan, setPlan]                     = useState<Plan>('free');
-  const [trialDaysLeft, setTrialDaysLeft]   = useState(0);
+  const [plan, setPlan] = useState<Plan>('free');
+  const [trialDaysLeft, setTrialDaysLeft] = useState(0);
   const [showTrialPrompt, setShowTrialPrompt] = useState(false);
 
   useEffect(() => {
@@ -140,7 +140,7 @@ export const PlanProvider = ({ children }: { children: React.ReactNode }) => {
 
         // Trial started — check if still active
         if (trialStart) {
-          const start    = new Date(trialStart).getTime();
+          const start = new Date(trialStart).getTime();
           const daysLeft = Math.max(
             0,
             Math.ceil((TRIAL_DAYS * 86400000 - (Date.now() - start)) / 86400000)
@@ -157,8 +157,16 @@ export const PlanProvider = ({ children }: { children: React.ReactNode }) => {
           return;
         }
 
-        // Brand new user — show trial prompt once
-        if (!promptSeen) setShowTrialPrompt(true);
+        // Already on free plan explicitly
+        if (savedPlan === 'free') {
+          setPlan('free');
+          return;
+        }
+
+        const onboardingDone = await AsyncStorage.getItem('onboarding_complete');
+
+        // Only show trial prompt if onboarding is complete AND prompt not seen yet
+        if (onboardingDone && !promptSeen) setShowTrialPrompt(true);
         setPlan('free');
       } catch (e) {
         console.warn('PlanContext load error:', e);
@@ -177,9 +185,9 @@ export const PlanProvider = ({ children }: { children: React.ReactNode }) => {
   // Pro: up to 5 goals
   // Premium/Trial: unlimited
   const maxTransactions = plan === 'free' ? 10 : Infinity;
-  const maxGoals        = plan === 'free' ? 1
-                        : plan === 'pro'  ? 5
-                        : Infinity;
+  const maxGoals = plan === 'free' ? 1
+    : plan === 'pro' ? 5
+      : Infinity;
 
   const startTrial = async () => {
     await AsyncStorage.setItem('trial_start', new Date().toISOString());

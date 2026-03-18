@@ -1,10 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  Animated, Dimensions, Keyboard, KeyboardAvoidingView, Platform,
-  ScrollView, Text, TextInput, TouchableOpacity, View,
+  Animated, Dimensions, Keyboard, KeyboardAvoidingView, Modal,
+  Platform, ScrollView, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import StarBackground from '../components/StarBackground';
 import { supabase } from '../lib/supabase';
@@ -24,17 +24,11 @@ const CURRENCIES = [
   { key: 'NZD', symbol: 'NZ$', name: 'New Zealand Dollar' },
 ];
 
-const CURRENCY_ICONS: Record<string, { icon: string; color: string }> = {
-  GBP: { icon: 'cash', color: '#00D4AA' },
-  USD: { icon: 'cash', color: '#00D4AA' },
-  EUR: { icon: 'cash', color: '#6C63FF' },
-  CAD: { icon: 'cash', color: '#FF6B6B' },
-  AUD: { icon: 'cash', color: '#FF9F43' },
-  JPY: { icon: 'cash', color: '#FF6B6B' },
-  INR: { icon: 'cash', color: '#FFD700' },
-  CHF: { icon: 'cash', color: '#00BFFF' },
-  SEK: { icon: 'cash', color: '#a89fff' },
-  NZD: { icon: 'cash', color: '#00D4AA' },
+const CURRENCY_ICONS: Record<string, { color: string }> = {
+  GBP: { color: '#00D4AA' }, USD: { color: '#00D4AA' }, EUR: { color: '#6C63FF' },
+  CAD: { color: '#FF6B6B' }, AUD: { color: '#FF9F43' }, JPY: { color: '#FF6B6B' },
+  INR: { color: '#FFD700' }, CHF: { color: '#00BFFF' }, SEK: { color: '#a89fff' },
+  NZD: { color: '#00D4AA' },
 };
 
 const GOALS = [
@@ -68,8 +62,6 @@ const COMMON_SUBS = [
 const ACCENT = '#6C63FF';
 const TOTAL = 7;
 
-type SubEntry = { name: string; price: string };
-
 export default function OnboardingScreen() {
   const router = useRouter();
   const scrollRef = useRef<ScrollView>(null);
@@ -82,6 +74,20 @@ export default function OnboardingScreen() {
   const [goal, setGoal] = useState('');
   const [subPrices, setSubPrices] = useState<Record<string, string>>({});
   const [activeSub, setActiveSub] = useState<string | null>(null);
+  const [showTrialPrompt, setShowTrialPrompt] = useState(false);
+
+  // Pre-fill name from signup
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        const fullName = user?.user_metadata?.full_name as string | undefined;
+        if (fullName && fullName.trim().length > 0) {
+          setName(fullName.trim().split(' ')[0]);
+        }
+      } catch { }
+    })();
+  }, []);
 
   const goTo = (i: number) => {
     scrollRef.current?.scrollTo({ x: i * width, animated: true });
@@ -89,10 +95,7 @@ export default function OnboardingScreen() {
     Animated.spring(progressAnim, { toValue: i / (TOTAL - 1), useNativeDriver: false, speed: 20 }).start();
   };
 
-  const next = () => {
-    Keyboard.dismiss();
-    if (cur < TOTAL - 1) goTo(cur + 1); else finish();
-  };
+  const next = () => { Keyboard.dismiss(); if (cur < TOTAL - 1) goTo(cur + 1); };
   const back = () => { if (cur > 0) goTo(cur - 1); };
 
   const toggleSub = (subName: string) => {
@@ -110,7 +113,7 @@ export default function OnboardingScreen() {
 
   const selectedSubs = Object.keys(subPrices);
 
-  const finish = async () => {
+  const saveAndNavigate = async (plan: 'free' | 'trial' | 'pro') => {
     const curr = CURRENCIES.find(c => c.key === currency)!;
 
     let uid = 'local';
@@ -119,7 +122,6 @@ export default function OnboardingScreen() {
       if (user?.id) uid = user.id;
     } catch { }
 
-    // Save all onboarding data to AsyncStorage
     await AsyncStorage.multiSet([
       ['onboarding_complete', 'true'],
       ['jf_currency', currency],
@@ -130,83 +132,64 @@ export default function OnboardingScreen() {
       ['jf_user_name', name],
     ]);
 
-    // Save name to Supabase metadata so home screen greeting works immediately
-    try {
-      await supabase.auth.updateUser({ data: { full_name: name } });
-    } catch { }
+    try { await supabase.auth.updateUser({ data: { full_name: name } }); } catch { }
 
-    // Save income source
     if (income && parseFloat(income) > 0) {
-      const incomeEntry = [{
+      await AsyncStorage.setItem(`polar_income_${uid}`, JSON.stringify([{
         id: Date.now().toString(),
         label: 'Main Income',
         amount: parseFloat(income),
         frequency: 'monthly',
         paydayDay: 25,
         emoji: 'briefcase',
-      }];
-      await AsyncStorage.setItem(`polar_income_${uid}`, JSON.stringify(incomeEntry));
+      }]));
     }
 
-    // Save subscriptions as recurring transactions (for home screen)
     if (selectedSubs.length > 0) {
-      const subTxns = selectedSubs
-        .filter(s => s !== 'Other')
-        .map(subName => {
-          const sub = COMMON_SUBS.find(s => s.name === subName)!;
-          const price = parseFloat(subPrices[subName] || '0') || 9.99;
-          return {
-            id: Date.now().toString() + Math.random().toString(36).slice(2),
-            icon: sub.icon,
-            name: subName,
-            cat: 'Subscriptions',
-            amount: -Math.abs(price),
-            type: 'expense',
-            date: new Date().toLocaleDateString('en-GB'),
-            recurring: true,
-            note: 'Added during setup',
-          };
-        });
+      const filtered = selectedSubs.filter(s => s !== 'Other');
+
+      // Save as transactions
+      const subTxns = filtered.map(subName => {
+        const sub = COMMON_SUBS.find(s => s.name === subName)!;
+        const price = parseFloat(subPrices[subName] || '0') || 9.99;
+        return {
+          id: Date.now().toString() + Math.random().toString(36).slice(2),
+          icon: sub.icon, name: subName, cat: 'Subscriptions',
+          amount: -Math.abs(price), type: 'expense',
+          date: new Date().toLocaleDateString('en-GB'),
+          recurring: true, note: 'Added during setup',
+        };
+      });
       await AsyncStorage.setItem('jf_onboarding_subs', JSON.stringify(subTxns));
-    }
 
-    // ── Save subscriptions as recurring bills (for Recurring Bills screen) ──
-    if (selectedSubs.length > 0) {
-      const bills = selectedSubs
-        .filter(s => s !== 'Other')
-        .map(subName => {
-          const sub = COMMON_SUBS.find(s => s.name === subName)!;
-          const price = parseFloat(subPrices[subName] || '0') || 9.99;
-          return {
-            id: Date.now().toString() + Math.random().toString(36).slice(2),
-            name: subName,
-            amount: price,
-            frequency: 'monthly',
-            nextDue: new Date().toLocaleDateString('en-GB'),
-            cardId: null,
-            icon: sub.icon,
-            color: sub.color,
-            active: true,
-          };
-        });
+      // Save as recurring bills (capped to 3 on free, all on pro/trial)
+      const billLimit = plan === 'free' ? 3 : filtered.length;
+      const bills = filtered.slice(0, billLimit).map(subName => {
+        const sub = COMMON_SUBS.find(s => s.name === subName)!;
+        const price = parseFloat(subPrices[subName] || '0') || 9.99;
+        return {
+          id: Date.now().toString() + Math.random().toString(36).slice(2),
+          name: subName, amount: price, frequency: 'monthly',
+          nextDue: new Date().toLocaleDateString('en-GB'),
+          cardId: null, icon: sub.icon, color: sub.color, active: true,
+        };
+      });
       await AsyncStorage.setItem(`jf_onboarding_bills_${uid}`, JSON.stringify(bills));
     }
 
-    await AsyncStorage.multiSet([
-      ['user_plan', 'free'],
-      ['trial_prompt_seen', 'true'],
-    ]);
+    if (plan === 'trial') {
+      await AsyncStorage.multiSet([
+        ['user_plan', 'trial'],
+        ['trial_start', new Date().toISOString()],
+        ['trial_prompt_seen', 'true'],
+      ]);
+    } else if (plan === 'pro') {
+      await AsyncStorage.multiSet([['user_plan', 'pro'], ['trial_prompt_seen', 'true']]);
+    } else {
+      await AsyncStorage.multiSet([['user_plan', 'free'], ['trial_prompt_seen', 'true']]);
+    }
 
     router.replace('/(tabs)' as any);
-  };
-
-  const activateTrial = async () => {
-    await AsyncStorage.multiSet([
-      ['user_plan', 'trial'],
-      ['trial_start', new Date().toISOString()],
-      ['trial_prompt_seen', 'true'],
-    ]);
-    finish();
   };
 
   const selectedCurr = CURRENCIES.find(c => c.key === currency)!;
@@ -229,9 +212,7 @@ export default function OnboardingScreen() {
   })();
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: '#0D0D1A' }}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: '#0D0D1A' }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <StarBackground />
 
       {/* Progress bar */}
@@ -239,28 +220,21 @@ export default function OnboardingScreen() {
         <Animated.View style={{ height: 3, backgroundColor: ACCENT, width: progressWidth, borderRadius: 3 }} />
       </View>
 
-      {/* Back button */}
+      {/* Back */}
       {cur > 0 && !isLastSlide && (
         <TouchableOpacity onPress={back} style={{ position: 'absolute', top: 52, left: 24, zIndex: 10, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 50, padding: 10 }}>
           <Ionicons name="chevron-back" size={18} color="#7B7B9E" />
         </TouchableOpacity>
       )}
 
-      {/* Skip — only show on optional slides */}
+      {/* Skip */}
       {!isLastSlide && (cur === 2 || cur === 4) && (
-        <TouchableOpacity onPress={finish} style={{ position: 'absolute', top: 52, right: 24, zIndex: 10, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 50, paddingHorizontal: 16, paddingVertical: 8 }}>
+        <TouchableOpacity onPress={() => saveAndNavigate('free')} style={{ position: 'absolute', top: 52, right: 24, zIndex: 10, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 50, paddingHorizontal: 16, paddingVertical: 8 }}>
           <Text style={{ color: '#7B7B9E', fontSize: 13, fontWeight: '600' }}>Skip</Text>
         </TouchableOpacity>
       )}
 
-      <ScrollView
-        ref={scrollRef}
-        horizontal
-        pagingEnabled
-        scrollEnabled={false}
-        showsHorizontalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        style={{ flex: 1 }}>
+      <ScrollView ref={scrollRef} horizontal pagingEnabled scrollEnabled={false} showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={{ flex: 1 }}>
 
         {/* ── Slide 1: Welcome ── */}
         <View style={{ width, flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 }}>
@@ -280,12 +254,8 @@ export default function OnboardingScreen() {
           <View style={{ width: 80, height: 80, borderRadius: 24, backgroundColor: '#00D4AA18', justifyContent: 'center', alignItems: 'center', marginBottom: 28, borderWidth: 1, borderColor: '#00D4AA33' }}>
             <Ionicons name="person" size={36} color="#00D4AA" />
           </View>
-          <Text style={{ color: '#E8E8F0', fontSize: 28, fontWeight: '900', marginBottom: 8 }}>
-            What should{'\n'}we call you?
-          </Text>
-          <Text style={{ color: '#7B7B9E', fontSize: 15, marginBottom: 32, lineHeight: 22 }}>
-            This is how we'll greet you every day.
-          </Text>
+          <Text style={{ color: '#E8E8F0', fontSize: 28, fontWeight: '900', marginBottom: 8 }}>What should{'\n'}we call you?</Text>
+          <Text style={{ color: '#7B7B9E', fontSize: 15, marginBottom: 32, lineHeight: 22 }}>This is how we'll greet you every day.</Text>
           <TextInput
             style={{ backgroundColor: '#13132A', borderRadius: 16, padding: 18, color: '#E8E8F0', fontSize: 20, fontWeight: '700', borderWidth: 1, borderColor: name ? '#00D4AA55' : 'rgba(108,99,255,0.2)', marginBottom: 12 }}
             placeholder="Your first name"
@@ -296,6 +266,11 @@ export default function OnboardingScreen() {
             returnKeyType="next"
             onSubmitEditing={next}
           />
+          {name.length >= 2 && (
+            <Text style={{ color: '#00D4AA', fontSize: 13, fontWeight: '600', marginTop: 4 }}>
+              Hi {name.split(' ')[0]}, great to have you!
+            </Text>
+          )}
         </View>
 
         {/* ── Slide 3: Currency ── */}
@@ -304,9 +279,7 @@ export default function OnboardingScreen() {
             <Ionicons name="cash" size={36} color="#FFD700" />
           </View>
           <Text style={{ color: '#E8E8F0', fontSize: 28, fontWeight: '900', marginBottom: 6 }}>Your currency</Text>
-          <Text style={{ color: '#7B7B9E', fontSize: 15, marginBottom: 20, lineHeight: 22 }}>
-            All amounts will show in your chosen currency.
-          </Text>
+          <Text style={{ color: '#7B7B9E', fontSize: 15, marginBottom: 20, lineHeight: 22 }}>All amounts will show in your chosen currency.</Text>
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
             {CURRENCIES.map(c => {
               const meta = CURRENCY_ICONS[c.key];
@@ -332,12 +305,8 @@ export default function OnboardingScreen() {
           <View style={{ width: 80, height: 80, borderRadius: 24, backgroundColor: '#FF9F4318', justifyContent: 'center', alignItems: 'center', marginBottom: 28, borderWidth: 1, borderColor: '#FF9F4333' }}>
             <Ionicons name="briefcase" size={36} color="#FF9F43" />
           </View>
-          <Text style={{ color: '#E8E8F0', fontSize: 28, fontWeight: '900', marginBottom: 8 }}>
-            Monthly income?
-          </Text>
-          <Text style={{ color: '#7B7B9E', fontSize: 15, marginBottom: 32, lineHeight: 22 }}>
-            Saved to your profile so your budgets and insights are accurate.
-          </Text>
+          <Text style={{ color: '#E8E8F0', fontSize: 28, fontWeight: '900', marginBottom: 8 }}>Monthly income?</Text>
+          <Text style={{ color: '#7B7B9E', fontSize: 15, marginBottom: 32, lineHeight: 22 }}>Used to calculate your budgets and left-to-spend balance.</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#13132A', borderRadius: 16, borderWidth: 1, borderColor: income ? '#FF9F4355' : 'rgba(108,99,255,0.2)', marginBottom: 16, overflow: 'hidden' }}>
             <View style={{ paddingHorizontal: 18, paddingVertical: 18, borderRightWidth: 1, borderRightColor: 'rgba(108,99,255,0.15)' }}>
               <Text style={{ color: '#7B7B9E', fontSize: 20, fontWeight: '800' }}>{selectedCurr.symbol}</Text>
@@ -368,11 +337,9 @@ export default function OnboardingScreen() {
           <View style={{ width: 80, height: 80, borderRadius: 24, backgroundColor: '#a89fff18', justifyContent: 'center', alignItems: 'center', marginBottom: 20, borderWidth: 1, borderColor: '#a89fff33' }}>
             <Ionicons name="repeat" size={36} color="#a89fff" />
           </View>
-          <Text style={{ color: '#E8E8F0', fontSize: 28, fontWeight: '900', marginBottom: 6 }}>
-            Your subscriptions
-          </Text>
+          <Text style={{ color: '#E8E8F0', fontSize: 28, fontWeight: '900', marginBottom: 6 }}>Your subscriptions</Text>
           <Text style={{ color: '#7B7B9E', fontSize: 14, marginBottom: 20, lineHeight: 21 }}>
-            Tap to select, then enter the monthly cost.
+            Tap to select, then enter the monthly cost. These will be added as recurring bills.
           </Text>
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
@@ -388,7 +355,6 @@ export default function OnboardingScreen() {
                 );
               })}
             </View>
-
             {selectedSubs.filter(s => s !== 'Other').length > 0 && (
               <View style={{ backgroundColor: '#13132A', borderRadius: 18, padding: 16, borderWidth: 1, borderColor: 'rgba(108,99,255,0.2)', gap: 10 }}>
                 <Text style={{ color: '#7B7B9E', fontSize: 12, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 4 }}>Monthly Cost</Text>
@@ -420,12 +386,8 @@ export default function OnboardingScreen() {
           <View style={{ width: 80, height: 80, borderRadius: 24, backgroundColor: ACCENT + '18', justifyContent: 'center', alignItems: 'center', marginBottom: 28, borderWidth: 1, borderColor: ACCENT + '33' }}>
             <Ionicons name="flag" size={36} color={ACCENT} />
           </View>
-          <Text style={{ color: '#E8E8F0', fontSize: 28, fontWeight: '900', marginBottom: 8 }}>
-            What's your{'\n'}main goal?
-          </Text>
-          <Text style={{ color: '#7B7B9E', fontSize: 15, marginBottom: 28, lineHeight: 22 }}>
-            We'll personalise your home screen around this.
-          </Text>
+          <Text style={{ color: '#E8E8F0', fontSize: 28, fontWeight: '900', marginBottom: 8 }}>What's your{'\n'}main goal?</Text>
+          <Text style={{ color: '#7B7B9E', fontSize: 15, marginBottom: 28, lineHeight: 22 }}>We'll personalise your home screen around this.</Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
             {GOALS.map(g => (
               <TouchableOpacity key={g.key} onPress={() => setGoal(g.key)}
@@ -435,25 +397,20 @@ export default function OnboardingScreen() {
               </TouchableOpacity>
             ))}
           </View>
-          <Text style={{ color: '#7B7B9E', fontSize: 12, marginTop: 20, textAlign: 'center' }}>
-            Tap a goal to select it, then continue
-          </Text>
+          <Text style={{ color: '#7B7B9E', fontSize: 12, marginTop: 20, textAlign: 'center' }}>Tap a goal to select it, then continue</Text>
         </View>
 
         {/* ── Slide 7: Choose Your Plan ── */}
-        <View style={{ width, flex: 1, paddingHorizontal: 22, paddingTop: 80 }}>
-          <Text style={{ color: '#E8E8F0', fontSize: 28, fontWeight: '900', textAlign: 'center', marginBottom: 6 }}>
-            Choose your plan
-          </Text>
-          <Text style={{ color: '#7B7B9E', fontSize: 14, textAlign: 'center', marginBottom: 24, lineHeight: 20 }}>
-            Start free or unlock everything with a 3-day Premium trial. No card needed.
-          </Text>
+        <View style={{ width, flex: 1, backgroundColor: '#0D0D1A' }}>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 22, paddingTop: 80, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
 
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+            <Text style={{ color: '#E8E8F0', fontSize: 28, fontWeight: '900', textAlign: 'center', marginBottom: 6 }}>Choose your plan</Text>
+            <Text style={{ color: '#7B7B9E', fontSize: 14, textAlign: 'center', marginBottom: 24, lineHeight: 20 }}>
+              Start free or unlock everything with a 3-day trial.
+            </Text>
 
             {/* Free */}
-            <TouchableOpacity
-              onPress={finish}
+            <TouchableOpacity activeOpacity={0.8} onPress={() => setShowTrialPrompt(true)}
               style={{ backgroundColor: '#13132A', borderRadius: 18, padding: 16, borderWidth: 1, borderColor: 'rgba(108,99,255,0.2)', marginBottom: 12 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 }}>
                 <View style={{ width: 38, height: 38, borderRadius: 10, backgroundColor: '#ffffff11', justifyContent: 'center', alignItems: 'center' }}>
@@ -464,7 +421,7 @@ export default function OnboardingScreen() {
                   <Text style={{ color: '#7B7B9E', fontSize: 12 }}>Always free</Text>
                 </View>
               </View>
-              {['Up to 10 transactions', '1 saving goal', 'Basic budgets & calendar'].map((f, i) => (
+              {['20 transactions', '1 saving goal & 1 budget', 'Basic spending stats & net worth', 'Up to 3 recurring bills'].map((f, i) => (
                 <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 5 }}>
                   <Ionicons name="checkmark" size={13} color="#7B7B9E" />
                   <Text style={{ color: '#7B7B9E', fontSize: 12 }}>{f}</Text>
@@ -476,14 +433,7 @@ export default function OnboardingScreen() {
             </TouchableOpacity>
 
             {/* Pro */}
-            <TouchableOpacity
-              onPress={async () => {
-                await AsyncStorage.multiSet([
-                  ['user_plan', 'pro'],
-                  ['trial_prompt_seen', 'true'],
-                ]);
-                finish();
-              }}
+            <TouchableOpacity activeOpacity={0.8} onPress={() => saveAndNavigate('pro')}
               style={{ backgroundColor: '#13132A', borderRadius: 18, padding: 16, borderWidth: 1.5, borderColor: '#6C63FF66', marginBottom: 12 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 }}>
                 <View style={{ width: 38, height: 38, borderRadius: 10, backgroundColor: '#6C63FF22', justifyContent: 'center', alignItems: 'center' }}>
@@ -494,7 +444,7 @@ export default function OnboardingScreen() {
                   <Text style={{ color: '#6C63FF', fontSize: 12, fontWeight: '700' }}>£3.99 / month</Text>
                 </View>
               </View>
-              {['Unlimited transactions', 'Card & investment tracking', 'Up to 5 saving goals', 'Custom themes — no ads'].map((f, i) => (
+              {['Unlimited transactions & bills', 'Up to 5 goals & budgets', 'Calendar, search & filters', 'Custom themes · No ads', 'Card tracking & bank linking'].map((f, i) => (
                 <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 5 }}>
                   <Ionicons name="checkmark-circle" size={13} color="#6C63FF" />
                   <Text style={{ color: '#C0C0D8', fontSize: 12 }}>{f}</Text>
@@ -508,7 +458,7 @@ export default function OnboardingScreen() {
             {/* Premium */}
             <View style={{ backgroundColor: '#13132A', borderRadius: 18, padding: 16, borderWidth: 2, borderColor: '#FFD700AA', marginBottom: 8 }}>
               <View style={{ position: 'absolute', top: -11, right: 16, backgroundColor: '#FFD700', borderRadius: 50, paddingHorizontal: 12, paddingVertical: 4 }}>
-                <Text style={{ color: '#0D0D1A', fontSize: 10, fontWeight: '900' }}>3 DAYS FREE</Text>
+                <Text style={{ color: '#0D0D1A', fontSize: 10, fontWeight: '900' }}>3-DAY TRIAL</Text>
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 }}>
                 <View style={{ width: 38, height: 38, borderRadius: 10, backgroundColor: '#FFD70022', justifyContent: 'center', alignItems: 'center' }}>
@@ -516,33 +466,32 @@ export default function OnboardingScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={{ color: '#E8E8F0', fontSize: 15, fontWeight: '800' }}>Premium</Text>
-                  <Text style={{ color: '#FFD700', fontSize: 12, fontWeight: '700' }}>£7.99 / month · 3 days free</Text>
+                  <Text style={{ color: '#FFD700', fontSize: 12, fontWeight: '700' }}>£7.99 / month · 3-day free trial</Text>
                 </View>
               </View>
-              {['Everything in Pro', 'Live market signals & forecasts', 'Asset & property tracking', 'Unlimited goals · Tax helper · AI receipts'].map((f, i) => (
+              {['Everything in Pro', 'Unlimited goals & budgets', 'Live market signals & forecasts', 'Investment & asset tracking', 'Tax helper'].map((f, i) => (
                 <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 5 }}>
                   <Ionicons name="checkmark-circle" size={13} color="#FFD700" />
                   <Text style={{ color: '#C0C0D8', fontSize: 12 }}>{f}</Text>
                 </View>
               ))}
-              <TouchableOpacity
+              <TouchableOpacity activeOpacity={0.8}
                 style={{ backgroundColor: '#FFD700', borderRadius: 10, padding: 12, alignItems: 'center', marginTop: 10 }}
-                onPress={activateTrial}>
+                onPress={() => saveAndNavigate('trial')}>
                 <Text style={{ color: '#0D0D1A', fontSize: 14, fontWeight: '900' }}>Start 3-Day Free Trial</Text>
-                <Text style={{ color: '#0D0D1A88', fontSize: 11, marginTop: 2 }}>No card needed · Cancel anytime</Text>
+                <Text style={{ color: '#0D0D1A88', fontSize: 11, marginTop: 2 }}>Card required · Cancel anytime</Text>
               </TouchableOpacity>
             </View>
 
             <Text style={{ color: '#7B7B9E44', fontSize: 11, textAlign: 'center', marginTop: 8 }}>
               Subscriptions managed in Settings
             </Text>
-
           </ScrollView>
         </View>
 
       </ScrollView>
 
-      {/* Bottom controls — hidden on last slide */}
+      {/* Bottom controls */}
       {!isLastSlide && (
         <View style={{ paddingHorizontal: 28, paddingBottom: 52 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 6, marginBottom: 20 }}>
@@ -552,20 +501,54 @@ export default function OnboardingScreen() {
           </View>
           <TouchableOpacity
             style={{ backgroundColor: canContinue ? ACCENT : '#2a2a4a', borderRadius: 18, padding: 18, alignItems: 'center' }}
-            onPress={next}
-            disabled={!canContinue}>
+            onPress={next} disabled={!canContinue}>
             <Text style={{ color: canContinue ? '#fff' : '#7B7B9E', fontSize: 17, fontWeight: '900' }}>Continue</Text>
           </TouchableOpacity>
           {!canContinue && (
             <Text style={{ color: '#7B7B9E', fontSize: 13, textAlign: 'center', marginTop: 12 }}>
               {cur === 1 ? 'Enter your name to continue'
                 : cur === 3 ? 'Enter your monthly income to continue'
-                  : cur === 5 ? 'Pick a goal to continue'
-                    : ''}
+                  : cur === 5 ? 'Pick a goal to continue' : ''}
             </Text>
           )}
         </View>
       )}
+
+      {/* Trial prompt modal */}
+      <Modal visible={showTrialPrompt} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 28 }}>
+          <View style={{ backgroundColor: '#13132A', borderRadius: 24, padding: 28, width: '100%', borderWidth: 1.5, borderColor: '#FFD700AA' }}>
+            <View style={{ alignItems: 'center', marginBottom: 20 }}>
+              <View style={{ width: 64, height: 64, borderRadius: 20, backgroundColor: '#FFD70022', justifyContent: 'center', alignItems: 'center', marginBottom: 14 }}>
+                <Ionicons name="trophy" size={32} color="#FFD700" />
+              </View>
+              <Text style={{ color: '#E8E8F0', fontSize: 20, fontWeight: '900', textAlign: 'center', marginBottom: 8 }}>Before you go free…</Text>
+              <Text style={{ color: '#7B7B9E', fontSize: 14, textAlign: 'center', lineHeight: 21 }}>
+                Try Premium free for 3 days. Live market signals, unlimited goals, asset tracking and more.
+              </Text>
+            </View>
+            <View style={{ backgroundColor: '#0D0D1A', borderRadius: 14, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: 'rgba(255,215,0,0.2)' }}>
+              {['Live market signals & forecasts', 'Investment & asset tracking', 'Unlimited goals & tax helper'].map((f, i) => (
+                <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: i < 2 ? 8 : 0 }}>
+                  <Ionicons name="checkmark-circle" size={14} color="#FFD700" />
+                  <Text style={{ color: '#C0C0D8', fontSize: 13 }}>{f}</Text>
+                </View>
+              ))}
+            </View>
+            <TouchableOpacity activeOpacity={0.85}
+              style={{ backgroundColor: '#FFD700', borderRadius: 14, padding: 16, alignItems: 'center', marginBottom: 10 }}
+              onPress={() => { setShowTrialPrompt(false); saveAndNavigate('trial'); }}>
+              <Text style={{ color: '#0D0D1A', fontSize: 15, fontWeight: '900' }}>Start 3-Day Free Trial</Text>
+              <Text style={{ color: '#0D0D1A88', fontSize: 11, marginTop: 2 }}>Card required · Cancel anytime</Text>
+            </TouchableOpacity>
+            <TouchableOpacity activeOpacity={0.7} style={{ padding: 14, alignItems: 'center' }}
+              onPress={() => { setShowTrialPrompt(false); saveAndNavigate('free'); }}>
+              <Text style={{ color: '#7B7B9E', fontSize: 13, fontWeight: '600' }}>No thanks, continue on Free</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
     </KeyboardAvoidingView>
   );
 }

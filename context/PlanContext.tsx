@@ -3,6 +3,12 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 
 export type Plan = 'free' | 'trial' | 'pro' | 'premium' | 'expired';
 
+// ── Feature flags per plan ────────────────────────────────────────────────────
+// Free:    20 transactions, 1 goal, 1 budget, basic stats, net worth, bills (3)
+// Pro:     Unlimited txns, 5 goals, 5 budgets, calendar, unlimited bills,
+//          search/filters, themes, ad-free, manual card/investment, bank linking
+// Premium: Everything in Pro + unlimited goals/budgets, live market data,
+//          asset tracking, tax helper
 export const planFeatures = {
   free: {
     unlimitedTransactions: false,
@@ -17,8 +23,12 @@ export const planFeatures = {
     assetGraph: false,
     doubleEntry: false,
     cardTracking: false,
+    bankLinking: false,
     advancedFiltering: false,
     adFree: false,
+    taxHelper: false,
+    liveMarkets: false,
+    unlimitedBills: false,
   },
   trial: {
     unlimitedTransactions: true,
@@ -33,24 +43,32 @@ export const planFeatures = {
     assetGraph: true,
     doubleEntry: true,
     cardTracking: true,
+    bankLinking: true,
     advancedFiltering: true,
     adFree: true,
+    taxHelper: true,
+    liveMarkets: true,
+    unlimitedBills: true,
   },
   pro: {
     unlimitedTransactions: true,
     yearlyBudget: true,
     unlimitedGoals: false,
-    receiptPhoto: true,
+    receiptPhoto: false,
     advancedCharts: true,
     calendarView: true,
     themes: true,
-    customTheme: false,
+    customTheme: true,
     investmentTracking: false,
     assetGraph: false,
     doubleEntry: false,
     cardTracking: true,
+    bankLinking: true,
     advancedFiltering: true,
     adFree: true,
+    taxHelper: false,
+    liveMarkets: false,
+    unlimitedBills: true,
   },
   premium: {
     unlimitedTransactions: true,
@@ -65,8 +83,12 @@ export const planFeatures = {
     assetGraph: true,
     doubleEntry: true,
     cardTracking: true,
+    bankLinking: true,
     advancedFiltering: true,
     adFree: true,
+    taxHelper: true,
+    liveMarkets: true,
+    unlimitedBills: true,
   },
   expired: {
     unlimitedTransactions: false,
@@ -81,8 +103,12 @@ export const planFeatures = {
     assetGraph: false,
     doubleEntry: false,
     cardTracking: false,
+    bankLinking: false,
     advancedFiltering: false,
     adFree: false,
+    taxHelper: false,
+    liveMarkets: false,
+    unlimitedBills: false,
   },
 };
 
@@ -100,6 +126,8 @@ export type PlanContextType = {
   startTrial: () => Promise<void>;
   maxTransactions: number;
   maxGoals: number;
+  maxBudgets: number;
+  maxBills: number;
 };
 
 const PlanContext = createContext<PlanContextType>({
@@ -112,8 +140,10 @@ const PlanContext = createContext<PlanContextType>({
   showTrialPrompt: false,
   dismissTrialPrompt: async () => { },
   startTrial: async () => { },
-  maxTransactions: 10,
+  maxTransactions: 20,
   maxGoals: 1,
+  maxBudgets: 1,
+  maxBills: 3,
 });
 
 const TRIAL_DAYS = 3;
@@ -132,13 +162,11 @@ export const PlanProvider = ({ children }: { children: React.ReactNode }) => {
           AsyncStorage.getItem('trial_prompt_seen'),
         ]);
 
-        // Paid plan — use it immediately
         if (savedPlan === 'pro' || savedPlan === 'premium') {
           setPlan(savedPlan as Plan);
           return;
         }
 
-        // Trial started — check if still active
         if (trialStart) {
           const start = new Date(trialStart).getTime();
           const daysLeft = Math.max(
@@ -149,7 +177,6 @@ export const PlanProvider = ({ children }: { children: React.ReactNode }) => {
             setPlan('trial');
             setTrialDaysLeft(daysLeft);
           } else {
-            // Trial expired
             setPlan('expired');
             setTrialDaysLeft(0);
             await AsyncStorage.setItem('user_plan', 'expired');
@@ -157,15 +184,12 @@ export const PlanProvider = ({ children }: { children: React.ReactNode }) => {
           return;
         }
 
-        // Already on free plan explicitly
         if (savedPlan === 'free') {
           setPlan('free');
           return;
         }
 
         const onboardingDone = await AsyncStorage.getItem('onboarding_complete');
-
-        // Only show trial prompt if onboarding is complete AND prompt not seen yet
         if (onboardingDone && !promptSeen) setShowTrialPrompt(true);
         setPlan('free');
       } catch (e) {
@@ -181,13 +205,13 @@ export const PlanProvider = ({ children }: { children: React.ReactNode }) => {
 
   const needsPaywall = plan === 'expired';
 
-  // Free: 1 goal, can add (canAddGoal = goals.length < 1, so first goal is allowed)
-  // Pro: up to 5 goals
-  // Premium/Trial: unlimited
-  const maxTransactions = plan === 'free' ? 10 : Infinity;
-  const maxGoals = plan === 'free' ? 1
-    : plan === 'pro' ? 5
-      : Infinity;
+  // Free: 20 transactions, 1 goal, 1 budget, 3 bills
+  // Pro: unlimited transactions, 5 goals, 5 budgets, unlimited bills
+  // Premium/Trial: unlimited everything
+  const maxTransactions = plan === 'free' ? 20 : Infinity;
+  const maxGoals = plan === 'free' ? 1 : plan === 'pro' ? 5 : Infinity;
+  const maxBudgets = plan === 'free' ? 1 : plan === 'pro' ? 5 : Infinity;
+  const maxBills = plan === 'free' ? 3 : Infinity;
 
   const startTrial = async () => {
     await AsyncStorage.setItem('trial_start', new Date().toISOString());
@@ -201,7 +225,6 @@ export const PlanProvider = ({ children }: { children: React.ReactNode }) => {
   const dismissTrialPrompt = async () => {
     await AsyncStorage.setItem('trial_prompt_seen', 'true');
     setShowTrialPrompt(false);
-    // User stays on free plan
   };
 
   const upgradeTo = async (newPlan: Plan) => {
@@ -221,7 +244,7 @@ export const PlanProvider = ({ children }: { children: React.ReactNode }) => {
       plan, hasFeature, upgradeTo, resetPlan,
       trialDaysLeft, needsPaywall, showTrialPrompt,
       dismissTrialPrompt, startTrial,
-      maxTransactions, maxGoals,
+      maxTransactions, maxGoals, maxBudgets, maxBills,
     }}>
       {children}
     </PlanContext.Provider>

@@ -14,7 +14,6 @@ type Props = { visible: boolean; onClose: () => void; required?: boolean };
 const FAKE_CARD = '4242';
 const FAKE_EXPIRY = '12/27';
 
-// ── Detect what biometric is available ────────────────────────────────────────
 async function getBiometricType(): Promise<'faceid' | 'fingerprint' | 'none'> {
   try {
     const hasHardware = await LocalAuthentication.hasHardwareAsync();
@@ -30,7 +29,6 @@ async function getBiometricType(): Promise<'faceid' | 'fingerprint' | 'none'> {
   }
 }
 
-// ── Fake payment sheet ────────────────────────────────────────────────────────
 type PaymentSheetProps = {
   visible: boolean;
   planName: string;
@@ -63,7 +61,6 @@ function FakePaymentSheet({ visible, planName, planColor, price, isTrialPremium,
     }
   }, [visible]);
 
-  // Pulse animation for biometric icon
   useEffect(() => {
     if (stage === 'biometric') {
       const loop = Animated.loop(
@@ -79,45 +76,29 @@ function FakePaymentSheet({ visible, planName, planColor, price, isTrialPremium,
 
   const triggerBiometric = async () => {
     setStage('biometric');
-
     try {
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: isTrialPremium
-          ? `Start free trial — ${planName}`
-          : `Subscribe to ${planName}`,
+        promptMessage: isTrialPremium ? `Start free trial — ${planName}` : `Subscribe to ${planName}`,
         fallbackLabel: 'Use Passcode',
         cancelLabel: 'Cancel',
         disableDeviceFallback: false,
       });
-
       if (result.success) {
         setStage('processing');
         setTimeout(() => {
           setStage('success');
-          Animated.spring(successScale, {
-            toValue: 1, useNativeDriver: true, speed: 14, bounciness: 10,
-          }).start();
-          setTimeout(() => {
-            onSuccess();
-            setStage('sheet');
-            successScale.setValue(0);
-          }, 1800);
+          Animated.spring(successScale, { toValue: 1, useNativeDriver: true, speed: 14, bounciness: 10 }).start();
+          setTimeout(() => { onSuccess(); setStage('sheet'); successScale.setValue(0); }, 1800);
         }, 800);
       } else {
-        // User cancelled or failed
         setStage('sheet');
       }
     } catch {
-      // No biometric available — skip straight to processing
       setStage('processing');
       setTimeout(() => {
         setStage('success');
         Animated.spring(successScale, { toValue: 1, useNativeDriver: true, speed: 14, bounciness: 10 }).start();
-        setTimeout(() => {
-          onSuccess();
-          setStage('sheet');
-          successScale.setValue(0);
-        }, 1800);
+        setTimeout(() => { onSuccess(); setStage('sheet'); successScale.setValue(0); }, 1800);
       }, 1000);
     }
   };
@@ -126,126 +107,72 @@ function FakePaymentSheet({ visible, planName, planColor, price, isTrialPremium,
     if (biometricType !== 'none') {
       triggerBiometric();
     } else {
-      // No biometric — simulate processing directly
       setStage('processing');
       setTimeout(() => {
         setStage('success');
         Animated.spring(successScale, { toValue: 1, useNativeDriver: true, speed: 14, bounciness: 10 }).start();
-        setTimeout(() => {
-          onSuccess();
-          setStage('sheet');
-          successScale.setValue(0);
-        }, 1800);
+        setTimeout(() => { onSuccess(); setStage('sheet'); successScale.setValue(0); }, 1800);
       }, 1200);
     }
   };
 
   const biometricIcon = biometricType === 'faceid' ? 'scan' : 'finger-print';
   const biometricLabel = biometricType === 'faceid' ? 'Face ID' : 'Touch ID';
-  const biometricPrompt = biometricType === 'faceid'
-    ? 'Look at your iPhone to confirm'
-    : 'Place your finger on the sensor';
+  const biometricPrompt = biometricType === 'faceid' ? 'Look at your iPhone to confirm' : 'Place your finger on the sensor';
 
   if (!visible) return null;
 
   return (
     <Modal visible={visible} transparent animationType="fade">
       <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'flex-end' }}>
-        <TouchableOpacity
-          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
-          onPress={stage === 'sheet' ? onCancel : undefined}
-          activeOpacity={1}
-        />
-
+        <TouchableOpacity style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} onPress={stage === 'sheet' ? onCancel : undefined} activeOpacity={1} />
         <Animated.View style={{ transform: [{ translateY: slideAnim }] }}>
 
-          {/* ── Biometric prompt ── */}
           {stage === 'biometric' && (
-            <View style={{
-              backgroundColor: isIOS ? '#1C1C1E' : '#FAFAFA',
-              borderTopLeftRadius: 24, borderTopRightRadius: 24,
-              padding: 40, alignItems: 'center', gap: 16,
-            }}>
+            <View style={{ backgroundColor: isIOS ? '#1C1C1E' : '#FAFAFA', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 40, alignItems: 'center', gap: 16 }}>
               <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-                <View style={{
-                  width: 80, height: 80, borderRadius: 40,
-                  backgroundColor: isIOS ? '#2C2C2E' : '#E8F5E9',
-                  justifyContent: 'center', alignItems: 'center',
-                  borderWidth: 2, borderColor: isIOS ? '#48484A' : '#A5D6A7',
-                }}>
+                <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: isIOS ? '#2C2C2E' : '#E8F5E9', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: isIOS ? '#48484A' : '#A5D6A7' }}>
                   <Ionicons name={biometricIcon as any} size={38} color={isIOS ? '#fff' : '#2E7D32'} />
                 </View>
               </Animated.View>
-              <Text style={{ color: isIOS ? '#fff' : '#000', fontSize: 18, fontWeight: '700', textAlign: 'center' }}>
-                {biometricLabel}
-              </Text>
-              <Text style={{ color: isIOS ? '#8E8E93' : '#666', fontSize: 14, textAlign: 'center' }}>
-                {biometricPrompt}
-              </Text>
-              <TouchableOpacity
-                onPress={() => setStage('sheet')}
-                style={{ marginTop: 8, paddingHorizontal: 24, paddingVertical: 10, borderRadius: 20, backgroundColor: isIOS ? '#2C2C2E' : '#F5F5F5' }}>
+              <Text style={{ color: isIOS ? '#fff' : '#000', fontSize: 18, fontWeight: '700', textAlign: 'center' }}>{biometricLabel}</Text>
+              <Text style={{ color: isIOS ? '#8E8E93' : '#666', fontSize: 14, textAlign: 'center' }}>{biometricPrompt}</Text>
+              <TouchableOpacity onPress={() => setStage('sheet')} style={{ marginTop: 8, paddingHorizontal: 24, paddingVertical: 10, borderRadius: 20, backgroundColor: isIOS ? '#2C2C2E' : '#F5F5F5' }}>
                 <Text style={{ color: isIOS ? '#8E8E93' : '#666', fontSize: 14 }}>Cancel</Text>
               </TouchableOpacity>
             </View>
           )}
 
-          {/* ── Processing ── */}
           {stage === 'processing' && (
-            <View style={{
-              backgroundColor: isIOS ? '#1C1C1E' : '#FAFAFA',
-              borderTopLeftRadius: 24, borderTopRightRadius: 24,
-              padding: 40, alignItems: 'center', gap: 16,
-            }}>
-              <View style={{
-                width: 64, height: 64, borderRadius: 32,
-                backgroundColor: isIOS ? '#2C2C2E' : '#F5F5F5',
-                justifyContent: 'center', alignItems: 'center',
-              }}>
+            <View style={{ backgroundColor: isIOS ? '#1C1C1E' : '#FAFAFA', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 40, alignItems: 'center', gap: 16 }}>
+              <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: isIOS ? '#2C2C2E' : '#F5F5F5', justifyContent: 'center', alignItems: 'center' }}>
                 <Ionicons name="time-outline" size={30} color={isIOS ? '#fff' : '#333'} />
               </View>
               <Text style={{ color: isIOS ? '#fff' : '#000', fontSize: 17, fontWeight: '600' }}>Processing...</Text>
             </View>
           )}
 
-          {/* ── Success ── */}
           {stage === 'success' && (
-            <View style={{
-              backgroundColor: isIOS ? '#1C1C1E' : '#FAFAFA',
-              borderTopLeftRadius: 24, borderTopRightRadius: 24,
-              padding: 40, alignItems: 'center', gap: 16,
-            }}>
+            <View style={{ backgroundColor: isIOS ? '#1C1C1E' : '#FAFAFA', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 40, alignItems: 'center', gap: 16 }}>
               <Animated.View style={{ transform: [{ scale: successScale }] }}>
-                <View style={{
-                  width: 80, height: 80, borderRadius: 40,
-                  backgroundColor: '#00D4AA22',
-                  justifyContent: 'center', alignItems: 'center',
-                  borderWidth: 2, borderColor: '#00D4AA',
-                }}>
+                <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: '#00D4AA22', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#00D4AA' }}>
                   <Ionicons name="checkmark" size={40} color="#00D4AA" />
                 </View>
               </Animated.View>
-              <Text style={{ color: isIOS ? '#fff' : '#000', fontSize: 20, fontWeight: '700' }}>
-                {isTrialPremium ? 'Trial started!' : 'Subscribed!'}
-              </Text>
+              <Text style={{ color: isIOS ? '#fff' : '#000', fontSize: 20, fontWeight: '700' }}>{isTrialPremium ? 'Trial started!' : 'Subscribed!'}</Text>
               <Text style={{ color: isIOS ? '#8E8E93' : '#666', fontSize: 14, textAlign: 'center' }}>
-                {isTrialPremium
-                  ? `Your 3-day free trial has started`
-                  : `${planName} is now active`}
+                {isTrialPremium ? 'Your 3-day free trial has started' : `${planName} is now active`}
               </Text>
             </View>
           )}
 
-          {/* ── Main sheet ── */}
           {stage === 'sheet' && (
             isIOS ? (
-              // ── APPLE PAY ────────────────────────────────────────────────────
               <View style={{ backgroundColor: '#1C1C1E', borderTopLeftRadius: 24, borderTopRightRadius: 24 }}>
                 <View style={{ alignItems: 'center', paddingTop: 10, paddingBottom: 2 }}>
                   <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: '#3A3A3C' }} />
                 </View>
                 <View style={{ padding: 22 }}>
-                  {/* Merchant */}
                   <View style={{ alignItems: 'center', marginBottom: 20 }}>
                     <View style={{ width: 52, height: 52, borderRadius: 14, backgroundColor: planColor + '22', justifyContent: 'center', alignItems: 'center', marginBottom: 10, borderWidth: 1, borderColor: planColor + '44' }}>
                       <Ionicons name="bar-chart" size={26} color={planColor} />
@@ -253,8 +180,6 @@ function FakePaymentSheet({ visible, planName, planColor, price, isTrialPremium,
                     <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>James Finance</Text>
                     <Text style={{ color: '#8E8E93', fontSize: 13, marginTop: 2 }}>{planName}</Text>
                   </View>
-
-                  {/* Order summary */}
                   <View style={{ backgroundColor: '#2C2C2E', borderRadius: 14, padding: 16, marginBottom: 14, gap: 10 }}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                       <Text style={{ color: '#8E8E93', fontSize: 14 }}>{planName} subscription</Text>
@@ -269,18 +194,10 @@ function FakePaymentSheet({ visible, planName, planColor, price, isTrialPremium,
                     <View style={{ height: 1, backgroundColor: '#3A3A3C' }} />
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                       <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700' }}>Due today</Text>
-                      <Text style={{ color: isTrialPremium ? '#00D4AA' : '#fff', fontSize: 15, fontWeight: '700' }}>
-                        {isTrialPremium ? 'FREE' : price}
-                      </Text>
+                      <Text style={{ color: isTrialPremium ? '#00D4AA' : '#fff', fontSize: 15, fontWeight: '700' }}>{isTrialPremium ? 'FREE' : price}</Text>
                     </View>
-                    {isTrialPremium && (
-                      <Text style={{ color: '#636366', fontSize: 11, textAlign: 'center' }}>
-                        Then {price}/month after 3-day trial
-                      </Text>
-                    )}
+                    {isTrialPremium && <Text style={{ color: '#636366', fontSize: 11, textAlign: 'center' }}>Then {price}/month after 3-day trial</Text>}
                   </View>
-
-                  {/* Card */}
                   <View style={{ backgroundColor: '#2C2C2E', borderRadius: 14, padding: 14, marginBottom: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                     <View style={{ width: 38, height: 26, borderRadius: 5, backgroundColor: '#0057FF', justifyContent: 'center', alignItems: 'center' }}>
                       <Text style={{ color: '#fff', fontSize: 8, fontWeight: '900', letterSpacing: 0.3 }}>VISA</Text>
@@ -291,42 +208,26 @@ function FakePaymentSheet({ visible, planName, planColor, price, isTrialPremium,
                     </View>
                     <Ionicons name="chevron-forward" size={16} color="#636366" />
                   </View>
-
-                  {/* Apple Pay button */}
-                  <TouchableOpacity
-                    onPress={handlePay}
-                    style={{ backgroundColor: '#fff', borderRadius: 14, padding: 17, alignItems: 'center', marginBottom: 10, flexDirection: 'row', justifyContent: 'center', gap: 8 }}>
+                  <TouchableOpacity onPress={handlePay} style={{ backgroundColor: '#fff', borderRadius: 14, padding: 17, alignItems: 'center', marginBottom: 10, flexDirection: 'row', justifyContent: 'center', gap: 8 }}>
                     <Ionicons name="logo-apple" size={22} color="#000" />
-                    <Text style={{ color: '#000', fontSize: 17, fontWeight: '600' }}>
-                      Pay{isTrialPremium ? ' · Free Trial' : ''}
-                    </Text>
-                    {biometricType === 'faceid' && (
-                      <Ionicons name="scan" size={18} color="#555" />
-                    )}
-                    {biometricType === 'fingerprint' && (
-                      <Ionicons name="finger-print" size={18} color="#555" />
-                    )}
+                    <Text style={{ color: '#000', fontSize: 17, fontWeight: '600' }}>Pay{isTrialPremium ? ' · Free Trial' : ''}</Text>
+                    {biometricType === 'faceid' && <Ionicons name="scan" size={18} color="#555" />}
+                    {biometricType === 'fingerprint' && <Ionicons name="finger-print" size={18} color="#555" />}
                   </TouchableOpacity>
-
                   <TouchableOpacity onPress={onCancel} style={{ alignItems: 'center', padding: 12 }}>
                     <Text style={{ color: '#636366', fontSize: 15 }}>Cancel</Text>
                   </TouchableOpacity>
-
                   <Text style={{ color: '#48484A', fontSize: 11, textAlign: 'center', lineHeight: 16, marginTop: 4 }}>
-                    {isTrialPremium
-                      ? `Free for 3 days, then ${price}/month. Cancel in Settings before trial ends.`
-                      : `${price}/month. Cancel anytime in Settings.`}
+                    {isTrialPremium ? `Free for 3 days, then ${price}/month. Cancel in Settings before trial ends.` : `${price}/month. Cancel anytime in Settings.`}
                   </Text>
                 </View>
               </View>
             ) : (
-              // ── GOOGLE PAY ────────────────────────────────────────────────────
               <View style={{ backgroundColor: '#FAFAFA', borderTopLeftRadius: 24, borderTopRightRadius: 24 }}>
                 <View style={{ alignItems: 'center', paddingTop: 10, paddingBottom: 2 }}>
                   <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: '#E0E0E0' }} />
                 </View>
                 <View style={{ padding: 22 }}>
-                  {/* Merchant */}
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 20 }}>
                     <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: planColor + '22', justifyContent: 'center', alignItems: 'center' }}>
                       <Ionicons name="bar-chart" size={22} color={planColor} />
@@ -336,8 +237,6 @@ function FakePaymentSheet({ visible, planName, planColor, price, isTrialPremium,
                       <Text style={{ color: '#666', fontSize: 13 }}>{planName} · {price}/month</Text>
                     </View>
                   </View>
-
-                  {/* Order */}
                   <View style={{ backgroundColor: '#F5F5F5', borderRadius: 12, padding: 14, marginBottom: 14, gap: 8 }}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                       <Text style={{ color: '#333', fontSize: 14 }}>{planName}</Text>
@@ -352,18 +251,10 @@ function FakePaymentSheet({ visible, planName, planColor, price, isTrialPremium,
                     <View style={{ height: 1, backgroundColor: '#E0E0E0' }} />
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                       <Text style={{ color: '#000', fontSize: 15, fontWeight: '700' }}>Total due today</Text>
-                      <Text style={{ color: isTrialPremium ? '#1B873F' : '#000', fontSize: 15, fontWeight: '700' }}>
-                        {isTrialPremium ? '£0.00' : price}
-                      </Text>
+                      <Text style={{ color: isTrialPremium ? '#1B873F' : '#000', fontSize: 15, fontWeight: '700' }}>{isTrialPremium ? '£0.00' : price}</Text>
                     </View>
-                    {isTrialPremium && (
-                      <Text style={{ color: '#888', fontSize: 11, textAlign: 'center' }}>
-                        Then {price}/month after 3-day trial
-                      </Text>
-                    )}
+                    {isTrialPremium && <Text style={{ color: '#888', fontSize: 11, textAlign: 'center' }}>Then {price}/month after 3-day trial</Text>}
                   </View>
-
-                  {/* Card */}
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#F5F5F5', borderRadius: 12, padding: 14, marginBottom: 16 }}>
                     <View style={{ width: 38, height: 26, borderRadius: 5, backgroundColor: '#0057FF', justifyContent: 'center', alignItems: 'center' }}>
                       <Text style={{ color: '#fff', fontSize: 7, fontWeight: '900' }}>VISA</Text>
@@ -374,11 +265,7 @@ function FakePaymentSheet({ visible, planName, planColor, price, isTrialPremium,
                     </View>
                     <Text style={{ color: '#1A73E8', fontSize: 13, fontWeight: '600' }}>Change</Text>
                   </View>
-
-                  {/* Google Pay button */}
-                  <TouchableOpacity
-                    onPress={handlePay}
-                    style={{ backgroundColor: '#000', borderRadius: 28, padding: 16, alignItems: 'center', marginBottom: 10, flexDirection: 'row', justifyContent: 'center', gap: 6 }}>
+                  <TouchableOpacity onPress={handlePay} style={{ backgroundColor: '#000', borderRadius: 28, padding: 16, alignItems: 'center', marginBottom: 10, flexDirection: 'row', justifyContent: 'center', gap: 6 }}>
                     <Text style={{ color: '#fff', fontSize: 15, fontWeight: '500' }}>Pay with </Text>
                     <Text style={{ fontSize: 15, fontWeight: '700', color: '#4285F4' }}>G</Text>
                     <Text style={{ fontSize: 15, fontWeight: '700', color: '#EA4335' }}>o</Text>
@@ -387,19 +274,13 @@ function FakePaymentSheet({ visible, planName, planColor, price, isTrialPremium,
                     <Text style={{ fontSize: 15, fontWeight: '700', color: '#34A853' }}>l</Text>
                     <Text style={{ fontSize: 15, fontWeight: '700', color: '#EA4335' }}>e</Text>
                     <Text style={{ color: '#fff', fontSize: 15, fontWeight: '500' }}> Pay</Text>
-                    {biometricType === 'fingerprint' && (
-                      <Ionicons name="finger-print" size={18} color="#aaa" style={{ marginLeft: 4 }} />
-                    )}
+                    {biometricType === 'fingerprint' && <Ionicons name="finger-print" size={18} color="#aaa" style={{ marginLeft: 4 }} />}
                   </TouchableOpacity>
-
                   <TouchableOpacity onPress={onCancel} style={{ alignItems: 'center', padding: 10 }}>
                     <Text style={{ color: '#666', fontSize: 14 }}>Cancel</Text>
                   </TouchableOpacity>
-
                   <Text style={{ color: '#999', fontSize: 11, textAlign: 'center', lineHeight: 16, marginTop: 4 }}>
-                    {isTrialPremium
-                      ? `Free for 3 days, then ${price}/month. Cancel anytime.`
-                      : `${price}/month. Cancel anytime in Settings.`}
+                    {isTrialPremium ? `Free for 3 days, then ${price}/month. Cancel anytime.` : `${price}/month. Cancel anytime in Settings.`}
                   </Text>
                 </View>
               </View>
@@ -424,6 +305,8 @@ export default function Paywall({ visible, onClose, required = false }: Props) {
   const [showPromo, setShowPromo] = useState(false);
 
   const PROMO_CODES: Record<string, Plan> = {
+    'JAMES-PRO': 'pro',
+    'JAMES-PREMIUM': 'premium',
     'JF-PRO': 'pro',
     'JF-PREMIUM': 'premium',
     'TESTPRO': 'pro',
@@ -438,10 +321,13 @@ export default function Paywall({ visible, onClose, required = false }: Props) {
         key: 'pro', name: 'Pro', icon: 'flash', color: '#6C63FF', badge: null, gbpPrice: 3.99,
         features: [
           'Unlimited transactions',
-          'Receipt scanning (AI)',
-          'Advanced charts & stats',
-          'Card tracking',
-          'All themes · No ads',
+          'Up to 5 saving goals & budgets',
+          'Calendar view',
+          'Unlimited recurring bills',
+          'Search & filters',
+          'Custom themes · No ads',
+          'Manual card tracking',
+          'Bank & card linking',
         ],
       },
       {
@@ -449,10 +335,10 @@ export default function Paywall({ visible, onClose, required = false }: Props) {
         badge: 'Best Value', gbpPrice: 7.99, trialDays: 3,
         features: [
           'Everything in Pro',
+          'Unlimited goals & budgets',
           'Live market signals & forecasts',
           'Investment & asset tracking',
-          'Unlimited saving goals',
-          'Tax helper & export',
+          'Tax helper',
         ],
       },
     ];
@@ -484,7 +370,7 @@ export default function Paywall({ visible, onClose, required = false }: Props) {
       setPromoCode(''); setPromoError(''); setShowPromo(false);
       Alert.alert('Code Applied', `${matched.charAt(0).toUpperCase() + matched.slice(1)} unlocked.`, [{ text: 'OK', onPress: onClose }]);
     } else {
-      setPromoError('Invalid promo code. Try JF-PRO or JF-PREMIUM.');
+      setPromoError('Invalid promo code.');
     }
   };
 
@@ -493,7 +379,6 @@ export default function Paywall({ visible, onClose, required = false }: Props) {
       <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
         <View style={{ flex: 1, backgroundColor: c.dark }}>
 
-          {/* Header */}
           <View style={{ paddingHorizontal: 20, paddingTop: 56, paddingBottom: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
             <View>
               <Text style={{ color: c.text, fontSize: 26, fontWeight: '900' }}>
@@ -533,6 +418,31 @@ export default function Paywall({ visible, onClose, required = false }: Props) {
                 </TouchableOpacity>
               </View>
             )}
+
+            {/* Free tier summary */}
+            <View style={{ backgroundColor: c.card, borderRadius: 20, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: c.border }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: c.card2, justifyContent: 'center', alignItems: 'center' }}>
+                  <Ionicons name="person" size={20} color={c.muted} />
+                </View>
+                <View>
+                  <Text style={{ color: c.text, fontSize: 16, fontWeight: '800' }}>Free</Text>
+                  <Text style={{ color: c.muted, fontSize: 12 }}>Always free</Text>
+                </View>
+              </View>
+              {[
+                '20 transactions',
+                '1 saving goal & 1 budget',
+                'Basic spending stats',
+                'Net worth tracker',
+                'Up to 3 recurring bills',
+              ].map((f, i) => (
+                <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 3 }}>
+                  <Ionicons name="checkmark" size={13} color={c.muted} />
+                  <Text style={{ color: c.muted, fontSize: 13 }}>{f}</Text>
+                </View>
+              ))}
+            </View>
 
             {PLANS.map(p => {
               const isSel = selected === p.key;
@@ -575,7 +485,7 @@ export default function Paywall({ visible, onClose, required = false }: Props) {
                   {p.trialDays && isSel && (
                     <View style={{ backgroundColor: '#00D4AA11', borderRadius: 10, padding: 10, marginTop: 12, borderWidth: 1, borderColor: '#00D4AA33' }}>
                       <Text style={{ color: '#00D4AA', fontSize: 12, textAlign: 'center', fontWeight: '600' }}>
-                        Free for {p.trialDays} days, then {convertPrice(p.gbpPrice)}/month
+                        Free for {p.trialDays} days, then {convertPrice(p.gbpPrice)}/month · Card required
                       </Text>
                     </View>
                   )}
@@ -588,18 +498,12 @@ export default function Paywall({ visible, onClose, required = false }: Props) {
             </Text>
           </ScrollView>
 
-          {/* Footer */}
           <View style={{ paddingHorizontal: 20, paddingBottom: 36, paddingTop: 12, backgroundColor: c.dark, borderTopWidth: 1, borderTopColor: c.border }}>
             <TouchableOpacity
               disabled={!selected}
               onPress={handleSubscribe}
               style={{ backgroundColor: selected ? (selectedPlan?.color || c.accent) : c.card2, borderRadius: 18, padding: 18, alignItems: 'center', opacity: selected ? 1 : 0.5, flexDirection: 'row', justifyContent: 'center', gap: 8 }}>
-              {selected && (
-                <Ionicons
-                  name={Platform.OS === 'ios' ? 'logo-apple' : 'logo-google-playstore'}
-                  size={20} color="#fff"
-                />
-              )}
+              {selected && <Ionicons name={Platform.OS === 'ios' ? 'logo-apple' : 'logo-google-playstore'} size={20} color="#fff" />}
               <Text style={{ color: selected ? '#fff' : c.muted, fontSize: 17, fontWeight: '900' }}>
                 {selected
                   ? isTrialPremium

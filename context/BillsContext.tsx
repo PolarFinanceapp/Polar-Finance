@@ -21,7 +21,7 @@ type BillsContextType = {
   addBill: (b: Omit<Bill, 'id'>) => Promise<void>;
   updateBill: (id: string, b: Partial<Bill>) => Promise<void>;
   deleteBill: (id: string) => Promise<void>;
-  payBill: (id: string) => Bill | null; // returns updated bill after advancing due date
+  payBill: (id: string) => Bill | null;
 };
 
 const BillsContext = createContext<BillsContextType | null>(null);
@@ -31,12 +31,12 @@ export function advanceDueDate(dateStr: string, freq: Frequency): string {
   const [d, m, y] = dateStr.split('/').map(Number);
   const date = new Date(y, m - 1, d);
   switch (freq) {
-    case 'weekly':      date.setDate(date.getDate() + 7);   break;
-    case 'fortnightly': date.setDate(date.getDate() + 14);  break;
-    case 'monthly':     date.setMonth(date.getMonth() + 1); break;
-    case 'yearly':      date.setFullYear(date.getFullYear() + 1); break;
+    case 'weekly': date.setDate(date.getDate() + 7); break;
+    case 'fortnightly': date.setDate(date.getDate() + 14); break;
+    case 'monthly': date.setMonth(date.getMonth() + 1); break;
+    case 'yearly': date.setFullYear(date.getFullYear() + 1); break;
   }
-  return `${String(date.getDate()).padStart(2,'0')}/${String(date.getMonth()+1).padStart(2,'0')}/${date.getFullYear()}`;
+  return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
 }
 
 export function BillsProvider({ children }: { children: React.ReactNode }) {
@@ -46,10 +46,37 @@ export function BillsProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const load = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      const key = `polar_bills_${user?.id || 'local'}`;
+      const uid = user?.id || 'local';
+      const key = `polar_bills_${uid}`;
       setStorageKey(key);
+
       const raw = await AsyncStorage.getItem(key);
-      if (raw) setBillsState(JSON.parse(raw));
+      const existing: Bill[] = raw ? JSON.parse(raw) : [];
+
+      // ── One-time import of subscriptions added during onboarding ──────────
+      const importKey = `jf_onboarding_bills_imported_${uid}`;
+      const alreadyImported = await AsyncStorage.getItem(importKey);
+      if (!alreadyImported) {
+        const onboardingRaw = await AsyncStorage.getItem(`jf_onboarding_bills_${uid}`);
+        if (onboardingRaw) {
+          try {
+            const onboardingBills: Bill[] = JSON.parse(onboardingRaw);
+            if (onboardingBills.length > 0) {
+              // Merge — avoid duplicates by name
+              const existingNames = new Set(existing.map(b => b.name.toLowerCase()));
+              const toAdd = onboardingBills.filter(b => !existingNames.has(b.name.toLowerCase()));
+              const merged = [...existing, ...toAdd];
+              await AsyncStorage.setItem(key, JSON.stringify(merged));
+              await AsyncStorage.setItem(importKey, 'true');
+              setBillsState(merged);
+              return;
+            }
+          } catch { }
+        }
+        await AsyncStorage.setItem(importKey, 'true');
+      }
+
+      setBillsState(existing);
     };
     load();
   }, []);
@@ -72,7 +99,6 @@ export function BillsProvider({ children }: { children: React.ReactNode }) {
     await save(bills.filter(b => b.id !== id));
   };
 
-  // Advance the next due date and return the updated bill
   const payBill = (id: string): Bill | null => {
     const bill = bills.find(b => b.id === id);
     if (!bill) return null;

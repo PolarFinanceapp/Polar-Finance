@@ -1,17 +1,17 @@
 import { useFinance } from '@/context/FinanceContext';
 import { useLocale } from '@/context/LocaleContext';
 import { usePlan } from '@/context/PlanContext';
+import { IncomeSource, useUserData } from '@/context/UserDataContext';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Paywall from '../../components/Paywall';
 import StarBackground from '../../components/StarBackground';
 import { useTheme } from '../../context/ThemeContext';
 
 type PayFrequency = 'weekly' | 'fortnightly' | 'monthly' | 'yearly';
-type IncomeSource = { id: string; label: string; amount: number; frequency: PayFrequency; paydayDay: number; emoji: string };
+// IncomeSource imported from UserDataContext
 
 const PAY_FREQS: { key: PayFrequency; label: string; tKey: string }[] = [
   { key: 'weekly', label: 'Weekly', tKey: 'weekly' },
@@ -20,10 +20,8 @@ const PAY_FREQS: { key: PayFrequency; label: string; tKey: string }[] = [
   { key: 'yearly', label: 'Yearly', tKey: 'yearly' },
 ];
 
-const INCOME_ICONS = [
-  'briefcase', 'cash', 'business', 'bar-chart', 'desktop',
-  'construct', 'color-palette', 'car', 'medkit', 'school', 'storefront', 'phone-portrait',
-] as const;
+const INCOME_ICONS = ['briefcase', 'cash', 'business', 'bar-chart', 'desktop', 'construct', 'color-palette', 'car', 'medkit', 'school', 'storefront', 'phone-portrait'] as const;
+type IncomeIcon = typeof INCOME_ICONS[number];
 
 const COMING_SOON_ITEMS = [
   { icon: 'business', titleKey: 'comingSoonBankSync', descKey: 'comingSoonBankSyncDesc' },
@@ -73,13 +71,15 @@ export default function MoreScreen() {
   const { formatAmount, convertPrice, currencySymbol, t } = useLocale();
   const router = useRouter();
 
+  const { incomeSources: sources, setIncomeSources: setSources } = useUserData();
+
+  // Profile picture — stored in Supabase user metadata so it survives OTA updates
+
   const [showPaywall, setShowPaywall] = useState(false);
   const [comingSoonOpen, setComingSoonOpen] = useState(false);
   const [incomeOpen, setIncomeOpen] = useState(false);
   const [showAddIncome, setShowAddIncome] = useState(false);
   const [editingIncome, setEditingIncome] = useState<IncomeSource | null>(null);
-  const [sources, setSources] = useState<IncomeSource[]>([]);
-  const [storageKey, setStorageKey] = useState('polar_income_local');
 
   const [fLabel, setFLabel] = useState('');
   const [fAmount, setFAmount] = useState('');
@@ -88,38 +88,14 @@ export default function MoreScreen() {
   const [fEmoji, setFEmoji] = useState<string>('briefcase');
   const [fSaved, setFSaved] = useState(false);
 
-  // ── Load income sources ───────────────────────────────────────────────────
-  useEffect(() => {
-    (async () => {
-      try {
-        const { supabase } = await import('../../lib/supabase');
-        const { data: { user } } = await supabase.auth.getUser();
-        const uid = user?.id;
-        const key = `polar_income_${uid || 'local'}`;
-        setStorageKey(key);
-        const raw = await AsyncStorage.getItem(key);
-        if (raw) setSources(JSON.parse(raw));
-      } catch { }
-    })();
-  }, []);
+  const saveSources = (data: IncomeSource[]) => setSources(data);
 
-  const saveSources = async (data: IncomeSource[]) => {
-    setSources(data);
-    await AsyncStorage.setItem(storageKey, JSON.stringify(data));
-  };
-
-  const resetForm = () => {
-    setFLabel(''); setFAmount(''); setFFreq('monthly'); setFDay('25');
-    setFEmoji('briefcase'); setFSaved(false); setEditingIncome(null);
-  };
-
+  const resetForm = () => { setFLabel(''); setFAmount(''); setFFreq('monthly'); setFDay('25'); setFEmoji('briefcase'); setFSaved(false); setEditingIncome(null); };
   const openAdd = () => { resetForm(); setShowAddIncome(true); };
-
   const openEdit = (src: IncomeSource) => {
     setEditingIncome(src);
     setFLabel(src.label); setFAmount(src.amount.toString());
-    setFFreq(src.frequency); setFDay(src.paydayDay.toString());
-    setFEmoji(src.emoji || 'briefcase');
+    setFFreq(src.frequency); setFDay(src.paydayDay.toString()); setFEmoji(src.emoji);
     setShowAddIncome(true);
   };
 
@@ -130,10 +106,8 @@ export default function MoreScreen() {
       label: fLabel, amount: parseFloat(fAmount),
       frequency: fFreq, paydayDay: parseInt(fDay) || 1, emoji: fEmoji,
     };
-    const updated = editingIncome
-      ? sources.map(s => s.id === editingIncome.id ? entry : s)
-      : [...sources, entry];
-    await saveSources(updated);
+    const updated = editingIncome ? sources.map(s => s.id === editingIncome.id ? entry : s) : [...sources, entry];
+    saveSources(updated);
     setFSaved(true);
     setTimeout(() => { setShowAddIncome(false); resetForm(); }, 1200);
   };
@@ -154,21 +128,23 @@ export default function MoreScreen() {
     { icon: 'briefcase', label: t('assets'), sub: 'Cards, investments & property', route: '/(tabs)/assets', lock: true, feature: 'investmentTracking' },
     { icon: 'card', label: 'Credit Score', sub: 'Check your free credit score', route: '/(tabs)/credit', lock: false },
     { icon: 'receipt', label: 'Tax Helper', sub: 'Estimate tax, bands & checklist', route: '/(tabs)/tax', lock: false },
-  ] as const;
-
-  return (
+  ] as const; return (
     <View style={{ flex: 1, backgroundColor: c.dark }}>
       <StarBackground />
 
+      {/* contentContainerStyle paddingBottom ensures bottom content is never hidden behind the tab bar */}
       <ScrollView
         style={{ flex: 1, paddingHorizontal: 20 }}
         contentContainerStyle={{ paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header — no profile picture */}
-        <View style={{ marginTop: 60, marginBottom: 28 }}>
-          <Text style={{ color: c.text, fontSize: 26, fontWeight: '900' }}>{t('more')}</Text>
-          <Text style={{ color: c.muted, fontSize: 14, marginTop: 4 }}>{t('allFeatures')}</Text>
+        {/* Header */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 60, marginBottom: 28 }}>
+          <View>
+            <Text style={{ color: c.text, fontSize: 26, fontWeight: '900' }}>{t('more')}</Text>
+            <Text style={{ color: c.muted, fontSize: 14, marginTop: 4 }}>{t('allFeatures')}</Text>
+          </View>
+
         </View>
 
         {/* Features */}
@@ -187,9 +163,7 @@ export default function MoreScreen() {
                   <Text style={{ color: c.text, fontSize: 15, fontWeight: '700' }}>{item.label}</Text>
                   <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>{item.sub}</Text>
                 </View>
-                {locked
-                  ? <Ionicons name="lock-closed" size={16} color={c.muted} />
-                  : <Ionicons name="chevron-forward" size={18} color={c.muted} />}
+                {locked ? <Ionicons name="lock-closed" size={16} color={c.muted} /> : <Ionicons name="chevron-forward" size={18} color={c.muted} />}
               </TouchableOpacity>
             );
           })}
@@ -254,12 +228,8 @@ export default function MoreScreen() {
                   <View style={{ alignItems: 'flex-end', gap: 6 }}>
                     <Text style={{ color: '#00D4AA', fontSize: 14, fontWeight: '800' }}>{formatAmount(src.amount)}</Text>
                     <View style={{ flexDirection: 'row', gap: 10 }}>
-                      <TouchableOpacity onPress={() => openEdit(src)}>
-                        <Ionicons name="create-outline" size={16} color={c.accent} />
-                      </TouchableOpacity>
-                      <TouchableOpacity onPress={() => handleDelete(src.id)}>
-                        <Ionicons name="trash-outline" size={16} color="#FF6B6B" />
-                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => openEdit(src)}><Ionicons name="create-outline" size={16} color={c.accent} /></TouchableOpacity>
+                      <TouchableOpacity onPress={() => handleDelete(src.id)}><Ionicons name="trash-outline" size={16} color="#FF6B6B" /></TouchableOpacity>
                     </View>
                   </View>
                 </View>
@@ -363,17 +333,11 @@ export default function MoreScreen() {
                   {editingIncome ? t('editIncome') : t('addIncomeSource')}
                 </Text>
                 <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 6 }}>{t('incomeSource')}</Text>
-                <TextInput
-                  style={{ backgroundColor: c.card2, borderRadius: 12, padding: 14, color: c.text, fontSize: 15, borderWidth: 1, borderColor: c.border, marginBottom: 14 }}
-                  placeholder="e.g. Main Job, Freelance" placeholderTextColor={c.muted}
-                  value={fLabel} onChangeText={setFLabel}
-                />
+                <TextInput style={{ backgroundColor: c.card2, borderRadius: 12, padding: 14, color: c.text, fontSize: 15, borderWidth: 1, borderColor: c.border, marginBottom: 14 }}
+                  placeholder="e.g. Main Job, Freelance" placeholderTextColor={c.muted} value={fLabel} onChangeText={setFLabel} />
                 <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 6 }}>{t('salaryAmount')} ({currencySymbol})</Text>
-                <TextInput
-                  style={{ backgroundColor: c.card2, borderRadius: 12, padding: 14, color: c.text, fontSize: 15, borderWidth: 1, borderColor: c.border, marginBottom: 14 }}
-                  placeholder="e.g. 2500" placeholderTextColor={c.muted}
-                  keyboardType="decimal-pad" value={fAmount} onChangeText={setFAmount}
-                />
+                <TextInput style={{ backgroundColor: c.card2, borderRadius: 12, padding: 14, color: c.text, fontSize: 15, borderWidth: 1, borderColor: c.border, marginBottom: 14 }}
+                  placeholder="e.g. 2500" placeholderTextColor={c.muted} keyboardType="decimal-pad" value={fAmount} onChangeText={setFAmount} />
                 <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 8 }}>{t('incomeFrequency')}</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
                   {PAY_FREQS.map(f => (
@@ -384,11 +348,8 @@ export default function MoreScreen() {
                   ))}
                 </View>
                 <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 6 }}>Payday (1-31)</Text>
-                <TextInput
-                  style={{ backgroundColor: c.card2, borderRadius: 12, padding: 14, color: c.text, fontSize: 15, borderWidth: 1, borderColor: c.border, marginBottom: 14 }}
-                  placeholder="e.g. 25" placeholderTextColor={c.muted}
-                  keyboardType="number-pad" value={fDay} onChangeText={setFDay}
-                />
+                <TextInput style={{ backgroundColor: c.card2, borderRadius: 12, padding: 14, color: c.text, fontSize: 15, borderWidth: 1, borderColor: c.border, marginBottom: 14 }}
+                  placeholder="e.g. 25" placeholderTextColor={c.muted} keyboardType="number-pad" value={fDay} onChangeText={setFDay} />
                 <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 8 }}>{t('pickIcon')}</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
                   {INCOME_ICONS.map(ic => (

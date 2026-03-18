@@ -6,11 +6,11 @@ import { Platform } from 'react-native';
 // ── Configure how notifications appear when app is foregrounded ───────────────
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert:  true,
+    shouldShowAlert: true,
     shouldShowBanner: true,
-    shouldShowList:   true,
-    shouldPlaySound:  true,
-    shouldSetBadge:   true,
+    shouldShowList: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
   }),
 });
 
@@ -24,7 +24,7 @@ export async function requestNotificationPermission(): Promise<boolean> {
 
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('default', {
-      name: 'Polar Finance',
+      name: 'James Finance',
       importance: Notifications.AndroidImportance.MAX,
       vibrationPattern: [0, 250, 250, 250],
       lightColor: '#6C63FF',
@@ -149,7 +149,7 @@ export async function sendBudgetAlert(
 
   await Notifications.scheduleNotificationAsync({
     content: {
-      title: isOver ? `⚠️ Budget Exceeded — ${category}` : `🔔 Budget Alert — ${category}`,
+      title: isOver ? `Budget Exceeded — ${category}` : `Budget Alert — ${category}`,
       body: isOver
         ? `You've spent ${formatAmount(spent)} against a ${formatAmount(limit)} budget.`
         : `You've used ${pct}% of your ${category} budget (${formatAmount(spent)} of ${formatAmount(limit)}).`,
@@ -183,7 +183,7 @@ export async function schedulePaydayReminders(
 
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: `${src.emoji} Payday!`,
+        title: `Payday — ${src.label}!`,
         body: `Your ${src.label} payment of ${formatAmount(src.amount)} should arrive today.`,
         data: { tag: 'payday', sourceId: src.id },
         sound: true,

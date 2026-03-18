@@ -124,17 +124,20 @@ export default function ExploreScreen() {
       <ScrollView style={{ flex: 1, paddingHorizontal: 20 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.accent} />}>
 
-        <Text style={{ color: c.text, fontSize: 26, fontWeight: '900', marginTop: 60, marginBottom: 6 }}>{t('markets')}</Text>
+        <BackBtn />
+        <Text style={{ color: c.text, fontSize: 26, fontWeight: '900', marginBottom: 6 }}>{t('markets')}</Text>
         <Text style={{ color: c.muted, fontSize: 13, marginBottom: 20 }}>{t('liveSignals')} · {t('pullToRefresh')}</Text>
 
         {disclaimer && (
           <View style={{ backgroundColor: '#FFD70022', borderRadius: 14, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: '#FFD70055', flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
-            <Text style={{ fontSize: 20 }}>⚠️</Text>
+            <Ionicons name="warning" size={20} color="#FFD700" style={{ marginTop: 1 }} />
             <View style={{ flex: 1 }}>
               <Text style={{ color: '#FFD700', fontSize: 13, fontWeight: '700', marginBottom: 4 }}>{t('notFinancialAdvice')}</Text>
               <Text style={{ color: c.muted, fontSize: 12, lineHeight: 18 }}>{t('notFinancialAdviceDesc')}</Text>
             </View>
-            <TouchableOpacity onPress={() => setDisclaimer(false)}><Text style={{ color: c.muted, fontSize: 18 }}>✕</Text></TouchableOpacity>
+            <TouchableOpacity onPress={() => setDisclaimer(false)}>
+              <Ionicons name="close" size={18} color={c.muted} />
+            </TouchableOpacity>
           </View>
         )}
 
@@ -266,7 +269,10 @@ export default function ExploreScreen() {
                             })}
                           </>
                         )}
-                        <Text style={{ color: c.muted, fontSize: 10, marginTop: 10, textAlign: 'center' }}>⚠️ {t('infoOnly')}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, justifyContent: 'center' }}>
+                          <Ionicons name="warning-outline" size={12} color={c.muted} />
+                          <Text style={{ color: c.muted, fontSize: 10, textAlign: 'center' }}>{t('infoOnly')}</Text>
+                        </View>
                       </View>
                     )}
                   </View>

@@ -1,9 +1,9 @@
 import { useLocale } from '@/context/LocaleContext';
 import { usePlan } from '@/context/PlanContext';
-import { supabase } from '@/lib/supabase';
+import { useUserData } from '@/context/UserDataContext';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useEffect, useState } from 'react';
+import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import { Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Paywall from '../../components/Paywall';
 import StarBackground from '../../components/StarBackground';
@@ -15,11 +15,12 @@ type Goal = { id: string; icon: string; name: string; saved: number; target: num
 
 export default function GoalsScreen() {
   const { theme: c } = useTheme();
+  const router = useRouter();
   const { maxGoals } = usePlan();
   const { formatAmount, currencySymbol, t } = useLocale();
+  const { goals, setGoals } = useUserData();
+
   const [showPaywall, setShowPaywall] = useState(false);
-  const [goals, setGoalsState] = useState<Goal[]>([]);
-  const [storageKey, setStorageKey] = useState<string | null>(null);
   const [addGoalVisible, setAddGoalVisible] = useState(false);
   const [editGoal, setEditGoal] = useState<Goal | null>(null);
   const [newName, setNewName] = useState('');
@@ -33,19 +34,14 @@ export default function GoalsScreen() {
   const [editIcon, setEditIcon] = useState('home');
   const [editColor, setEditColor] = useState('#6C63FF');
 
-  useEffect(() => {
-    (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      const key = `polar_goals_${user?.id || 'local'}`;
-      setStorageKey(key);
-      const raw = await AsyncStorage.getItem(key);
-      if (raw) setGoalsState(JSON.parse(raw));
-    })();
-  }, []);
+  const addToSaved = (id: string, amount: number) =>
+    setGoals(goals.map(g => g.id === id ? { ...g, saved: Math.min(Math.max(0, g.saved + amount), g.target) } : g));
 
-  const setGoals = async (data: Goal[]) => { setGoalsState(data); if (storageKey) await AsyncStorage.setItem(storageKey, JSON.stringify(data)); };
-  const addToSaved = (id: string, amount: number) => setGoals(goals.map(g => g.id === id ? { ...g, saved: Math.min(Math.max(0, g.saved + amount), g.target) } : g));
-  const openEditGoal = (g: Goal) => { setEditGoal(g); setEditName(g.name); setEditTarget(g.target.toString()); setEditSaved(g.saved.toString()); setEditIcon(g.icon); setEditColor(g.color); };
+  const openEditGoal = (g: Goal) => {
+    setEditGoal(g);
+    setEditName(g.name); setEditTarget(g.target.toString());
+    setEditSaved(g.saved.toString()); setEditIcon(g.icon); setEditColor(g.color);
+  };
 
   const handleAddGoal = () => {
     if (!newName || !newTarget) return;
@@ -105,10 +101,16 @@ export default function GoalsScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: c.dark }}>
       <StarBackground />
-      <ScrollView style={{ flex: 1, paddingHorizontal: 20 }} showsVerticalScrollIndicator={false}>
-        <Text style={{ color: c.text, fontSize: 26, fontWeight: '900', marginTop: 60, marginBottom: 20 }}>{t('savingGoals')}</Text>
+      <ScrollView style={{ flex: 1, paddingHorizontal: 20 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
 
-        {/* Summary */}
+        <TouchableOpacity onPress={() => router.push('/(tabs)/more' as any)}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 56, marginBottom: 4, alignSelf: 'flex-start' }}>
+          <Ionicons name="chevron-back" size={20} color={c.accent} />
+          <Text style={{ color: c.accent, fontSize: 15, fontWeight: '600' }}>Back</Text>
+        </TouchableOpacity>
+
+        <Text style={{ color: c.text, fontSize: 26, fontWeight: '900', marginBottom: 20 }}>{t('savingGoals')}</Text>
+
         <View style={{ backgroundColor: c.card, borderRadius: 24, padding: 20, borderWidth: 1, borderColor: c.border, marginBottom: 24 }}>
           <Text style={{ color: c.muted, fontSize: 10, fontWeight: '700', letterSpacing: 1.2 }}>{t('totalSaved')}</Text>
           <Text style={{ color: c.text, fontSize: 32, fontWeight: '900', marginTop: 4 }}>{formatAmount(totalSaved)}</Text>
@@ -200,7 +202,10 @@ export default function GoalsScreen() {
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
             <ScrollView style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, borderColor: c.border }} showsVerticalScrollIndicator={false}>
               <View style={{ padding: 24 }}>
-                <Text style={{ color: c.text, fontSize: 20, fontWeight: '900', marginBottom: 20, textAlign: 'center' }}>✏️ Edit Goal</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 20, justifyContent: 'center' }}>
+                  <Ionicons name="create-outline" size={20} color={c.accent} />
+                  <Text style={{ color: c.text, fontSize: 20, fontWeight: '900' }}>Edit Goal</Text>
+                </View>
                 <FormFields name={editName} setName={setEditName} target={editTarget} setTarget={setEditTarget} saved={editSaved} setSaved={setEditSaved} icon={editIcon} setIcon={setEditIcon} color={editColor} setColor={setEditColor} onSubmit={handleSaveEdit} onCancel={() => setEditGoal(null)} submitLabel={t('save')} />
               </View>
             </ScrollView>

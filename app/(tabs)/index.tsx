@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Image, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Image, Modal, RefreshControl, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Paywall from '../../components/Paywall';
 import ProfileModal from '../../components/ProfileModal';
 import RecurringBills from '../../components/RecurringBills';
@@ -75,8 +75,9 @@ export default function HomeScreen() {
 
   // ── User info ─────────────────────────────────────────────────────────────
   const [userName, setUserName] = useState('');
-  const [userInitial, setUserInitial] = useState('?');
+  const [userInitial, setUserInitial] = useState('');
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   const loadProfilePhoto = async () => {
     try {
@@ -101,12 +102,37 @@ export default function HomeScreen() {
   };
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return;
-      const name = user.user_metadata?.full_name || user.email?.split('@')[0] || 'User';
-      setUserName(name.split(' ')[0]);
-      setUserInitial(name.charAt(0).toUpperCase());
-    });
+    const init = async () => {
+      // Name: AsyncStorage first (set during onboarding) — this is the source of truth
+      const storedName = await AsyncStorage.getItem('jf_user_name');
+      if (storedName && storedName.trim().length > 0) {
+        setUserName(storedName.split(' ')[0]);
+        setUserInitial(storedName.charAt(0).toUpperCase());
+      } else {
+        // Fallback to Supabase metadata or email prefix
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            const name = user.user_metadata?.full_name || user.email?.split('@')[0] || '';
+            if (name) { setUserName(name.split(' ')[0]); setUserInitial(name.charAt(0).toUpperCase()); }
+          }
+        } catch { }
+      }
+
+      // Import subscriptions added during onboarding (one-time only)
+      const imported = await AsyncStorage.getItem('jf_onboarding_subs_imported');
+      if (!imported) {
+        const raw = await AsyncStorage.getItem('jf_onboarding_subs');
+        if (raw) {
+          try {
+            const subs = JSON.parse(raw);
+            if (subs.length > 0) setTransactions([...subs, ...transactions]);
+            await AsyncStorage.setItem('jf_onboarding_subs_imported', 'true');
+          } catch { }
+        }
+      }
+    };
+    init();
     loadProfilePhoto();
   }, []);
 
@@ -157,6 +183,7 @@ export default function HomeScreen() {
   const [newTxnCat, setNewTxnCat] = useState('Groceries');
   const [newTxnAmt, setNewTxnAmt] = useState('');
   const [newTxnType, setNewTxnType] = useState<'income' | 'expense'>('expense');
+  const [newTxnDate, setNewTxnDate] = useState(new Date().toLocaleDateString('en-GB'));
 
   // ── Transaction edit ──────────────────────────────────────────────────────
   const [editTxn, setEditTxn] = useState<any | null>(null);
@@ -164,6 +191,7 @@ export default function HomeScreen() {
   const [editTxnCat, setEditTxnCat] = useState('Groceries');
   const [editTxnAmt, setEditTxnAmt] = useState('');
   const [editTxnType, setEditTxnType] = useState<'income' | 'expense'>('expense');
+  const [editTxnDate, setEditTxnDate] = useState('');
 
   // ── Quick actions ─────────────────────────────────────────────────────────
   const [selectedTabs, setSelectedTabs] = useState<typeof ALL_TABS[number][]>([ALL_TABS[0], ALL_TABS[1], ALL_TABS[2]]);
@@ -257,9 +285,10 @@ export default function HomeScreen() {
       icon: CAT_IONICONS[newTxnCat] || 'card',
       name: newTxnName, cat: newTxnCat,
       amount: newTxnType === 'expense' ? -Math.abs(amt) : Math.abs(amt),
-      type: newTxnType, date: new Date().toLocaleDateString('en-GB'),
+      type: newTxnType, date: newTxnDate || new Date().toLocaleDateString('en-GB'),
     } as any, ...transactions]);
     setNewTxnName(''); setNewTxnAmt(''); setNewTxnCat('Groceries'); setNewTxnType('expense');
+    setNewTxnDate(new Date().toLocaleDateString('en-GB'));
     setShowAddTxn(false);
   };
 
@@ -269,6 +298,7 @@ export default function HomeScreen() {
     setEditTxnCat(txn.cat);
     setEditTxnAmt(Math.abs(txn.amount).toString());
     setEditTxnType(txn.type === 'income' ? 'income' : 'expense');
+    setEditTxnDate(txn.date || new Date().toLocaleDateString('en-GB'));
   };
 
   const saveEditTxn = () => {
@@ -282,6 +312,7 @@ export default function HomeScreen() {
         icon: CAT_IONICONS[editTxnCat] || tx.icon,
         amount: editTxnType === 'expense' ? -Math.abs(amt) : Math.abs(amt),
         type: editTxnType,
+        date: editTxnDate || tx.date,
       }
       : tx
     ));
@@ -289,14 +320,36 @@ export default function HomeScreen() {
   };
 
   const deleteTxn = (id: string) => {
-    setTransactions(transactions.filter(tx => tx.id !== id));
+    setTransactions(transactions.filter((tx: any) => tx.id !== id));
     setEditTxn(null);
   };
 
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data, error } = await supabase
+          .from('user_finance_data')
+          .select('cards, investments, transactions, assets')
+          .eq('user_id', user.id)
+          .single();
+        if (!error && data) {
+          if (data.transactions) setTransactions(data.transactions);
+          if (data.cards) setCards(data.cards);
+          if (data.investments) setInvestments(data.investments);
+        }
+        await loadProfilePhoto();
+      }
+    } catch { }
+    setRefreshing(false);
+  };
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <View style={{ flex: 1, backgroundColor: c.dark }}>
-      <ScrollView style={{ flex: 1, paddingHorizontal: 20 }} showsVerticalScrollIndicator={false}>
+      <ScrollView style={{ flex: 1, paddingHorizontal: 20 }} showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 120 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.accent} />}>
 
         {/* Header */}
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 60, marginBottom: 24 }}>
@@ -306,7 +359,7 @@ export default function HomeScreen() {
             </View>
             <View>
               <Text style={{ color: c.muted, fontSize: 12 }}>{greeting}</Text>
-              <Text style={{ color: c.text, fontSize: 20, fontWeight: '900' }}>{userName || '...'}</Text>
+              <Text style={{ color: c.text, fontSize: 20, fontWeight: '900' }}>{userName}</Text>
             </View>
           </View>
           <TouchableOpacity activeOpacity={0.7}
@@ -314,7 +367,7 @@ export default function HomeScreen() {
             onPress={() => setShowProfile(true)}>
             {profilePhoto && (profilePhoto.startsWith('data:image') || profilePhoto.startsWith('http') || profilePhoto.startsWith('file'))
               ? <Image source={{ uri: profilePhoto }} style={{ width: 44, height: 44, borderRadius: 22 }} />
-              : <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>{userInitial}</Text>}
+              : userInitial ? <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>{userInitial}</Text> : <Ionicons name="person" size={22} color="#fff" />}
           </TouchableOpacity>
         </View>
 
@@ -545,12 +598,32 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
 
-          {filtered.length === 0 && (
+          {transactions.length === 0 ? (
+            <View style={{ alignItems: 'center', paddingVertical: 40, paddingHorizontal: 20 }}>
+              <View style={{ width: 80, height: 80, borderRadius: 24, backgroundColor: c.accent + '18', justifyContent: 'center', alignItems: 'center', marginBottom: 16, borderWidth: 1, borderColor: c.accent + '33' }}>
+                <Ionicons name="receipt-outline" size={38} color={c.accent} />
+              </View>
+              <Text style={{ color: c.text, fontSize: 18, fontWeight: '800', marginBottom: 8 }}>No transactions yet</Text>
+              <Text style={{ color: c.muted, fontSize: 14, textAlign: 'center', lineHeight: 22, marginBottom: 24 }}>
+                Add your first transaction to start tracking your spending and income.
+              </Text>
+              <TouchableOpacity
+                onPress={() => setShowAddTxn(true)}
+                style={{ backgroundColor: c.accent, borderRadius: 14, paddingHorizontal: 28, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="add-circle" size={18} color="#fff" />
+                <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800' }}>Add Transaction</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={onRefresh} style={{ marginTop: 16, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Ionicons name="refresh" size={14} color={c.muted} />
+                <Text style={{ color: c.muted, fontSize: 13 }}>Pull down to refresh</Text>
+              </TouchableOpacity>
+            </View>
+          ) : filtered.length === 0 ? (
             <View style={{ alignItems: 'center', padding: 30 }}>
-              <Ionicons name="receipt-outline" size={48} color={c.muted} style={{ marginBottom: 10 }} />
+              <Ionicons name="search-outline" size={40} color={c.muted} style={{ marginBottom: 10 }} />
               <Text style={{ color: c.muted, fontSize: 14, textAlign: 'center' }}>{t('noTransactions')}</Text>
             </View>
-          )}
+          ) : null}
 
           {displayTxns.map(txn => (
             <TouchableOpacity key={txn.id}
@@ -771,6 +844,17 @@ export default function HomeScreen() {
                   <TextInput style={{ backgroundColor: c.card2, borderRadius: 12, padding: 14, color: c.text, fontSize: 15, borderWidth: 1, borderColor: c.border }} placeholder={f.ph} placeholderTextColor={c.muted} value={f.val} onChangeText={f.set} keyboardType={f.kb} />
                 </View>
               ))}
+              <View style={{ marginBottom: 12 }}>
+                <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 6 }}>Date (DD/MM/YYYY)</Text>
+                <TextInput
+                  style={{ backgroundColor: c.card2, borderRadius: 12, padding: 14, color: c.text, fontSize: 15, borderWidth: 1, borderColor: c.border }}
+                  placeholder="e.g. 15/03/2026"
+                  placeholderTextColor={c.muted}
+                  value={newTxnDate}
+                  onChangeText={setNewTxnDate}
+                  keyboardType="numbers-and-punctuation"
+                />
+              </View>
               <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 8 }}>{t('category')}</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
                 {Object.keys(CAT_IONICONS).map(cat => (
@@ -825,6 +909,17 @@ export default function HomeScreen() {
                   <TextInput style={{ backgroundColor: c.card2, borderRadius: 12, padding: 14, color: c.text, fontSize: 15, borderWidth: 1, borderColor: c.border }} placeholder={f.ph} placeholderTextColor={c.muted} value={f.val} onChangeText={f.set} keyboardType={f.kb} />
                 </View>
               ))}
+              <View style={{ marginBottom: 12 }}>
+                <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 6 }}>Date (DD/MM/YYYY)</Text>
+                <TextInput
+                  style={{ backgroundColor: c.card2, borderRadius: 12, padding: 14, color: c.text, fontSize: 15, borderWidth: 1, borderColor: c.border }}
+                  placeholder="e.g. 15/03/2026"
+                  placeholderTextColor={c.muted}
+                  value={editTxnDate}
+                  onChangeText={setEditTxnDate}
+                  keyboardType="numbers-and-punctuation"
+                />
+              </View>
               <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 8 }}>{t('category')}</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
                 {Object.keys(CAT_IONICONS).map(cat => (

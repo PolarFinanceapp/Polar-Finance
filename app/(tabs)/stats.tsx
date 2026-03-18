@@ -162,6 +162,7 @@ function PieChart({ categories, total }: { categories: any[]; total: number }) {
 
 export default function StatsScreen() {
   const [period, setPeriod] = useState<Period>('monthly');
+  const [monthOffset, setMonthOffset] = useState(0); // 0 = current, -1 = last month, etc.
   const [chartMode, setChartMode] = useState<'bar' | 'pie'>('bar');
   const { theme: c } = useTheme();
   const { transactions } = useFinance();
@@ -208,8 +209,58 @@ export default function StatsScreen() {
     );
   }
 
-  const periodStart = getPeriodStart(period);
-  const filtered = transactions.filter(tx => { const d = parseDate((tx as any).date); return d ? d >= periodStart : false; });
+  // Offset-aware period helpers
+  const getPeriodStartOffset = (): Date => {
+    const now = new Date();
+    if (period === 'weekly') {
+      const day = now.getDay() === 0 ? 6 : now.getDay() - 1;
+      const s = new Date(now);
+      s.setDate(now.getDate() - day + monthOffset * 7);
+      s.setHours(0, 0, 0, 0);
+      return s;
+    }
+    if (period === 'monthly') {
+      return new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
+    }
+    return new Date(now.getFullYear() + monthOffset, 0, 1);
+  };
+
+  const getPeriodEndOffset = (): Date => {
+    const now = new Date();
+    if (period === 'weekly') {
+      const s = getPeriodStartOffset();
+      const e = new Date(s);
+      e.setDate(s.getDate() + 6);
+      e.setHours(23, 59, 59, 999);
+      return e;
+    }
+    if (period === 'monthly') {
+      return new Date(now.getFullYear(), now.getMonth() + monthOffset + 1, 0, 23, 59, 59);
+    }
+    return new Date(now.getFullYear() + monthOffset, 11, 31, 23, 59, 59);
+  };
+
+  const getPeriodLabelOffset = (): string => {
+    const start = getPeriodStartOffset();
+    if (period === 'weekly') {
+      const end = getPeriodEndOffset();
+      return `${start.getDate()} ${start.toLocaleString('default', { month: 'short' })} – ${end.getDate()} ${end.toLocaleString('default', { month: 'short' })}`;
+    }
+    if (period === 'monthly') {
+      return start.toLocaleString('default', { month: 'long', year: 'numeric' });
+    }
+    return `${start.getFullYear()}`;
+  };
+
+  const isCurrentPeriod = monthOffset === 0;
+
+  const periodStart = getPeriodStartOffset();
+  const periodEnd = getPeriodEndOffset();
+
+  const filtered = transactions.filter(tx => {
+    const d = parseDate((tx as any).date);
+    return d ? d >= periodStart && d <= periodEnd : false;
+  });
 
   const totalIncome = filtered.filter(tx => tx.type === 'income').reduce((s, tx) => s + Math.abs(tx.amount), 0);
   const totalExpense = filtered.filter(tx => tx.type === 'expense').reduce((s, tx) => s + Math.abs(tx.amount), 0);
@@ -239,15 +290,30 @@ export default function StatsScreen() {
         <Text style={{ color: c.text, fontSize: 26, fontWeight: '900', marginTop: 8, marginBottom: 20 }}>{t('stats')}</Text>
 
         {/* Period toggle */}
-        <View style={{ flexDirection: 'row', backgroundColor: c.card, borderRadius: 50, padding: 4, marginBottom: 8, borderWidth: 1, borderColor: c.border }}>
+        <View style={{ flexDirection: 'row', backgroundColor: c.card, borderRadius: 50, padding: 4, marginBottom: 12, borderWidth: 1, borderColor: c.border }}>
           {(['weekly', 'monthly', 'yearly'] as const).map(p => (
             <TouchableOpacity key={p} style={{ flex: 1, paddingVertical: 8, borderRadius: 50, alignItems: 'center', backgroundColor: period === p ? c.accent : 'transparent' }}
-              onPress={() => setPeriod(p)}>
+              onPress={() => { setPeriod(p); setMonthOffset(0); }}>
               <Text style={{ color: period === p ? '#fff' : c.muted, fontSize: 13, fontWeight: '600' }}>{t(p)}</Text>
             </TouchableOpacity>
           ))}
         </View>
-        <Text style={{ color: c.muted, fontSize: 12, textAlign: 'center', marginBottom: 20 }}>{getPeriodLabel(period)}</Text>
+
+        {/* Period navigation */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+          <TouchableOpacity
+            onPress={() => setMonthOffset(o => o - 1)}
+            style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, justifyContent: 'center', alignItems: 'center' }}>
+            <Ionicons name="chevron-back" size={18} color={c.accent} />
+          </TouchableOpacity>
+          <Text style={{ color: c.muted, fontSize: 13, fontWeight: '600' }}>{getPeriodLabelOffset()}</Text>
+          <TouchableOpacity
+            onPress={() => setMonthOffset(o => Math.min(0, o + 1))}
+            disabled={isCurrentPeriod}
+            style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, justifyContent: 'center', alignItems: 'center', opacity: isCurrentPeriod ? 0.3 : 1 }}>
+            <Ionicons name="chevron-forward" size={18} color={c.accent} />
+          </TouchableOpacity>
+        </View>
 
         {filtered.length === 0 ? (
           <View style={{ alignItems: 'center', padding: 60 }}>

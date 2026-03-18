@@ -1,12 +1,16 @@
 import { usePlan } from '@/context/PlanContext';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as FileSystem from 'expo-file-system/legacy';
+import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { Alert, Linking, Modal, Platform, ScrollView, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Linking, Modal, Platform, ScrollView, Share, Switch, Text, TouchableOpacity, View } from 'react-native';
 import Paywall from '../../components/Paywall';
 import StarBackground from '../../components/StarBackground';
+import { useFinance } from '../../context/FinanceContext';
 import { CURRENCIES, CurrencyKey, LanguageKey, LANGUAGES, useLocale } from '../../context/LocaleContext';
 import { ThemeColors, themes, useTheme } from '../../context/ThemeContext';
+import { useUserData } from '../../context/UserDataContext';
 import { supabase } from '../../lib/supabase';
 
 const LAST_UPDATED = '03 March 2026';
@@ -268,6 +272,9 @@ export default function SettingsScreen() {
   const { themeKey, theme: c, setThemeKey } = useTheme();
   const { hasFeature, plan, trialDaysLeft } = usePlan();
   const { language, currency, setLanguage, setCurrency, convertPrice, t } = useLocale();
+  const { transactions, cards } = useFinance();
+  const { budgets, goals, incomeSources } = useUserData();
+  const router = useRouter();
   const canUseThemes = hasFeature('themes');
 
   const [showPaywall, setShowPaywall] = useState(false);
@@ -300,6 +307,78 @@ export default function SettingsScreen() {
 
   const clearLocalData = async () => {
     try { await AsyncStorage.clear(); } catch { }
+  };
+
+  // ── CSV Export ───────────────────────────────────────────────────────────
+  const handleExportCSV = async () => {
+    try {
+      if (transactions.length === 0) {
+        Alert.alert('Nothing to Export', 'Add some transactions first.');
+        return;
+      }
+
+      // ── Transactions CSV ─────────────────────────────────────────────────
+      const txnHeader = 'Date,Name,Category,Amount,Type';
+      const txnRows = transactions.map(tx => {
+        const date = (tx as any).date || '';
+        const name = `"${tx.name.replace(/"/g, '""')}"`;
+        const cat = `"${tx.cat.replace(/"/g, '""')}"`;
+        const amount = Math.abs(tx.amount).toFixed(2);
+        const type = tx.type;
+        return `${date},${name},${cat},${amount},${type}`;
+      });
+      const txnCSV = [txnHeader, ...txnRows].join('\n');
+
+      // ── Budgets CSV ──────────────────────────────────────────────────────
+      const budgetHeader = 'Category,Monthly Limit';
+      const budgetRows = budgets.map(b => `"${b.cat}",${b.limit.toFixed(2)}`);
+      const budgetCSV = [budgetHeader, ...budgetRows].join('\n');
+
+      // ── Goals CSV ────────────────────────────────────────────────────────
+      const goalHeader = 'Goal,Saved,Target';
+      const goalRows = goals.map(g => `"${g.name}",${g.saved.toFixed(2)},${g.target.toFixed(2)}`);
+      const goalCSV = [goalHeader, ...goalRows].join('\n');
+
+      // ── Income CSV ───────────────────────────────────────────────────────
+      const incomeHeader = 'Source,Amount,Frequency';
+      const incomeRows = incomeSources.map(s => `"${s.label}",${s.amount.toFixed(2)},${s.frequency}`);
+      const incomeCSV = [incomeHeader, ...incomeRows].join('\n');
+
+      // ── Combine into one file ─────────────────────────────────────────────
+      const now = new Date();
+      const dateStr = now.toLocaleDateString('en-GB').replace(/\//g, '-');
+      const fullCSV = [
+        '=== JAMES FINANCE EXPORT ===',
+        `Exported: ${now.toLocaleDateString('en-GB')}`,
+        '',
+        '--- TRANSACTIONS ---',
+        txnCSV,
+        '',
+        '--- BUDGETS ---',
+        budgetCSV,
+        '',
+        '--- SAVING GOALS ---',
+        goalCSV,
+        '',
+        '--- INCOME SOURCES ---',
+        incomeCSV,
+      ].join('\n');
+
+      const fileName = `james-finance-export-${dateStr}.csv`;
+      const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+
+      await FileSystem.writeAsStringAsync(fileUri, fullCSV, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+
+      await Share.share({
+        title: 'James Finance Export',
+        message: fullCSV,
+        url: Platform.OS === 'ios' ? fileUri : undefined,
+      });
+    } catch (e) {
+      Alert.alert('Export Failed', 'Could not export data. Please try again.');
+    }
   };
 
   const handleDeleteAccount = () => {
@@ -344,9 +423,18 @@ export default function SettingsScreen() {
   };
 
   const handleLogout = () => {
-    Alert.alert(t('logOut'), 'Are you sure?', [
+    Alert.alert(t('logOut'), 'Are you sure you want to log out?', [
       { text: t('cancel'), style: 'cancel' },
-      { text: t('logOut'), style: 'destructive', onPress: async () => { await supabase.auth.signOut(); } },
+      {
+        text: t('logOut'), style: 'destructive', onPress: async () => {
+          try { await supabase.auth.signOut(); } catch { }
+          await AsyncStorage.multiRemove([
+            'onboarding_complete', 'user_plan', 'trial_start',
+            'trial_prompt_seen', 'jf_user_name', 'profile_photo', 'profile_avatar',
+          ]);
+          router.replace('/login' as any);
+        },
+      },
     ]);
   };
 
@@ -385,7 +473,7 @@ export default function SettingsScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: c.dark }}>
       <StarBackground />
-      <ScrollView style={{ flex: 1, paddingHorizontal: 20 }} showsVerticalScrollIndicator={false}>
+      <ScrollView style={{ flex: 1, paddingHorizontal: 20 }} contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
         <Text style={{ color: c.text, fontSize: 26, fontWeight: '900', marginTop: 60, marginBottom: 20 }}>{t('settings')}</Text>
 
         {/* ── Your Plan ── */}
@@ -545,6 +633,7 @@ export default function SettingsScreen() {
               </View>
             }
           />
+          <Row icon="download-outline" label="Export Data" sub={`Export ${transactions.length} transactions as CSV`} onPress={handleExportCSV} />
           <Row icon="language" label={t('language')} sub={`${LANGUAGES[language].flag} ${LANGUAGES[language].nativeName}`} onPress={() => setShowLanguagePicker(true)} noBorder />
         </View>
 

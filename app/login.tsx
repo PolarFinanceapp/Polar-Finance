@@ -47,6 +47,7 @@ const Field = ({ label, value, onChangeText, error, secure, onToggleSecure, ...r
         secureTextEntry={secure}
         autoCorrect={false}
         autoComplete="off"
+        textContentType="oneTimeCode"
         {...rest}
       />
       {onToggleSecure && (

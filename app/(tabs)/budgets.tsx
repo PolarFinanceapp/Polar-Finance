@@ -1,12 +1,11 @@
 import { useFinance } from '@/context/FinanceContext';
 import { useLocale } from '@/context/LocaleContext';
+import { useUserData } from '@/context/UserDataContext';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
-import { supabase } from '../../lib/supabase';
 
 type Budget = {
   id: string;
@@ -63,31 +62,14 @@ export default function BudgetsScreen() {
   const router = useRouter();
   const { transactions } = useFinance();
   const { formatAmount, currencySymbol, t } = useLocale();
+  const { budgets, setBudgets } = useUserData();
 
-  const [budgets, setBudgets] = useState<Budget[]>([]);
-  const [storageKey, setStorageKey] = useState('polar_budgets_local');
   const [showAdd, setShowAdd] = useState(false);
   const [editBudget, setEditBudget] = useState<Budget | null>(null);
 
   // Form state
   const [fCat, setFCat] = useState('');
   const [fLimit, setFLimit] = useState('');
-
-  // Load budgets
-  useEffect(() => {
-    (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      const key = `polar_budgets_${user?.id ?? 'local'}`;
-      setStorageKey(key);
-      const raw = await AsyncStorage.getItem(key);
-      if (raw) setBudgets(JSON.parse(raw).map((b: any) => ({ ...b, icon: migrateIcon(b.icon) })));
-    })();
-  }, []);
-
-  const saveBudgets = async (data: Budget[]) => {
-    setBudgets(data);
-    await AsyncStorage.setItem(storageKey, JSON.stringify(data));
-  };
 
   const openAdd = () => { setFCat(''); setFLimit(''); setEditBudget(null); setShowAdd(true); };
 
@@ -108,12 +90,12 @@ export default function BudgetsScreen() {
     const updated = editBudget
       ? budgets.map(b => b.id === editBudget.id ? entry : b)
       : [...budgets, entry];
-    await saveBudgets(updated);
+    saveBudgets(updated);
     setShowAdd(false);
   };
 
   const deleteBudget = async (id: string) => {
-    await saveBudgets(budgets.filter(b => b.id !== id));
+    saveBudgets(budgets.filter(b => b.id !== id));
   };
 
   // Calculate spending per category this month
@@ -133,6 +115,9 @@ export default function BudgetsScreen() {
   // Categories not yet budgeted
   const usedCats = new Set(budgets.map(b => b.cat));
   const available = BUDGET_CATEGORIES.filter(c => !usedCats.has(c.name));
+
+  // saveBudgets defined here so spendMap is in scope for notifications
+  const saveBudgets = (data: Budget[]) => setBudgets(data, spendMap);
 
 
   // ── Back button — always goes to More ────────────────────────────────────

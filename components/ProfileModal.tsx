@@ -4,7 +4,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useState } from 'react';
 import {
   Alert, Image, Modal, ScrollView,
-  Text, TouchableOpacity, View,
+  Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { usePlan } from '../context/PlanContext';
 import { useTheme } from '../context/ThemeContext';
@@ -22,7 +22,7 @@ type Props = { visible: boolean; onClose: () => void };
 
 export default function ProfileModal({ visible, onClose }: Props) {
   const { theme: c } = useTheme();
-  const { plan, trialDaysLeft } = usePlan();
+  const { plan, trialDaysLeft, upgradeTo } = usePlan();
 
   const [selectedIcon, setSelectedIcon] = useState<string | null>(null);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
@@ -163,6 +163,36 @@ export default function ProfileModal({ visible, onClose }: Props) {
       : plan === 'trial' ? 'time'
         : 'person';
   const isFree = plan === 'free' || plan === 'expired';
+  const showUpgrade = isFree || plan === 'trial';
+
+  const [promoCode, setPromoCode] = useState('');
+  const [promoError, setPromoError] = useState('');
+  const [promoSuccess, setPromoSuccess] = useState('');
+  const [showPromo, setShowPromo] = useState(false);
+
+  const PROMO_CODES: Record<string, string> = {
+    'JAMES-PRO': 'pro',
+    'JAMES-PREMIUM': 'premium',
+    'JF-PRO': 'pro',
+    'JF-PREMIUM': 'premium',
+    'TESTPRO': 'pro',
+    'TESTPREMIUM': 'premium',
+  };
+
+  const handlePromo = async () => {
+    const code = promoCode.trim().toUpperCase();
+    if (!code) { setPromoError('Enter a code.'); return; }
+    const matched = PROMO_CODES[code];
+    if (matched) {
+      await upgradeTo(matched as any);
+      setPromoSuccess(`${matched.charAt(0).toUpperCase() + matched.slice(1)} unlocked!`);
+      setPromoError('');
+      setPromoCode('');
+    } else {
+      setPromoError('Invalid code. Try JAMES-PRO or JAMES-PREMIUM.');
+      setPromoSuccess('');
+    }
+  };
 
   // Determine what to render in the avatar
   const hasPhoto = photoUri && (
@@ -219,14 +249,14 @@ export default function ProfileModal({ visible, onClose }: Props) {
                 <Text style={{ color: planColor, fontSize: 16, fontWeight: '800' }}>{planLabel}</Text>
                 <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>
                   {isFree ? 'Upgrade to unlock all features'
-                    : plan === 'trial' ? 'Enjoying Premium free — subscribe to keep it'
+                    : plan === 'trial' ? 'Enjoying your free trial'
                       : 'Thank you for supporting James Finance'}
                 </Text>
               </View>
             </View>
 
-            {/* Upgrade cards — free/expired users only */}
-            {isFree && (
+            {/* Upgrade cards — free, expired, and trial users */}
+            {showUpgrade && (
               <>
                 <Text style={{ color: c.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 14 }}>Upgrade</Text>
 
@@ -276,6 +306,51 @@ export default function ProfileModal({ visible, onClose }: Props) {
                     <Text style={{ color: '#0D0D1A', fontSize: 14, fontWeight: '900' }}>Upgrade to Premium</Text>
                   </TouchableOpacity>
                 </View>
+
+                {/* Promo code */}
+                <Text style={{ color: c.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>Promo Code</Text>
+                {!showPromo ? (
+                  <TouchableOpacity
+                    onPress={() => setShowPromo(true)}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: c.card, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: c.border, marginBottom: 28 }}>
+                    <Ionicons name="ticket-outline" size={18} color={c.accent} />
+                    <Text style={{ color: c.accent, fontSize: 14, fontWeight: '700' }}>Have a promo code?</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <View style={{ backgroundColor: c.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: c.accent + '44', marginBottom: 28 }}>
+                    <View style={{ flexDirection: 'row', gap: 10, marginBottom: 8 }}>
+                      <TextInput
+                        style={{ flex: 1, backgroundColor: c.card2, borderRadius: 12, padding: 14, color: c.text, fontSize: 15, fontWeight: '700', borderWidth: 1, borderColor: promoError ? '#FF6B6B' : c.border, letterSpacing: 1 }}
+                        placeholder="e.g. JAMES-PRO"
+                        placeholderTextColor={c.muted}
+                        value={promoCode}
+                        onChangeText={v => { setPromoCode(v.toUpperCase()); setPromoError(''); setPromoSuccess(''); }}
+                        autoCapitalize="characters"
+                        autoCorrect={false}
+                        textContentType="oneTimeCode"
+                      />
+                      <TouchableOpacity
+                        onPress={handlePromo}
+                        disabled={!promoCode.trim()}
+                        style={{ backgroundColor: c.accent, borderRadius: 12, paddingHorizontal: 18, justifyContent: 'center', opacity: promoCode.trim() ? 1 : 0.4 }}>
+                        <Text style={{ color: '#fff', fontWeight: '800' }}>Apply</Text>
+                      </TouchableOpacity>
+                    </View>
+                    {!!promoError && (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Ionicons name="close-circle" size={14} color="#FF6B6B" />
+                        <Text style={{ color: '#FF6B6B', fontSize: 12, fontWeight: '600' }}>{promoError}</Text>
+                      </View>
+                    )}
+                    {!!promoSuccess && (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Ionicons name="checkmark-circle" size={14} color="#00D4AA" />
+                        <Text style={{ color: '#00D4AA', fontSize: 12, fontWeight: '700' }}>{promoSuccess}</Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+
               </>
             )}
 

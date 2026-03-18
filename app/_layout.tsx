@@ -9,6 +9,7 @@ import { FinanceProvider } from '../context/FinanceContext';
 import { LocaleProvider, useLocale } from '../context/LocaleContext';
 import { PlanProvider } from '../context/PlanContext';
 import { ThemeProvider } from '../context/ThemeContext';
+import { UserDataProvider } from '../context/UserDataContext';
 import { requestNotificationPermission, scheduleBillReminders, scheduleDailySpendingSummary } from '../lib/notifications';
 import { supabase } from '../lib/supabase';
 
@@ -63,7 +64,7 @@ function AppWithNotifications({ session }: { session: Session | null }) {
 export default function RootLayout() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const router   = useRouter();
+  const router = useRouter();
   const segments = useSegments();
 
   useEffect(() => {
@@ -79,7 +80,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (loading) return;
-    const inTabsGroup  = segments[0] === '(tabs)';
+    const inTabsGroup = segments[0] === '(tabs)';
     const inOnboarding = segments[0] === 'onboarding';
     if (session && !inTabsGroup && !inOnboarding) {
       router.replace('/(tabs)' as any);
@@ -102,14 +103,16 @@ export default function RootLayout() {
       <LocaleProvider>
         <PlanProvider>
           <FinanceProvider>
-            <BillsProvider>
-              <AppWithNotifications session={session} />
-              <Stack screenOptions={{ headerShown: false }}>
-                <Stack.Screen name="(tabs)"     options={{ headerShown: false }} />
-                <Stack.Screen name="login"      options={{ headerShown: false }} />
-                <Stack.Screen name="onboarding" options={{ headerShown: false }} />
-              </Stack>
-            </BillsProvider>
+            <UserDataProvider>
+              <BillsProvider>
+                <AppWithNotifications session={session} />
+                <Stack screenOptions={{ headerShown: false }}>
+                  <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                  <Stack.Screen name="login" options={{ headerShown: false }} />
+                  <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+                </Stack>
+              </BillsProvider>
+            </UserDataProvider>
           </FinanceProvider>
         </PlanProvider>
       </LocaleProvider>

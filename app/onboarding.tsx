@@ -24,7 +24,6 @@ const CURRENCIES = [
   { key: 'NZD', symbol: 'NZ$', name: 'New Zealand Dollar' },
 ];
 
-// Map currency key to Ionicon name for flag-like display
 const CURRENCY_ICONS: Record<string, { icon: string; color: string }> = {
   GBP: { icon: 'cash', color: '#00D4AA' },
   USD: { icon: 'cash', color: '#00D4AA' },
@@ -81,7 +80,6 @@ export default function OnboardingScreen() {
   const [currency, setCurrency] = useState('GBP');
   const [income, setIncome] = useState('');
   const [goal, setGoal] = useState('');
-  // Subscriptions: map of name -> price string
   const [subPrices, setSubPrices] = useState<Record<string, string>>({});
   const [activeSub, setActiveSub] = useState<string | null>(null);
 
@@ -121,6 +119,7 @@ export default function OnboardingScreen() {
       if (user?.id) uid = user.id;
     } catch { }
 
+    // Save all onboarding data to AsyncStorage
     await AsyncStorage.multiSet([
       ['onboarding_complete', 'true'],
       ['jf_currency', currency],
@@ -131,7 +130,12 @@ export default function OnboardingScreen() {
       ['jf_user_name', name],
     ]);
 
-    // Save income to polar_income format (what More page reads)
+    // Save name to Supabase metadata so home screen greeting works immediately
+    try {
+      await supabase.auth.updateUser({ data: { full_name: name } });
+    } catch { }
+
+    // Save income source
     if (income && parseFloat(income) > 0) {
       const incomeEntry = [{
         id: Date.now().toString(),
@@ -144,7 +148,7 @@ export default function OnboardingScreen() {
       await AsyncStorage.setItem(`polar_income_${uid}`, JSON.stringify(incomeEntry));
     }
 
-    // Save subscriptions as recurring transactions
+    // Save subscriptions as recurring transactions (for home screen)
     if (selectedSubs.length > 0) {
       const subTxns = selectedSubs
         .filter(s => s !== 'Other')
@@ -166,7 +170,28 @@ export default function OnboardingScreen() {
       await AsyncStorage.setItem('jf_onboarding_subs', JSON.stringify(subTxns));
     }
 
-    // Explicitly set free plan so PlanContext doesn't fall into wrong state
+    // ── Save subscriptions as recurring bills (for Recurring Bills screen) ──
+    if (selectedSubs.length > 0) {
+      const bills = selectedSubs
+        .filter(s => s !== 'Other')
+        .map(subName => {
+          const sub = COMMON_SUBS.find(s => s.name === subName)!;
+          const price = parseFloat(subPrices[subName] || '0') || 9.99;
+          return {
+            id: Date.now().toString() + Math.random().toString(36).slice(2),
+            name: subName,
+            amount: price,
+            frequency: 'monthly',
+            nextDue: new Date().toLocaleDateString('en-GB'),
+            cardId: null,
+            icon: sub.icon,
+            color: sub.color,
+            active: true,
+          };
+        });
+      await AsyncStorage.setItem(`jf_onboarding_bills_${uid}`, JSON.stringify(bills));
+    }
+
     await AsyncStorage.multiSet([
       ['user_plan', 'free'],
       ['trial_prompt_seen', 'true'],
@@ -176,7 +201,6 @@ export default function OnboardingScreen() {
   };
 
   const activateTrial = async () => {
-    // Use the correct keys PlanContext reads: trial_start + user_plan
     await AsyncStorage.multiSet([
       ['user_plan', 'trial'],
       ['trial_start', new Date().toISOString()],
@@ -193,14 +217,13 @@ export default function OnboardingScreen() {
 
   const isLastSlide = cur === TOTAL - 1;
 
-  // Per-slide validation — what must be filled before continuing
   const canContinue = (() => {
     switch (cur) {
-      case 1: return name.trim().length >= 2;        // Name: at least 2 chars
-      case 2: return !!currency;                      // Currency: always has default
-      case 3: return !!income && parseFloat(income) > 0; // Income: must enter amount
-      case 4: return true;                            // Subscriptions: optional
-      case 5: return !!goal;                          // Goal: must pick one
+      case 1: return name.trim().length >= 2;
+      case 2: return !!currency;
+      case 3: return !!income && parseFloat(income) > 0;
+      case 4: return true;
+      case 5: return !!goal;
       default: return true;
     }
   })();
@@ -223,7 +246,7 @@ export default function OnboardingScreen() {
         </TouchableOpacity>
       )}
 
-      {/* Skip — only show on optional slides (currency, subscriptions) */}
+      {/* Skip — only show on optional slides */}
       {!isLastSlide && (cur === 2 || cur === 4) && (
         <TouchableOpacity onPress={finish} style={{ position: 'absolute', top: 52, right: 24, zIndex: 10, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 50, paddingHorizontal: 16, paddingVertical: 8 }}>
           <Text style={{ color: '#7B7B9E', fontSize: 13, fontWeight: '600' }}>Skip</Text>
@@ -366,7 +389,6 @@ export default function OnboardingScreen() {
               })}
             </View>
 
-            {/* Price inputs for selected subs */}
             {selectedSubs.filter(s => s !== 'Other').length > 0 && (
               <View style={{ backgroundColor: '#13132A', borderRadius: 18, padding: 16, borderWidth: 1, borderColor: 'rgba(108,99,255,0.2)', gap: 10 }}>
                 <Text style={{ color: '#7B7B9E', fontSize: 12, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 4 }}>Monthly Cost</Text>
@@ -483,7 +505,7 @@ export default function OnboardingScreen() {
               </View>
             </TouchableOpacity>
 
-            {/* Premium — highlighted, with free trial */}
+            {/* Premium */}
             <View style={{ backgroundColor: '#13132A', borderRadius: 18, padding: 16, borderWidth: 2, borderColor: '#FFD700AA', marginBottom: 8 }}>
               <View style={{ position: 'absolute', top: -11, right: 16, backgroundColor: '#FFD700', borderRadius: 50, paddingHorizontal: 12, paddingVertical: 4 }}>
                 <Text style={{ color: '#0D0D1A', fontSize: 10, fontWeight: '900' }}>3 DAYS FREE</Text>
@@ -520,7 +542,7 @@ export default function OnboardingScreen() {
 
       </ScrollView>
 
-      {/* Bottom controls — hidden on trial slide */}
+      {/* Bottom controls — hidden on last slide */}
       {!isLastSlide && (
         <View style={{ paddingHorizontal: 28, paddingBottom: 52 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 6, marginBottom: 20 }}>

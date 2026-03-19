@@ -233,6 +233,17 @@ export default function OnboardingScreen() {
           if (incomeSources.length > 0) {
             await AsyncStorage.setItem(`polar_income_${uid}`, JSON.stringify(incomeSources));
           }
+          // Write to TransactionContext storage key too
+          if (transactions.length > 0) {
+            await AsyncStorage.setItem('polar_transactions', JSON.stringify(transactions));
+          }
+          // Write budgets/goals to legacy keys
+          if (budgets.length > 0) {
+            await AsyncStorage.setItem(`polar_budgets_${uid}`, JSON.stringify(budgets));
+          }
+          if (goals.length > 0) {
+            await AsyncStorage.setItem(`polar_goals_${uid}`, JSON.stringify(goals));
+          }
         } catch { }
       }
     } catch (e) {
@@ -249,9 +260,9 @@ export default function OnboardingScreen() {
     }
   };
 
-  const completeOnboarding = () => {
+  const completeOnboarding = async () => {
     setShowSubsPopup(false);
-    finish();
+    await finish();
     router.replace('/(tabs)' as any);
   };
 

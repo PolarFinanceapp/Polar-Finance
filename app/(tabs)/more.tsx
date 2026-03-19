@@ -3,9 +3,10 @@ import { useLocale } from '@/context/LocaleContext';
 import { usePlan } from '@/context/PlanContext';
 import { IncomeSource, useUserData } from '@/context/UserDataContext';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Paywall from '../../components/Paywall';
 import StarBackground from '../../components/StarBackground';
 import { useTheme } from '../../context/ThemeContext';
@@ -127,7 +128,7 @@ export default function MoreScreen() {
     { icon: 'flag', label: t('savingGoals'), sub: 'Track your saving goals', route: '/(tabs)/goals', lock: false },
     { icon: 'briefcase', label: t('assets'), sub: 'Cards, investments & property', route: '/(tabs)/assets', lock: true, feature: 'investmentTracking' },
     { icon: 'card', label: 'Credit Score', sub: 'Check your free credit score', route: '/(tabs)/credit', lock: false },
-    { icon: 'receipt', label: 'Tax Helper', sub: 'Estimate tax, bands & checklist', route: '/(tabs)/tax', lock: false },
+    { icon: 'receipt', label: 'Tax Helper', sub: 'Estimate tax, bands & checklist', route: '/(tabs)/tax', lock: true, feature: 'taxHelper' },
   ] as const; return (
     <View style={{ flex: 1, backgroundColor: c.dark }}>
       <StarBackground />

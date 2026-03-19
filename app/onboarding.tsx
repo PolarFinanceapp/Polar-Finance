@@ -177,16 +177,13 @@ export default function OnboardingScreen() {
       if (user?.id) uid = user.id;
     } catch { }
 
-    // Wipe all stale onboarding import flags from previous accounts on this device
+    // Wipe stale onboarding import flags from previous accounts
     try {
-      const allKeys = await AsyncStorage.getAllKeys();
-      const staleKeys = allKeys.filter(k =>
-        k.includes('onboarding_imported') ||
-        k.includes('jf_onboarding_bills_imported') ||
-        k.includes('jf_profile_onboarding_imported') ||
-        k.includes('jf_onboarding_imported')
-      );
-      if (staleKeys.length > 0) await AsyncStorage.multiRemove(staleKeys);
+      await AsyncStorage.multiRemove([
+        `jf_onboarding_imported_${uid}`,
+        `jf_profile_onboarding_imported_${uid}`,
+        `jf_onboarding_bills_imported_${uid}`,
+      ]);
     } catch { }
 
     await AsyncStorage.multiSet([
@@ -274,16 +271,19 @@ export default function OnboardingScreen() {
     }
 
     // Plan
-    if (plan === 'trial') {
-      await AsyncStorage.multiSet([
-        ['user_plan', 'trial'], ['trial_start', new Date().toISOString()], ['trial_prompt_seen', 'true'],
-      ]);
-    } else if (plan === 'pro') {
-      await AsyncStorage.multiSet([['user_plan', 'pro'], ['trial_prompt_seen', 'true']]);
-    } else {
-      await AsyncStorage.multiSet([['user_plan', 'free'], ['trial_prompt_seen', 'true']]);
-    }
+    try {
+      if (plan === 'trial') {
+        await AsyncStorage.multiSet([
+          ['user_plan', 'trial'], ['trial_start', new Date().toISOString()], ['trial_prompt_seen', 'true'],
+        ]);
+      } else if (plan === 'pro') {
+        await AsyncStorage.multiSet([['user_plan', 'pro'], ['trial_prompt_seen', 'true']]);
+      } else {
+        await AsyncStorage.multiSet([['user_plan', 'free'], ['trial_prompt_seen', 'true']]);
+      }
+    } catch { }
 
+    // Always navigate regardless of any errors above
     router.replace('/(tabs)' as any);
   };
 

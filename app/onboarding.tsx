@@ -177,6 +177,18 @@ export default function OnboardingScreen() {
       if (user?.id) uid = user.id;
     } catch { }
 
+    // Wipe all stale onboarding import flags from previous accounts on this device
+    try {
+      const allKeys = await AsyncStorage.getAllKeys();
+      const staleKeys = allKeys.filter(k =>
+        k.includes('onboarding_imported') ||
+        k.includes('jf_onboarding_bills_imported') ||
+        k.includes('jf_profile_onboarding_imported') ||
+        k.includes('jf_onboarding_imported')
+      );
+      if (staleKeys.length > 0) await AsyncStorage.multiRemove(staleKeys);
+    } catch { }
+
     await AsyncStorage.multiSet([
       ['onboarding_complete', 'true'],
       ['jf_currency', currency],

@@ -70,8 +70,6 @@ export function UserDataProvider({ children }: { children: ReactNode }) {
   // ── Import onboarding data (one-time) ─────────────────────────────────────
   const importOnboardingData = async (uid: string, currentBudgets: Budget[], currentGoals: Goal[], currentIncome: IncomeSource[]) => {
     try {
-      const imported = await AsyncStorage.getItem(`jf_profile_onboarding_imported_${uid}`);
-      if (imported) return { budgets: currentBudgets, goals: currentGoals, income: currentIncome };
 
       let budgets = [...currentBudgets];
       let goals = [...currentGoals];
@@ -97,7 +95,6 @@ export function UserDataProvider({ children }: { children: ReactNode }) {
         income = JSON.parse(rawIncome);
       }
 
-      await AsyncStorage.setItem(`jf_profile_onboarding_imported_${uid}`, 'true');
       return { budgets, goals, income };
     } catch (e) {
       console.warn('Profile onboarding import failed:', e);

@@ -116,8 +116,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   // ── Import onboarding data (one-time, on first load) ─────────────────────
   const importOnboardingData = async (uid: string, currentCards: Card[], currentTxns: Transaction[]) => {
     try {
-      const imported = await AsyncStorage.getItem(`jf_onboarding_imported_${uid}`);
-      if (imported) return { cards: currentCards, transactions: currentTxns };
 
       let cards = [...currentCards];
       let transactions = [...currentTxns];
@@ -139,7 +137,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         transactions = [...newTxns, ...transactions];
       }
 
-      await AsyncStorage.setItem(`jf_onboarding_imported_${uid}`, 'true');
       return { cards, transactions };
     } catch (e) {
       console.warn('Onboarding import failed:', e);

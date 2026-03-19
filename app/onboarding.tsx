@@ -20,6 +20,7 @@ const SLIDES = [
     title: 'James Finance',
     sub: 'The personal finance app built for people who take their money seriously.',
     features: null,
+    confirm: false,
   },
   {
     icon: 'receipt' as const,
@@ -29,6 +30,7 @@ const SLIDES = [
     title: 'Every penny,\naccounted for',
     sub: 'Log transactions in seconds. Categorise spending automatically and see the full picture.',
     features: ['Income & expense tracking', 'Smart categories', 'Monthly summaries'],
+    confirm: false,
   },
   {
     icon: 'wallet' as const,
@@ -38,6 +40,7 @@ const SLIDES = [
     title: 'Save with\npurpose',
     sub: 'Set saving goals and budgets that actually work. Real alerts before you overspend.',
     features: ['Saving goals & progress', 'Monthly budgets', 'Spending alerts'],
+    confirm: false,
   },
   {
     icon: 'repeat' as const,
@@ -47,6 +50,7 @@ const SLIDES = [
     title: 'Never miss\na payment',
     sub: 'Track every subscription and recurring bill in one place. Know exactly what\'s due.',
     features: ['Recurring bill tracking', 'Due date reminders', 'Monthly cost overview'],
+    confirm: false,
   },
   {
     icon: 'trending-up' as const,
@@ -56,6 +60,17 @@ const SLIDES = [
     title: 'Watch your\nwealth grow',
     sub: 'Cards, investments, assets — your full financial picture in one beautiful dashboard.',
     features: ['Net worth tracker', 'Investment portfolio', 'Asset management'],
+    confirm: false,
+  },
+  {
+    icon: 'checkmark-circle' as const,
+    gradient: ['#00D4AA', '#6C63FF'] as const,
+    glow: '#00D4AA',
+    badge: "YOU'RE READY",
+    title: "Take control\nof your money",
+    sub: "Everything you need to manage your finances is waiting for you inside.",
+    features: ['Free to get started', 'Upgrade anytime', 'Your data, always secure'],
+    confirm: true,
   },
 ];
 
@@ -147,21 +162,24 @@ export default function OnboardingScreen() {
       {/* Content */}
       <Animated.View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32, opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
 
-        {/* Icon card with glass effect */}
-        <Animated.View style={{ transform: [{ scale: scaleAnim }], marginBottom: 44 }}>
+        {/* Icon card */}
+        <Animated.View style={{ transform: [{ scale: scaleAnim }], marginBottom: 44, alignItems: 'center', justifyContent: 'center' }}>
+          {(slide as any).confirm && <View style={{ position: 'absolute', width: 196, height: 196, borderRadius: 98, borderWidth: 1, borderColor: slide.glow + '25' }} />}
+          {(slide as any).confirm && <View style={{ position: 'absolute', width: 220, height: 220, borderRadius: 110, borderWidth: 1, borderColor: slide.glow + '12' }} />}
           <View style={{
-            width: 130, height: 130, borderRadius: 38,
+            width: (slide as any).confirm ? 160 : 130,
+            height: (slide as any).confirm ? 160 : 130,
+            borderRadius: (slide as any).confirm ? 80 : 38,
             backgroundColor: 'rgba(255,255,255,0.05)',
-            borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
+            borderWidth: 1, borderColor: (slide as any).confirm ? slide.glow + '55' : 'rgba(255,255,255,0.12)',
             justifyContent: 'center', alignItems: 'center',
-            shadowColor: slide.glow, shadowOpacity: 0.5, shadowRadius: 30, shadowOffset: { width: 0, height: 8 },
+            shadowColor: slide.glow, shadowOpacity: (slide as any).confirm ? 0.7 : 0.5, shadowRadius: (slide as any).confirm ? 50 : 30, shadowOffset: { width: 0, height: 10 },
           }}>
-            {/* Inner gradient */}
             <LinearGradient
-              colors={[slide.gradient[0] + '33', slide.gradient[1] + '11']}
-              style={{ position: 'absolute', inset: 0, borderRadius: 37 } as any}
+              colors={[slide.gradient[0] + '44', slide.gradient[1] + '22']}
+              style={{ position: 'absolute', inset: 0, borderRadius: (slide as any).confirm ? 79 : 37 } as any}
             />
-            <Ionicons name={slide.icon} size={56} color={slide.gradient[0]} />
+            <Ionicons name={slide.icon} size={(slide as any).confirm ? 72 : 56} color={slide.gradient[0]} />
           </View>
         </Animated.View>
 
@@ -231,12 +249,19 @@ export default function OnboardingScreen() {
             colors={slide.gradient}
             start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
             style={{
-              borderRadius: 18, padding: 18, alignItems: 'center',
-              shadowColor: slide.glow, shadowOpacity: 0.4, shadowRadius: 20, shadowOffset: { width: 0, height: 6 },
+              borderRadius: 18,
+              padding: isLast ? 20 : 18,
+              alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 10,
+              shadowColor: slide.glow,
+              shadowOpacity: isLast ? 0.6 : 0.4,
+              shadowRadius: isLast ? 30 : 20,
+              shadowOffset: { width: 0, height: isLast ? 10 : 6 },
             }}>
-            <Text style={{ color: '#fff', fontSize: 17, fontWeight: '900', letterSpacing: 0.2 }}>
-              {isLast ? "Let's Go" : 'Continue'}
+            {isLast && <Ionicons name="flash" size={20} color="#fff" />}
+            <Text style={{ color: '#fff', fontSize: isLast ? 18 : 17, fontWeight: '900', letterSpacing: 0.3 }}>
+              {isLast ? "Enter James Finance" : 'Continue'}
             </Text>
+            {isLast && <Ionicons name="arrow-forward" size={18} color="rgba(255,255,255,0.8)" />}
           </LinearGradient>
         </TouchableOpacity>
 

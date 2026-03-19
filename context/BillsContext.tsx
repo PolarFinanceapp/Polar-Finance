@@ -9,7 +9,7 @@ export type Bill = {
   name: string;
   amount: number;
   frequency: Frequency;
-  nextDue: string;     // DD/MM/YYYY
+  nextDue: string;
   cardId: string | null;
   icon: string;
   color: string;
@@ -26,7 +26,6 @@ type BillsContextType = {
 
 const BillsContext = createContext<BillsContextType | null>(null);
 
-// Advance a DD/MM/YYYY date by the given frequency
 export function advanceDueDate(dateStr: string, freq: Frequency): string {
   const [d, m, y] = dateStr.split('/').map(Number);
   const date = new Date(y, m - 1, d);
@@ -53,27 +52,23 @@ export function BillsProvider({ children }: { children: React.ReactNode }) {
       const raw = await AsyncStorage.getItem(key);
       const existing: Bill[] = raw ? JSON.parse(raw) : [];
 
-      // ── One-time import of subscriptions added during onboarding ──────────
-      const importKey = `jf_onboarding_bills_imported_${uid}`;
-      const alreadyImported = await AsyncStorage.getItem(importKey);
-      if (!alreadyImported) {
-        const onboardingRaw = await AsyncStorage.getItem(`jf_onboarding_bills_${uid}`);
-        if (onboardingRaw) {
-          try {
-            const onboardingBills: Bill[] = JSON.parse(onboardingRaw);
-            if (onboardingBills.length > 0) {
-              // Merge — avoid duplicates by name
-              const existingNames = new Set(existing.map(b => b.name.toLowerCase()));
-              const toAdd = onboardingBills.filter(b => !existingNames.has(b.name.toLowerCase()));
-              const merged = [...existing, ...toAdd];
-              await AsyncStorage.setItem(key, JSON.stringify(merged));
-              await AsyncStorage.setItem(importKey, 'true');
-              setBillsState(merged);
-              return;
-            }
-          } catch { }
-        }
-        await AsyncStorage.setItem(importKey, 'true');
+      // One-time import of onboarding bills — key is deleted after so it never repeats
+      const onboardingKey = `jf_onboarding_bills_${uid}`;
+      const onboardingRaw = await AsyncStorage.getItem(onboardingKey);
+      if (onboardingRaw) {
+        try {
+          const onboardingBills: Bill[] = JSON.parse(onboardingRaw);
+          if (onboardingBills.length > 0) {
+            const existingNames = new Set(existing.map(b => b.name.toLowerCase()));
+            const toAdd = onboardingBills.filter(b => !existingNames.has(b.name.toLowerCase()));
+            const merged = [...existing, ...toAdd];
+            await AsyncStorage.setItem(key, JSON.stringify(merged));
+            await AsyncStorage.removeItem(onboardingKey);
+            setBillsState(merged);
+            return;
+          }
+        } catch { }
+        await AsyncStorage.removeItem(onboardingKey);
       }
 
       setBillsState(existing);

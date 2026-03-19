@@ -128,6 +128,7 @@ export type PlanContextType = {
   maxGoals: number;
   maxBudgets: number;
   maxBills: number;
+  maxWeeklyTransactions: number;
 };
 
 const PlanContext = createContext<PlanContextType>({
@@ -144,6 +145,7 @@ const PlanContext = createContext<PlanContextType>({
   maxGoals: 1,
   maxBudgets: 1,
   maxBills: 3,
+  maxWeeklyTransactions: 20,
 });
 
 const TRIAL_DAYS = 3;
@@ -208,7 +210,9 @@ export const PlanProvider = ({ children }: { children: React.ReactNode }) => {
   // Free: 20 transactions, 1 goal, 1 budget, 3 bills
   // Pro: unlimited transactions, 5 goals, 5 budgets, unlimited bills
   // Premium/Trial: unlimited everything
-  const maxTransactions = plan === 'free' ? 20 : Infinity;
+  // Free: 20 transactions per week. Pro/Premium/Trial: unlimited
+  const maxTransactions = Infinity; // kept for compatibility
+  const maxWeeklyTransactions = plan === 'free' ? 20 : Infinity;
   const maxGoals = plan === 'free' ? 1 : plan === 'pro' ? 5 : Infinity;
   const maxBudgets = plan === 'free' ? 1 : plan === 'pro' ? 5 : Infinity;
   const maxBills = plan === 'free' ? 3 : Infinity;
@@ -244,7 +248,7 @@ export const PlanProvider = ({ children }: { children: React.ReactNode }) => {
       plan, hasFeature, upgradeTo, resetPlan,
       trialDaysLeft, needsPaywall, showTrialPrompt,
       dismissTrialPrompt, startTrial,
-      maxTransactions, maxGoals, maxBudgets, maxBills,
+      maxTransactions, maxGoals, maxBudgets, maxBills, maxWeeklyTransactions,
     }}>
       {children}
     </PlanContext.Provider>

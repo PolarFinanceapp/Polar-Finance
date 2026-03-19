@@ -113,6 +113,40 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // ── Import onboarding data (one-time, on first load) ─────────────────────
+  const importOnboardingData = async (uid: string, currentCards: Card[], currentTxns: Transaction[]) => {
+    try {
+      const imported = await AsyncStorage.getItem(`jf_onboarding_imported_${uid}`);
+      if (imported) return { cards: currentCards, transactions: currentTxns };
+
+      let cards = [...currentCards];
+      let transactions = [...currentTxns];
+
+      // Import card
+      const rawCard = await AsyncStorage.getItem(`jf_onboarding_card_${uid}`);
+      if (rawCard) {
+        const onboardingCards: Card[] = JSON.parse(rawCard);
+        // Only add if no cards exist yet
+        if (cards.length === 0) cards = onboardingCards;
+      }
+
+      // Import transactions (subscriptions + manual)
+      const rawTxns = await AsyncStorage.getItem('jf_onboarding_subs');
+      if (rawTxns) {
+        const onboardingTxns: Transaction[] = JSON.parse(rawTxns);
+        const existingIds = new Set(transactions.map(t => t.id));
+        const newTxns = onboardingTxns.filter(t => !existingIds.has(t.id));
+        transactions = [...newTxns, ...transactions];
+      }
+
+      await AsyncStorage.setItem(`jf_onboarding_imported_${uid}`, 'true');
+      return { cards, transactions };
+    } catch (e) {
+      console.warn('Onboarding import failed:', e);
+      return { cards: currentCards, transactions: currentTxns };
+    }
+  };
+
   // ── Load: cache first, then Supabase ──────────────────────────────────────
   const loadData = async (uid: string) => {
     userIdRef.current = uid;
@@ -138,20 +172,33 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         .eq('user_id', uid)
         .single();
 
-
       if (!error && data) {
-        const c = data.cards ?? [];
+        let c = data.cards ?? [];
         const i = data.investments ?? [];
-        const t = data.transactions ?? [];
+        let t = data.transactions ?? [];
         const a = data.assets ?? [];
+
+        // Merge onboarding data on first load
+        const merged = await importOnboardingData(uid, c, t);
+        c = merged.cards;
+        t = merged.transactions;
 
         setCardsState(c); cardsRef.current = c;
         setInvestmentsState(i); investmentsRef.current = i;
         setTransactionsState(t); transactionsRef.current = t;
         setCustomAssetsState(a); assetsRef.current = a;
 
-        // Update cache to match Supabase
+        // Sync merged data back to Supabase if anything was imported
         await AsyncStorage.setItem(cacheKey(uid), JSON.stringify({ cards: c, investments: i, transactions: t, assets: a }));
+        syncToSupabase({ cards: c, investments: i, transactions: t, assets: a });
+      } else {
+        // No Supabase row yet — import onboarding data into fresh state
+        const merged = await importOnboardingData(uid, cardsRef.current, transactionsRef.current);
+        if (merged.cards !== cardsRef.current || merged.transactions !== transactionsRef.current) {
+          setCardsState(merged.cards); cardsRef.current = merged.cards;
+          setTransactionsState(merged.transactions); transactionsRef.current = merged.transactions;
+          syncToSupabase({ cards: merged.cards, investments: investmentsRef.current, transactions: merged.transactions, assets: assetsRef.current });
+        }
       }
     } catch (e) {
       console.warn('Supabase load failed, using cache:', e);

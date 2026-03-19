@@ -10,6 +10,8 @@ import StarBackground from '../components/StarBackground';
 import { supabase } from '../lib/supabase';
 
 const { width } = Dimensions.get('window');
+const ACCENT = '#6C63FF';
+const TOTAL = 11;
 
 const CURRENCIES = [
   { key: 'GBP', symbol: '£', name: 'British Pound' },
@@ -31,7 +33,7 @@ const CURRENCY_ICONS: Record<string, { color: string }> = {
   NZD: { color: '#00D4AA' },
 };
 
-const GOALS = [
+const MAIN_GOALS = [
   { key: 'save', label: 'Save More', icon: 'wallet' },
   { key: 'debt', label: 'Pay Off Debt', icon: 'card' },
   { key: 'invest', label: 'Start Investing', icon: 'trending-up' },
@@ -59,8 +61,38 @@ const COMMON_SUBS = [
   { name: 'Other', icon: 'add-circle', color: '#7B7B9E' },
 ];
 
-const ACCENT = '#6C63FF';
-const TOTAL = 7;
+const TXN_CATS = [
+  { key: 'Groceries', icon: 'cart' },
+  { key: 'Food', icon: 'restaurant' },
+  { key: 'Transport', icon: 'car' },
+  { key: 'Entertainment', icon: 'film' },
+  { key: 'Shopping', icon: 'bag' },
+  { key: 'Health', icon: 'medkit' },
+  { key: 'Housing', icon: 'home' },
+  { key: 'Utilities', icon: 'flash' },
+  { key: 'Subscriptions', icon: 'phone-portrait' },
+  { key: 'Income', icon: 'briefcase' },
+  { key: 'Other', icon: 'gift' },
+];
+
+const BUDGET_CATS = [
+  { key: 'Groceries', icon: 'cart', color: '#00D4AA' },
+  { key: 'Food', icon: 'restaurant', color: '#FF9F43' },
+  { key: 'Transport', icon: 'car', color: '#6C63FF' },
+  { key: 'Entertainment', icon: 'film', color: '#FF6B6B' },
+  { key: 'Shopping', icon: 'bag', color: '#a89fff' },
+  { key: 'Health', icon: 'medkit', color: '#00D4AA' },
+  { key: 'Housing', icon: 'home', color: '#FFD700' },
+  { key: 'Utilities', icon: 'flash', color: '#FF9F43' },
+  { key: 'Other', icon: 'gift', color: '#7B7B9E' },
+];
+
+const CARD_COLORS = ['#1a1a4e', '#1a2a1a', '#2a1a00', '#1a001a', '#0a1428', '#000500'];
+
+type OnboardingTxn = {
+  id: string; name: string; cat: string;
+  amount: string; type: 'income' | 'expense'; icon: string;
+};
 
 export default function OnboardingScreen() {
   const router = useRouter();
@@ -68,12 +100,35 @@ export default function OnboardingScreen() {
   const [cur, setCur] = useState(0);
   const progressAnim = useRef(new Animated.Value(0)).current;
 
+  // Core
   const [name, setName] = useState('');
   const [currency, setCurrency] = useState('GBP');
   const [income, setIncome] = useState('');
-  const [goal, setGoal] = useState('');
   const [subPrices, setSubPrices] = useState<Record<string, string>>({});
-  const [activeSub, setActiveSub] = useState<string | null>(null);
+
+  // Card
+  const [cardBank, setCardBank] = useState('');
+  const [cardBalance, setCardBalance] = useState('');
+  const [cardType, setCardType] = useState('Debit');
+  const [cardColor, setCardColor] = useState(CARD_COLORS[0]);
+
+  // Transactions
+  const [txns, setTxns] = useState<OnboardingTxn[]>([]);
+  const [txnName, setTxnName] = useState('');
+  const [txnAmount, setTxnAmount] = useState('');
+  const [txnCat, setTxnCat] = useState('Groceries');
+  const [txnType, setTxnType] = useState<'income' | 'expense'>('expense');
+
+  // Saving goal
+  const [goalName, setGoalName] = useState('');
+  const [goalTarget, setGoalTarget] = useState('');
+
+  // Budget
+  const [budgetCat, setBudgetCat] = useState('Groceries');
+  const [budgetLimit, setBudgetLimit] = useState('');
+
+  // Main goal & plan
+  const [mainGoal, setMainGoal] = useState('');
   const [showTrialPrompt, setShowTrialPrompt] = useState(false);
 
   // Pre-fill name from signup
@@ -82,9 +137,7 @@ export default function OnboardingScreen() {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         const fullName = user?.user_metadata?.full_name as string | undefined;
-        if (fullName && fullName.trim().length > 0) {
-          setName(fullName.trim().split(' ')[0]);
-        }
+        if (fullName?.trim()) setName(fullName.trim().split(' ')[0]);
       } catch { }
     })();
   }, []);
@@ -94,28 +147,30 @@ export default function OnboardingScreen() {
     setCur(i);
     Animated.spring(progressAnim, { toValue: i / (TOTAL - 1), useNativeDriver: false, speed: 20 }).start();
   };
-
   const next = () => { Keyboard.dismiss(); if (cur < TOTAL - 1) goTo(cur + 1); };
   const back = () => { if (cur > 0) goTo(cur - 1); };
 
   const toggleSub = (subName: string) => {
     setSubPrices(prev => {
-      if (prev[subName] !== undefined) {
-        const next = { ...prev };
-        delete next[subName];
-        if (activeSub === subName) setActiveSub(null);
-        return next;
-      }
-      setActiveSub(subName);
+      if (prev[subName] !== undefined) { const n = { ...prev }; delete n[subName]; return n; }
       return { ...prev, [subName]: '' };
     });
   };
-
   const selectedSubs = Object.keys(subPrices);
+
+  const addTxn = () => {
+    if (!txnName || !txnAmount) return;
+    const cat = TXN_CATS.find(c => c.key === txnCat)!;
+    setTxns(prev => [...prev, {
+      id: Date.now().toString(), name: txnName, cat: txnCat,
+      amount: txnAmount, type: txnType, icon: cat.icon,
+    }]);
+    setTxnName(''); setTxnAmount('');
+  };
+  const removeTxn = (id: string) => setTxns(prev => prev.filter(t => t.id !== id));
 
   const saveAndNavigate = async (plan: 'free' | 'trial' | 'pro') => {
     const curr = CURRENCIES.find(c => c.key === currency)!;
-
     let uid = 'local';
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -128,60 +183,88 @@ export default function OnboardingScreen() {
       ['app_currency', currency],
       ['jf_currency_symbol', curr.symbol],
       ['jf_monthly_income', income || '0'],
-      ['jf_main_goal', goal],
+      ['jf_main_goal', mainGoal],
       ['jf_user_name', name],
     ]);
 
     try { await supabase.auth.updateUser({ data: { full_name: name } }); } catch { }
 
+    // Income source
     if (income && parseFloat(income) > 0) {
       await AsyncStorage.setItem(`polar_income_${uid}`, JSON.stringify([{
-        id: Date.now().toString(),
-        label: 'Main Income',
-        amount: parseFloat(income),
-        frequency: 'monthly',
-        paydayDay: 25,
-        emoji: 'briefcase',
+        id: Date.now().toString(), label: 'Main Income',
+        amount: parseFloat(income), frequency: 'monthly', paydayDay: 25, emoji: 'briefcase',
       }]));
     }
 
-    if (selectedSubs.length > 0) {
-      const filtered = selectedSubs.filter(s => s !== 'Other');
+    // Subscriptions as transactions + bills
+    const filtered = selectedSubs.filter(s => s !== 'Other');
+    const subTxns = filtered.map(subName => {
+      const sub = COMMON_SUBS.find(s => s.name === subName)!;
+      const price = parseFloat(subPrices[subName] || '0') || 9.99;
+      return {
+        id: Date.now().toString() + Math.random().toString(36).slice(2),
+        icon: sub.icon, name: subName, cat: 'Subscriptions',
+        amount: -Math.abs(price), type: 'expense',
+        date: new Date().toLocaleDateString('en-GB'), recurring: true,
+      };
+    });
 
-      // Save as transactions
-      const subTxns = filtered.map(subName => {
-        const sub = COMMON_SUBS.find(s => s.name === subName)!;
-        const price = parseFloat(subPrices[subName] || '0') || 9.99;
-        return {
-          id: Date.now().toString() + Math.random().toString(36).slice(2),
-          icon: sub.icon, name: subName, cat: 'Subscriptions',
-          amount: -Math.abs(price), type: 'expense',
-          date: new Date().toLocaleDateString('en-GB'),
-          recurring: true, note: 'Added during setup',
-        };
-      });
-      await AsyncStorage.setItem('jf_onboarding_subs', JSON.stringify(subTxns));
+    // Manual transactions
+    const manualTxns = txns.map(t => ({
+      id: t.id, icon: t.icon, name: t.name, cat: t.cat,
+      amount: t.type === 'expense' ? -Math.abs(parseFloat(t.amount)) : Math.abs(parseFloat(t.amount)),
+      type: t.type, date: new Date().toLocaleDateString('en-GB'),
+    }));
 
-      // Save as recurring bills (capped to 3 on free, all on pro/trial)
-      const billLimit = plan === 'free' ? 3 : filtered.length;
-      const bills = filtered.slice(0, billLimit).map(subName => {
-        const sub = COMMON_SUBS.find(s => s.name === subName)!;
-        const price = parseFloat(subPrices[subName] || '0') || 9.99;
-        return {
-          id: Date.now().toString() + Math.random().toString(36).slice(2),
-          name: subName, amount: price, frequency: 'monthly',
-          nextDue: new Date().toLocaleDateString('en-GB'),
-          cardId: null, icon: sub.icon, color: sub.color, active: true,
-        };
-      });
-      await AsyncStorage.setItem(`jf_onboarding_bills_${uid}`, JSON.stringify(bills));
+    const allTxns = [...subTxns, ...manualTxns];
+    if (allTxns.length > 0) await AsyncStorage.setItem('jf_onboarding_subs', JSON.stringify(allTxns));
+
+    // Bills (capped at 3 for free)
+    const billLimit = plan === 'free' ? 3 : filtered.length;
+    const bills = filtered.slice(0, billLimit).map(subName => {
+      const sub = COMMON_SUBS.find(s => s.name === subName)!;
+      const price = parseFloat(subPrices[subName] || '0') || 9.99;
+      return {
+        id: Date.now().toString() + Math.random().toString(36).slice(2),
+        name: subName, amount: price, frequency: 'monthly',
+        nextDue: new Date().toLocaleDateString('en-GB'),
+        cardId: null, icon: sub.icon, color: sub.color, active: true,
+      };
+    });
+    if (bills.length > 0) await AsyncStorage.setItem(`jf_onboarding_bills_${uid}`, JSON.stringify(bills));
+
+    // Card
+    if (cardBank && cardBalance) {
+      const bal = parseFloat(cardBalance) || 0;
+      await AsyncStorage.setItem(`jf_onboarding_card_${uid}`, JSON.stringify([{
+        id: Date.now().toString(), bank: cardBank, type: cardType,
+        balance: bal, number: '0000', color: cardColor, positive: bal >= 0,
+      }]));
     }
 
+    // Saving goal
+    if (goalName && goalTarget) {
+      await AsyncStorage.setItem(`jf_onboarding_goal_${uid}`, JSON.stringify([{
+        id: Date.now().toString(), name: goalName,
+        target: parseFloat(goalTarget) || 0, saved: 0,
+        color: ACCENT, icon: 'wallet',
+      }]));
+    }
+
+    // Budget
+    if (budgetLimit) {
+      const cat = BUDGET_CATS.find(c => c.key === budgetCat)!;
+      await AsyncStorage.setItem(`jf_onboarding_budget_${uid}`, JSON.stringify([{
+        id: Date.now().toString(), cat: budgetCat,
+        limit: parseFloat(budgetLimit) || 0, icon: cat.icon, color: cat.color,
+      }]));
+    }
+
+    // Plan
     if (plan === 'trial') {
       await AsyncStorage.multiSet([
-        ['user_plan', 'trial'],
-        ['trial_start', new Date().toISOString()],
-        ['trial_prompt_seen', 'true'],
+        ['user_plan', 'trial'], ['trial_start', new Date().toISOString()], ['trial_prompt_seen', 'true'],
       ]);
     } else if (plan === 'pro') {
       await AsyncStorage.multiSet([['user_plan', 'pro'], ['trial_prompt_seen', 'true']]);
@@ -193,20 +276,18 @@ export default function OnboardingScreen() {
   };
 
   const selectedCurr = CURRENCIES.find(c => c.key === currency)!;
-
-  const progressWidth = progressAnim.interpolate({
-    inputRange: [0, 1], outputRange: ['5%', '100%'],
-  });
-
+  const progressWidth = progressAnim.interpolate({ inputRange: [0, 1], outputRange: ['2%', '100%'] });
   const isLastSlide = cur === TOTAL - 1;
+
+  // Slides 4,5,6,7,8 are optional (subs, card, txns, goal, budget)
+  const optionalSlides = [4, 5, 6, 7, 8];
 
   const canContinue = (() => {
     switch (cur) {
       case 1: return name.trim().length >= 2;
       case 2: return !!currency;
       case 3: return !!income && parseFloat(income) > 0;
-      case 4: return true;
-      case 5: return !!goal;
+      case 9: return !!mainGoal;
       default: return true;
     }
   })();
@@ -227,16 +308,16 @@ export default function OnboardingScreen() {
         </TouchableOpacity>
       )}
 
-      {/* Skip */}
-      {!isLastSlide && (cur === 2 || cur === 4) && (
-        <TouchableOpacity onPress={() => saveAndNavigate('free')} style={{ position: 'absolute', top: 52, right: 24, zIndex: 10, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 50, paddingHorizontal: 16, paddingVertical: 8 }}>
+      {/* Skip for optional slides */}
+      {optionalSlides.includes(cur) && !isLastSlide && (
+        <TouchableOpacity onPress={next} style={{ position: 'absolute', top: 52, right: 24, zIndex: 10, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 50, paddingHorizontal: 16, paddingVertical: 8 }}>
           <Text style={{ color: '#7B7B9E', fontSize: 13, fontWeight: '600' }}>Skip</Text>
         </TouchableOpacity>
       )}
 
       <ScrollView ref={scrollRef} horizontal pagingEnabled scrollEnabled={false} showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={{ flex: 1 }}>
 
-        {/* ── Slide 1: Welcome ── */}
+        {/* ── 0: Welcome ── */}
         <View style={{ width, flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 }}>
           <View style={{ width: 140, height: 140, borderRadius: 36, backgroundColor: ACCENT + '18', justifyContent: 'center', alignItems: 'center', marginBottom: 36, borderWidth: 1, borderColor: ACCENT + '33' }}>
             <Ionicons name="bar-chart" size={68} color={ACCENT} />
@@ -245,11 +326,11 @@ export default function OnboardingScreen() {
             Welcome to{'\n'}James Finance
           </Text>
           <Text style={{ color: '#7B7B9E', fontSize: 16, textAlign: 'center', lineHeight: 26, maxWidth: 300 }}>
-            Your all-in-one personal finance app.{'\n'}Let's get you set up in under a minute.
+            Your all-in-one personal finance app.{'\n'}Let's get you set up properly.
           </Text>
         </View>
 
-        {/* ── Slide 2: Name ── */}
+        {/* ── 1: Name ── */}
         <View style={{ width, flex: 1, justifyContent: 'center', paddingHorizontal: 32 }}>
           <View style={{ width: 80, height: 80, borderRadius: 24, backgroundColor: '#00D4AA18', justifyContent: 'center', alignItems: 'center', marginBottom: 28, borderWidth: 1, borderColor: '#00D4AA33' }}>
             <Ionicons name="person" size={36} color="#00D4AA" />
@@ -258,22 +339,15 @@ export default function OnboardingScreen() {
           <Text style={{ color: '#7B7B9E', fontSize: 15, marginBottom: 32, lineHeight: 22 }}>This is how we'll greet you every day.</Text>
           <TextInput
             style={{ backgroundColor: '#13132A', borderRadius: 16, padding: 18, color: '#E8E8F0', fontSize: 20, fontWeight: '700', borderWidth: 1, borderColor: name ? '#00D4AA55' : 'rgba(108,99,255,0.2)', marginBottom: 12 }}
-            placeholder="Your first name"
-            placeholderTextColor="#3a3a5e"
-            value={name}
-            onChangeText={setName}
-            autoCapitalize="words"
-            returnKeyType="next"
-            onSubmitEditing={next}
+            placeholder="Your first name" placeholderTextColor="#3a3a5e"
+            value={name} onChangeText={setName} autoCapitalize="words" returnKeyType="next" onSubmitEditing={next}
           />
           {name.length >= 2 && (
-            <Text style={{ color: '#00D4AA', fontSize: 13, fontWeight: '600', marginTop: 4 }}>
-              Hi {name.split(' ')[0]}, great to have you!
-            </Text>
+            <Text style={{ color: '#00D4AA', fontSize: 13, fontWeight: '600', marginTop: 4 }}>Hi {name.split(' ')[0]}, great to have you!</Text>
           )}
         </View>
 
-        {/* ── Slide 3: Currency ── */}
+        {/* ── 2: Currency ── */}
         <View style={{ width, flex: 1, paddingHorizontal: 28, paddingTop: 96 }}>
           <View style={{ width: 80, height: 80, borderRadius: 24, backgroundColor: '#FFD70018', justifyContent: 'center', alignItems: 'center', marginBottom: 24, borderWidth: 1, borderColor: '#FFD70033' }}>
             <Ionicons name="cash" size={36} color="#FFD700" />
@@ -300,7 +374,7 @@ export default function OnboardingScreen() {
           </ScrollView>
         </View>
 
-        {/* ── Slide 4: Monthly Income ── */}
+        {/* ── 3: Monthly Income ── */}
         <View style={{ width, flex: 1, justifyContent: 'center', paddingHorizontal: 32 }}>
           <View style={{ width: 80, height: 80, borderRadius: 24, backgroundColor: '#FF9F4318', justifyContent: 'center', alignItems: 'center', marginBottom: 28, borderWidth: 1, borderColor: '#FF9F4333' }}>
             <Ionicons name="briefcase" size={36} color="#FF9F43" />
@@ -313,13 +387,8 @@ export default function OnboardingScreen() {
             </View>
             <TextInput
               style={{ flex: 1, padding: 18, color: '#E8E8F0', fontSize: 26, fontWeight: '900' }}
-              placeholder="0"
-              placeholderTextColor="#3a3a5e"
-              value={income}
-              onChangeText={setIncome}
-              keyboardType="decimal-pad"
-              returnKeyType="next"
-              onSubmitEditing={next}
+              placeholder="0" placeholderTextColor="#3a3a5e"
+              value={income} onChangeText={setIncome} keyboardType="decimal-pad" returnKeyType="next" onSubmitEditing={next}
             />
           </View>
           <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
@@ -332,15 +401,13 @@ export default function OnboardingScreen() {
           </View>
         </View>
 
-        {/* ── Slide 5: Subscriptions ── */}
+        {/* ── 4: Subscriptions ── */}
         <View style={{ width, flex: 1, paddingHorizontal: 24, paddingTop: 96 }}>
           <View style={{ width: 80, height: 80, borderRadius: 24, backgroundColor: '#a89fff18', justifyContent: 'center', alignItems: 'center', marginBottom: 20, borderWidth: 1, borderColor: '#a89fff33' }}>
             <Ionicons name="repeat" size={36} color="#a89fff" />
           </View>
           <Text style={{ color: '#E8E8F0', fontSize: 28, fontWeight: '900', marginBottom: 6 }}>Your subscriptions</Text>
-          <Text style={{ color: '#7B7B9E', fontSize: 14, marginBottom: 20, lineHeight: 21 }}>
-            Tap to select, then enter the monthly cost. These will be added as recurring bills.
-          </Text>
+          <Text style={{ color: '#7B7B9E', fontSize: 14, marginBottom: 20, lineHeight: 21 }}>Select active subscriptions and enter the cost. Added as recurring bills.</Text>
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
               {COMMON_SUBS.map(sub => {
@@ -367,11 +434,8 @@ export default function OnboardingScreen() {
                       <Text style={{ color: '#7B7B9E', fontSize: 16, fontWeight: '700' }}>{selectedCurr.symbol}</Text>
                       <TextInput
                         style={{ color: '#E8E8F0', fontSize: 16, fontWeight: '800', minWidth: 60, textAlign: 'right' }}
-                        placeholder="0.00"
-                        placeholderTextColor="#3a3a5e"
-                        keyboardType="decimal-pad"
-                        value={subPrices[subName]}
-                        onChangeText={val => setSubPrices(prev => ({ ...prev, [subName]: val }))}
+                        placeholder="0.00" placeholderTextColor="#3a3a5e" keyboardType="decimal-pad"
+                        value={subPrices[subName]} onChangeText={val => setSubPrices(prev => ({ ...prev, [subName]: val }))}
                       />
                     </View>
                   );
@@ -381,7 +445,204 @@ export default function OnboardingScreen() {
           </ScrollView>
         </View>
 
-        {/* ── Slide 6: Main Goal ── */}
+        {/* ── 5: Add a Card ── */}
+        <View style={{ width, flex: 1, paddingHorizontal: 24, paddingTop: 96 }}>
+          <View style={{ width: 80, height: 80, borderRadius: 24, backgroundColor: '#00D4AA18', justifyContent: 'center', alignItems: 'center', marginBottom: 20, borderWidth: 1, borderColor: '#00D4AA33' }}>
+            <Ionicons name="card" size={36} color="#00D4AA" />
+          </View>
+          <Text style={{ color: '#E8E8F0', fontSize: 28, fontWeight: '900', marginBottom: 6 }}>Add a card</Text>
+          <Text style={{ color: '#7B7B9E', fontSize: 14, marginBottom: 20, lineHeight: 21 }}>Add your main bank account to track your balance.</Text>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
+            {/* Card preview */}
+            <View style={{ backgroundColor: cardColor, borderRadius: 20, padding: 22, marginBottom: 20, minHeight: 110 }}>
+              <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: '600', marginBottom: 6 }}>{cardType}</Text>
+              <Text style={{ color: '#fff', fontSize: 20, fontWeight: '900' }}>{cardBank || 'Bank Name'}</Text>
+              <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 22, fontWeight: '900', marginTop: 8 }}>
+                {cardBalance ? `${selectedCurr.symbol}${parseFloat(cardBalance).toLocaleString()}` : `${selectedCurr.symbol}0.00`}
+              </Text>
+            </View>
+            <View style={{ gap: 12 }}>
+              <TextInput
+                style={{ backgroundColor: '#13132A', borderRadius: 14, padding: 16, color: '#E8E8F0', fontSize: 15, borderWidth: 1, borderColor: cardBank ? '#00D4AA55' : 'rgba(108,99,255,0.2)' }}
+                placeholder="Bank name (e.g. Barclays)" placeholderTextColor="#3a3a5e"
+                value={cardBank} onChangeText={setCardBank}
+              />
+              <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#13132A', borderRadius: 14, borderWidth: 1, borderColor: cardBalance ? '#00D4AA55' : 'rgba(108,99,255,0.2)', overflow: 'hidden' }}>
+                <View style={{ paddingHorizontal: 16, paddingVertical: 16, borderRightWidth: 1, borderRightColor: 'rgba(108,99,255,0.15)' }}>
+                  <Text style={{ color: '#7B7B9E', fontSize: 16, fontWeight: '800' }}>{selectedCurr.symbol}</Text>
+                </View>
+                <TextInput
+                  style={{ flex: 1, padding: 16, color: '#E8E8F0', fontSize: 16, fontWeight: '700' }}
+                  placeholder="Current balance" placeholderTextColor="#3a3a5e"
+                  value={cardBalance} onChangeText={setCardBalance} keyboardType="decimal-pad"
+                />
+              </View>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {['Debit', 'Credit', 'Savings'].map(t => (
+                  <TouchableOpacity key={t} onPress={() => setCardType(t)}
+                    style={{ flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: cardType === t ? '#00D4AA22' : '#13132A', borderWidth: 1, borderColor: cardType === t ? '#00D4AA' : 'rgba(108,99,255,0.2)', alignItems: 'center' }}>
+                    <Text style={{ color: cardType === t ? '#00D4AA' : '#7B7B9E', fontSize: 13, fontWeight: '700' }}>{t}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <View>
+                <Text style={{ color: '#7B7B9E', fontSize: 12, fontWeight: '600', marginBottom: 10 }}>Card Colour</Text>
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  {CARD_COLORS.map(col => (
+                    <TouchableOpacity key={col} onPress={() => setCardColor(col)}
+                      style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: col, borderWidth: 3, borderColor: cardColor === col ? '#fff' : 'transparent' }} />
+                  ))}
+                </View>
+              </View>
+            </View>
+          </ScrollView>
+        </View>
+
+        {/* ── 6: Recent Transactions ── */}
+        <View style={{ width, flex: 1, paddingHorizontal: 24, paddingTop: 96 }}>
+          <View style={{ width: 80, height: 80, borderRadius: 24, backgroundColor: '#FF6B6B18', justifyContent: 'center', alignItems: 'center', marginBottom: 20, borderWidth: 1, borderColor: '#FF6B6B33' }}>
+            <Ionicons name="receipt" size={36} color="#FF6B6B" />
+          </View>
+          <Text style={{ color: '#E8E8F0', fontSize: 28, fontWeight: '900', marginBottom: 6 }}>Recent transactions</Text>
+          <Text style={{ color: '#7B7B9E', fontSize: 14, marginBottom: 20, lineHeight: 21 }}>
+            Add some recent spending or income. Free plan allows 20 transactions per week.
+          </Text>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
+            <View style={{ backgroundColor: '#13132A', borderRadius: 18, padding: 16, borderWidth: 1, borderColor: 'rgba(108,99,255,0.2)', marginBottom: 16, gap: 10 }}>
+              {/* Type toggle */}
+              <View style={{ flexDirection: 'row', backgroundColor: '#0D0D1A', borderRadius: 12, padding: 3 }}>
+                {(['expense', 'income'] as const).map(t => (
+                  <TouchableOpacity key={t} onPress={() => setTxnType(t)}
+                    style={{ flex: 1, paddingVertical: 10, borderRadius: 10, backgroundColor: txnType === t ? (t === 'expense' ? '#FF6B6B' : '#00D4AA') : 'transparent', alignItems: 'center' }}>
+                    <Text style={{ color: txnType === t ? '#fff' : '#7B7B9E', fontSize: 13, fontWeight: '700' }}>
+                      {t === 'expense' ? '− Expense' : '+ Income'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TextInput
+                style={{ backgroundColor: '#0D0D1A', borderRadius: 12, padding: 14, color: '#E8E8F0', fontSize: 15, borderWidth: 1, borderColor: 'rgba(108,99,255,0.15)' }}
+                placeholder="Transaction name (e.g. Tesco)" placeholderTextColor="#3a3a5e"
+                value={txnName} onChangeText={setTxnName}
+              />
+              <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#0D0D1A', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(108,99,255,0.15)', overflow: 'hidden' }}>
+                <View style={{ paddingHorizontal: 14, paddingVertical: 14, borderRightWidth: 1, borderRightColor: 'rgba(108,99,255,0.15)' }}>
+                  <Text style={{ color: '#7B7B9E', fontSize: 16, fontWeight: '800' }}>{selectedCurr.symbol}</Text>
+                </View>
+                <TextInput
+                  style={{ flex: 1, padding: 14, color: '#E8E8F0', fontSize: 16, fontWeight: '700' }}
+                  placeholder="Amount" placeholderTextColor="#3a3a5e"
+                  value={txnAmount} onChangeText={setTxnAmount} keyboardType="decimal-pad"
+                />
+              </View>
+              {/* Category */}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  {TXN_CATS.map(c => (
+                    <TouchableOpacity key={c.key} onPress={() => setTxnCat(c.key)}
+                      style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 50, backgroundColor: txnCat === c.key ? ACCENT + '22' : '#0D0D1A', borderWidth: 1, borderColor: txnCat === c.key ? ACCENT : 'rgba(108,99,255,0.15)', flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Ionicons name={c.icon as any} size={13} color={txnCat === c.key ? ACCENT : '#7B7B9E'} />
+                      <Text style={{ color: txnCat === c.key ? ACCENT : '#7B7B9E', fontSize: 12, fontWeight: '600' }}>{c.key}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+              <TouchableOpacity onPress={addTxn} disabled={!txnName || !txnAmount}
+                style={{ backgroundColor: ACCENT, borderRadius: 12, padding: 14, alignItems: 'center', opacity: (!txnName || !txnAmount) ? 0.4 : 1 }}>
+                <Text style={{ color: '#fff', fontWeight: '800', fontSize: 14 }}>Add Transaction</Text>
+              </TouchableOpacity>
+            </View>
+            {txns.map(t => (
+              <View key={t.id} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#13132A', borderRadius: 14, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: 'rgba(108,99,255,0.15)', gap: 12 }}>
+                <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: t.type === 'expense' ? '#FF6B6B22' : '#00D4AA22', justifyContent: 'center', alignItems: 'center' }}>
+                  <Ionicons name={t.icon as any} size={18} color={t.type === 'expense' ? '#FF6B6B' : '#00D4AA'} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: '#E8E8F0', fontSize: 14, fontWeight: '700' }}>{t.name}</Text>
+                  <Text style={{ color: '#7B7B9E', fontSize: 12 }}>{t.cat}</Text>
+                </View>
+                <Text style={{ color: t.type === 'expense' ? '#FF6B6B' : '#00D4AA', fontSize: 15, fontWeight: '800' }}>
+                  {t.type === 'expense' ? '-' : '+'}{selectedCurr.symbol}{t.amount}
+                </Text>
+                <TouchableOpacity onPress={() => removeTxn(t.id)}>
+                  <Ionicons name="close-circle" size={20} color="#7B7B9E" />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+
+        {/* ── 7: Saving Goal ── */}
+        <View style={{ width, flex: 1, justifyContent: 'center', paddingHorizontal: 32 }}>
+          <View style={{ width: 80, height: 80, borderRadius: 24, backgroundColor: '#00D4AA18', justifyContent: 'center', alignItems: 'center', marginBottom: 28, borderWidth: 1, borderColor: '#00D4AA33' }}>
+            <Ionicons name="wallet" size={36} color="#00D4AA" />
+          </View>
+          <Text style={{ color: '#E8E8F0', fontSize: 28, fontWeight: '900', marginBottom: 8 }}>Set a saving goal</Text>
+          <Text style={{ color: '#7B7B9E', fontSize: 15, marginBottom: 32, lineHeight: 22 }}>What are you saving towards? Track your progress every day.</Text>
+          <TextInput
+            style={{ backgroundColor: '#13132A', borderRadius: 16, padding: 16, color: '#E8E8F0', fontSize: 16, borderWidth: 1, borderColor: goalName ? '#00D4AA55' : 'rgba(108,99,255,0.2)', marginBottom: 12 }}
+            placeholder="Goal name (e.g. Holiday, New Car)" placeholderTextColor="#3a3a5e"
+            value={goalName} onChangeText={setGoalName}
+          />
+          <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#13132A', borderRadius: 16, borderWidth: 1, borderColor: goalTarget ? '#00D4AA55' : 'rgba(108,99,255,0.2)', overflow: 'hidden', marginBottom: 16 }}>
+            <View style={{ paddingHorizontal: 16, paddingVertical: 16, borderRightWidth: 1, borderRightColor: 'rgba(108,99,255,0.15)' }}>
+              <Text style={{ color: '#7B7B9E', fontSize: 18, fontWeight: '800' }}>{selectedCurr.symbol}</Text>
+            </View>
+            <TextInput
+              style={{ flex: 1, padding: 16, color: '#E8E8F0', fontSize: 22, fontWeight: '900' }}
+              placeholder="Target amount" placeholderTextColor="#3a3a5e"
+              value={goalTarget} onChangeText={setGoalTarget} keyboardType="decimal-pad"
+            />
+          </View>
+          <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+            {['500', '1000', '2000', '5000', '10000'].map(v => (
+              <TouchableOpacity key={v} onPress={() => setGoalTarget(v)}
+                style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 50, backgroundColor: goalTarget === v ? '#00D4AA22' : '#13132A', borderWidth: 1, borderColor: goalTarget === v ? '#00D4AA' : 'rgba(108,99,255,0.15)' }}>
+                <Text style={{ color: goalTarget === v ? '#00D4AA' : '#7B7B9E', fontSize: 13, fontWeight: '700' }}>{selectedCurr.symbol}{v}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* ── 8: Budget ── */}
+        <View style={{ width, flex: 1, justifyContent: 'center', paddingHorizontal: 32 }}>
+          <View style={{ width: 80, height: 80, borderRadius: 24, backgroundColor: '#FF9F4318', justifyContent: 'center', alignItems: 'center', marginBottom: 28, borderWidth: 1, borderColor: '#FF9F4333' }}>
+            <Ionicons name="pie-chart" size={36} color="#FF9F43" />
+          </View>
+          <Text style={{ color: '#E8E8F0', fontSize: 28, fontWeight: '900', marginBottom: 8 }}>Set a monthly budget</Text>
+          <Text style={{ color: '#7B7B9E', fontSize: 15, marginBottom: 24, lineHeight: 22 }}>Pick a category and set a limit. We'll alert you when you're close.</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {BUDGET_CATS.map(c => (
+                <TouchableOpacity key={c.key} onPress={() => setBudgetCat(c.key)}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 50, backgroundColor: budgetCat === c.key ? c.color + '28' : '#13132A', borderWidth: 1.5, borderColor: budgetCat === c.key ? c.color : 'rgba(108,99,255,0.15)' }}>
+                  <Ionicons name={c.icon as any} size={14} color={budgetCat === c.key ? c.color : '#7B7B9E'} />
+                  <Text style={{ color: budgetCat === c.key ? c.color : '#7B7B9E', fontSize: 13, fontWeight: '700' }}>{c.key}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
+          <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#13132A', borderRadius: 16, borderWidth: 1, borderColor: budgetLimit ? '#FF9F4355' : 'rgba(108,99,255,0.2)', overflow: 'hidden', marginBottom: 16 }}>
+            <View style={{ paddingHorizontal: 16, paddingVertical: 16, borderRightWidth: 1, borderRightColor: 'rgba(108,99,255,0.15)' }}>
+              <Text style={{ color: '#7B7B9E', fontSize: 18, fontWeight: '800' }}>{selectedCurr.symbol}</Text>
+            </View>
+            <TextInput
+              style={{ flex: 1, padding: 16, color: '#E8E8F0', fontSize: 22, fontWeight: '900' }}
+              placeholder="Monthly limit" placeholderTextColor="#3a3a5e"
+              value={budgetLimit} onChangeText={setBudgetLimit} keyboardType="decimal-pad"
+            />
+          </View>
+          <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+            {['100', '200', '300', '500', '800'].map(v => (
+              <TouchableOpacity key={v} onPress={() => setBudgetLimit(v)}
+                style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 50, backgroundColor: budgetLimit === v ? '#FF9F4322' : '#13132A', borderWidth: 1, borderColor: budgetLimit === v ? '#FF9F43' : 'rgba(108,99,255,0.15)' }}>
+                <Text style={{ color: budgetLimit === v ? '#FF9F43' : '#7B7B9E', fontSize: 13, fontWeight: '700' }}>{selectedCurr.symbol}{v}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* ── 9: Main Goal ── */}
         <View style={{ width, flex: 1, justifyContent: 'center', paddingHorizontal: 28 }}>
           <View style={{ width: 80, height: 80, borderRadius: 24, backgroundColor: ACCENT + '18', justifyContent: 'center', alignItems: 'center', marginBottom: 28, borderWidth: 1, borderColor: ACCENT + '33' }}>
             <Ionicons name="flag" size={36} color={ACCENT} />
@@ -389,21 +650,20 @@ export default function OnboardingScreen() {
           <Text style={{ color: '#E8E8F0', fontSize: 28, fontWeight: '900', marginBottom: 8 }}>What's your{'\n'}main goal?</Text>
           <Text style={{ color: '#7B7B9E', fontSize: 15, marginBottom: 28, lineHeight: 22 }}>We'll personalise your home screen around this.</Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-            {GOALS.map(g => (
-              <TouchableOpacity key={g.key} onPress={() => setGoal(g.key)}
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 13, borderRadius: 50, backgroundColor: goal === g.key ? ACCENT : '#13132A', borderWidth: 1, borderColor: goal === g.key ? ACCENT : 'rgba(108,99,255,0.2)' }}>
-                <Ionicons name={g.icon as any} size={15} color={goal === g.key ? '#fff' : '#7B7B9E'} />
-                <Text style={{ color: goal === g.key ? '#fff' : '#7B7B9E', fontSize: 13, fontWeight: '700' }}>{g.label}</Text>
+            {MAIN_GOALS.map(g => (
+              <TouchableOpacity key={g.key} onPress={() => setMainGoal(g.key)}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 13, borderRadius: 50, backgroundColor: mainGoal === g.key ? ACCENT : '#13132A', borderWidth: 1, borderColor: mainGoal === g.key ? ACCENT : 'rgba(108,99,255,0.2)' }}>
+                <Ionicons name={g.icon as any} size={15} color={mainGoal === g.key ? '#fff' : '#7B7B9E'} />
+                <Text style={{ color: mainGoal === g.key ? '#fff' : '#7B7B9E', fontSize: 13, fontWeight: '700' }}>{g.label}</Text>
               </TouchableOpacity>
             ))}
           </View>
           <Text style={{ color: '#7B7B9E', fontSize: 12, marginTop: 20, textAlign: 'center' }}>Tap a goal to select it, then continue</Text>
         </View>
 
-        {/* ── Slide 7: Choose Your Plan ── */}
+        {/* ── 10: Choose Plan ── */}
         <View style={{ width, flex: 1, backgroundColor: '#0D0D1A' }}>
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 22, paddingTop: 80, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
-
             <Text style={{ color: '#E8E8F0', fontSize: 28, fontWeight: '900', textAlign: 'center', marginBottom: 6 }}>Choose your plan</Text>
             <Text style={{ color: '#7B7B9E', fontSize: 14, textAlign: 'center', marginBottom: 24, lineHeight: 20 }}>
               Start free or unlock everything with a 3-day trial.
@@ -421,7 +681,7 @@ export default function OnboardingScreen() {
                   <Text style={{ color: '#7B7B9E', fontSize: 12 }}>Always free</Text>
                 </View>
               </View>
-              {['20 transactions', '1 saving goal & 1 budget', 'Basic spending stats & net worth', 'Up to 3 recurring bills'].map((f, i) => (
+              {['20 transactions per week', '1 saving goal & 1 budget', 'Basic spending stats & net worth', 'Up to 3 recurring bills'].map((f, i) => (
                 <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 5 }}>
                   <Ionicons name="checkmark" size={13} color="#7B7B9E" />
                   <Text style={{ color: '#7B7B9E', fontSize: 12 }}>{f}</Text>
@@ -456,30 +716,31 @@ export default function OnboardingScreen() {
             </TouchableOpacity>
 
             {/* Premium */}
-            <View style={{ backgroundColor: '#13132A', borderRadius: 18, padding: 16, borderWidth: 2, borderColor: '#FFD700AA', marginBottom: 8 }}>
-              <View style={{ position: 'absolute', top: -11, right: 16, backgroundColor: '#FFD700', borderRadius: 50, paddingHorizontal: 12, paddingVertical: 4 }}>
+            <View style={{ marginBottom: 8, position: 'relative' }}>
+              <View style={{ position: 'absolute', top: -11, right: 16, zIndex: 10, backgroundColor: '#FFD700', borderRadius: 50, paddingHorizontal: 12, paddingVertical: 4 }}>
                 <Text style={{ color: '#0D0D1A', fontSize: 10, fontWeight: '900' }}>3-DAY TRIAL</Text>
               </View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                <View style={{ width: 38, height: 38, borderRadius: 10, backgroundColor: '#FFD70022', justifyContent: 'center', alignItems: 'center' }}>
-                  <Ionicons name="trophy" size={20} color="#FFD700" />
+              <TouchableOpacity activeOpacity={0.8} onPress={() => saveAndNavigate('trial')}
+                style={{ backgroundColor: '#13132A', borderRadius: 18, padding: 16, borderWidth: 2, borderColor: '#FFD700AA' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                  <View style={{ width: 38, height: 38, borderRadius: 10, backgroundColor: '#FFD70022', justifyContent: 'center', alignItems: 'center' }}>
+                    <Ionicons name="trophy" size={20} color="#FFD700" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: '#E8E8F0', fontSize: 15, fontWeight: '800' }}>Premium</Text>
+                    <Text style={{ color: '#FFD700', fontSize: 12, fontWeight: '700' }}>£7.99 / month · 3-day free trial</Text>
+                  </View>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: '#E8E8F0', fontSize: 15, fontWeight: '800' }}>Premium</Text>
-                  <Text style={{ color: '#FFD700', fontSize: 12, fontWeight: '700' }}>£7.99 / month · 3-day free trial</Text>
+                {['Everything in Pro', 'Unlimited goals & budgets', 'Live market signals & forecasts', 'Investment & asset tracking', 'Tax helper'].map((f, i) => (
+                  <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 5 }}>
+                    <Ionicons name="checkmark-circle" size={13} color="#FFD700" />
+                    <Text style={{ color: '#C0C0D8', fontSize: 12 }}>{f}</Text>
+                  </View>
+                ))}
+                <View style={{ backgroundColor: '#FFD700', borderRadius: 10, padding: 12, alignItems: 'center', marginTop: 10 }}>
+                  <Text style={{ color: '#0D0D1A', fontSize: 14, fontWeight: '900' }}>Start 3-Day Free Trial</Text>
+                  <Text style={{ color: '#0D0D1A88', fontSize: 11, marginTop: 2 }}>Card required · Cancel anytime</Text>
                 </View>
-              </View>
-              {['Everything in Pro', 'Unlimited goals & budgets', 'Live market signals & forecasts', 'Investment & asset tracking', 'Tax helper'].map((f, i) => (
-                <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 5 }}>
-                  <Ionicons name="checkmark-circle" size={13} color="#FFD700" />
-                  <Text style={{ color: '#C0C0D8', fontSize: 12 }}>{f}</Text>
-                </View>
-              ))}
-              <TouchableOpacity activeOpacity={0.8}
-                style={{ backgroundColor: '#FFD700', borderRadius: 10, padding: 12, alignItems: 'center', marginTop: 10 }}
-                onPress={() => saveAndNavigate('trial')}>
-                <Text style={{ color: '#0D0D1A', fontSize: 14, fontWeight: '900' }}>Start 3-Day Free Trial</Text>
-                <Text style={{ color: '#0D0D1A88', fontSize: 11, marginTop: 2 }}>Card required · Cancel anytime</Text>
               </TouchableOpacity>
             </View>
 
@@ -496,7 +757,7 @@ export default function OnboardingScreen() {
         <View style={{ paddingHorizontal: 28, paddingBottom: 52 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 6, marginBottom: 20 }}>
             {Array.from({ length: TOTAL }).map((_, i) => (
-              <View key={i} style={{ width: cur === i ? 20 : 6, height: 6, borderRadius: 3, backgroundColor: cur === i ? ACCENT : '#2a2a4a' }} />
+              <View key={i} style={{ width: cur === i ? 20 : 5, height: 5, borderRadius: 3, backgroundColor: cur === i ? ACCENT : '#2a2a4a' }} />
             ))}
           </View>
           <TouchableOpacity
@@ -508,13 +769,13 @@ export default function OnboardingScreen() {
             <Text style={{ color: '#7B7B9E', fontSize: 13, textAlign: 'center', marginTop: 12 }}>
               {cur === 1 ? 'Enter your name to continue'
                 : cur === 3 ? 'Enter your monthly income to continue'
-                  : cur === 5 ? 'Pick a goal to continue' : ''}
+                  : cur === 9 ? 'Pick a goal to continue' : ''}
             </Text>
           )}
         </View>
       )}
 
-      {/* Trial prompt modal */}
+      {/* Trial prompt */}
       <Modal visible={showTrialPrompt} transparent animationType="fade">
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 28 }}>
           <View style={{ backgroundColor: '#13132A', borderRadius: 24, padding: 28, width: '100%', borderWidth: 1.5, borderColor: '#FFD700AA' }}>

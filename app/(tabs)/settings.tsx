@@ -390,8 +390,8 @@ export default function SettingsScreen() {
         {
           text: 'Delete Account', style: 'destructive',
           onPress: () => Alert.alert(
-            'Final Confirmation',
-            'All your data will be gone forever.',
+            'Are you absolutely sure?',
+            'Your transactions, cards, goals, budgets and all personal data will be permanently deleted.',
             [
               { text: 'Cancel', style: 'cancel' },
               {
@@ -399,19 +399,36 @@ export default function SettingsScreen() {
                 onPress: async () => {
                   try {
                     const { data: { session } } = await supabase.auth.getSession();
+                    if (!session?.access_token) {
+                      Alert.alert('Error', 'Could not verify your session. Please log out and log back in.');
+                      return;
+                    }
+
                     const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
-                    await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/delete-account`, {
+                    const res = await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/delete-account`, {
                       method: 'POST',
                       headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${session?.access_token}`,
+                        'Authorization': `Bearer ${session.access_token}`,
                         'apikey': anonKey,
                       },
                     });
-                    await clearLocalData();
-                    await supabase.auth.signOut();
-                  } catch {
-                    Alert.alert('Error', 'Could not delete account. Please try again.');
+
+                    if (!res.ok) {
+                      const body = await res.json().catch(() => ({}));
+                      throw new Error(body.error || `Server error ${res.status}`);
+                    }
+
+                    // Wipe all local data
+                    await AsyncStorage.clear();
+
+                    // Sign out locally (auth user is already deleted server-side)
+                    try { await supabase.auth.signOut(); } catch { }
+
+                    // Navigate to login
+                    router.replace('/login' as any);
+                  } catch (e: any) {
+                    Alert.alert('Error', e?.message || 'Could not delete account. Please try again.');
                   }
                 },
               },
@@ -473,7 +490,7 @@ export default function SettingsScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: c.dark }}>
       <StarBackground />
-      <ScrollView style={{ flex: 1, paddingHorizontal: 20 }} contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
+      <ScrollView style={{ flex: 1, paddingHorizontal: 20 }} showsVerticalScrollIndicator={false}>
         <Text style={{ color: c.text, fontSize: 26, fontWeight: '900', marginTop: 60, marginBottom: 20 }}>{t('settings')}</Text>
 
         {/* ── Your Plan ── */}

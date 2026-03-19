@@ -67,6 +67,44 @@ export function UserDataProvider({ children }: { children: ReactNode }) {
   const goalsRef = useRef<Goal[]>([]);
   const incomeRef = useRef<IncomeSource[]>([]);
 
+  // ── Import onboarding data (one-time) ─────────────────────────────────────
+  const importOnboardingData = async (uid: string, currentBudgets: Budget[], currentGoals: Goal[], currentIncome: IncomeSource[]) => {
+    try {
+      const imported = await AsyncStorage.getItem(`jf_profile_onboarding_imported_${uid}`);
+      if (imported) return { budgets: currentBudgets, goals: currentGoals, income: currentIncome };
+
+      let budgets = [...currentBudgets];
+      let goals = [...currentGoals];
+      let income = [...currentIncome];
+
+      // Import saving goal
+      const rawGoal = await AsyncStorage.getItem(`jf_onboarding_goal_${uid}`);
+      if (rawGoal) {
+        const onboardingGoals: Goal[] = JSON.parse(rawGoal);
+        if (goals.length === 0) goals = onboardingGoals;
+      }
+
+      // Import budget
+      const rawBudget = await AsyncStorage.getItem(`jf_onboarding_budget_${uid}`);
+      if (rawBudget) {
+        const onboardingBudgets: Budget[] = JSON.parse(rawBudget);
+        if (budgets.length === 0) budgets = onboardingBudgets;
+      }
+
+      // Import income source (already saved as polar_income_${uid} in onboarding)
+      const rawIncome = await AsyncStorage.getItem(`polar_income_${uid}`);
+      if (rawIncome && income.length === 0) {
+        income = JSON.parse(rawIncome);
+      }
+
+      await AsyncStorage.setItem(`jf_profile_onboarding_imported_${uid}`, 'true');
+      return { budgets, goals, income };
+    } catch (e) {
+      console.warn('Profile onboarding import failed:', e);
+      return { budgets: currentBudgets, goals: currentGoals, income: currentIncome };
+    }
+  };
+
   // ── Load: cache first, then Supabase ──────────────────────────────────────
   const loadData = async (uid: string) => {
     uidRef.current = uid;
@@ -91,18 +129,32 @@ export function UserDataProvider({ children }: { children: ReactNode }) {
         .single();
 
       if (!error && data) {
-        const b = data.budgets ?? [];
-        const g = data.goals ?? [];
-        const i = data.income ?? [];
+        let b = data.budgets ?? [];
+        let g = data.goals ?? [];
+        let i = data.income ?? [];
+
+        // Merge onboarding data on first load
+        const merged = await importOnboardingData(uid, b, g, i);
+        b = merged.budgets;
+        g = merged.goals;
+        i = merged.income;
 
         setBudgetsState(b); budgetsRef.current = b;
         setGoalsState(g); goalsRef.current = g;
         setIncomeState(i); incomeRef.current = i;
 
         await AsyncStorage.setItem(cacheKey(uid), JSON.stringify({ budgets: b, goals: g, income: i }));
+        syncToSupabase({ budgets: b, goals: g, income: i });
       } else {
-        // No row yet — try migrating from old AsyncStorage keys
+        // No row yet — import onboarding data then migrate old keys
         await migrateOldKeys(uid);
+        const merged = await importOnboardingData(uid, budgetsRef.current, goalsRef.current, incomeRef.current);
+        if (merged.budgets.length || merged.goals.length || merged.income.length) {
+          setBudgetsState(merged.budgets); budgetsRef.current = merged.budgets;
+          setGoalsState(merged.goals); goalsRef.current = merged.goals;
+          setIncomeState(merged.income); incomeRef.current = merged.income;
+          syncToSupabase({ budgets: merged.budgets, goals: merged.goals, income: merged.income });
+        }
       }
     } catch (e) {
       console.warn('UserDataContext load failed, using cache:', e);

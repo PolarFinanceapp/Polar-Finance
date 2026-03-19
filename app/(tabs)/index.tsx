@@ -136,15 +136,7 @@ export default function HomeScreen() {
 
   const handleProfileClose = async () => {
     setShowProfile(false);
-    // Read AsyncStorage directly — faster and more reliable than waiting for Supabase refresh
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user?.id) {
-        const cached = await AsyncStorage.getItem(`jf_profile_pic_${user.id}`);
-        if (cached) { setProfilePhoto(cached); return; }
-      }
-    } catch { }
-    setProfilePhoto(null);
+    await loadProfilePhoto();
   };
 
   // ── Modal state ───────────────────────────────────────────────────────────
@@ -190,6 +182,7 @@ export default function HomeScreen() {
   const [newTxnAmt, setNewTxnAmt] = useState('');
   const [newTxnType, setNewTxnType] = useState<'income' | 'expense'>('expense');
   const [newTxnDate, setNewTxnDate] = useState(new Date().toLocaleDateString('en-GB'));
+  const [newTxnCardId, setNewTxnCardId] = useState<string | null>(null);
 
   // ── Transaction edit ──────────────────────────────────────────────────────
   const [editTxn, setEditTxn] = useState<any | null>(null);
@@ -198,6 +191,7 @@ export default function HomeScreen() {
   const [editTxnAmt, setEditTxnAmt] = useState('');
   const [editTxnType, setEditTxnType] = useState<'income' | 'expense'>('expense');
   const [editTxnDate, setEditTxnDate] = useState('');
+  const [editTxnCardId, setEditTxnCardId] = useState<string | null>(null);
 
   // ── Quick actions ─────────────────────────────────────────────────────────
   const [selectedTabs, setSelectedTabs] = useState<typeof ALL_TABS[number][]>([ALL_TABS[0], ALL_TABS[1], ALL_TABS[2]]);
@@ -286,15 +280,25 @@ export default function HomeScreen() {
   const addTransaction = () => {
     if (!newTxnName || !newTxnAmt) return;
     const amt = parseFloat(newTxnAmt);
+    const signed = newTxnType === 'expense' ? -Math.abs(amt) : Math.abs(amt);
     setTransactions([{
       id: Date.now().toString(),
       icon: CAT_IONICONS[newTxnCat] || 'card',
       name: newTxnName, cat: newTxnCat,
-      amount: newTxnType === 'expense' ? -Math.abs(amt) : Math.abs(amt),
-      type: newTxnType, date: newTxnDate || new Date().toLocaleDateString('en-GB'),
+      amount: signed, type: newTxnType,
+      date: newTxnDate || new Date().toLocaleDateString('en-GB'),
+      cardId: newTxnCardId,
     } as any, ...transactions]);
+    // Deduct from linked card
+    if (newTxnCardId) {
+      setCards(cards.map(card =>
+        card.id === newTxnCardId
+          ? { ...card, balance: card.balance + signed, positive: (card.balance + signed) >= 0 }
+          : card
+      ));
+    }
     setNewTxnName(''); setNewTxnAmt(''); setNewTxnCat('Groceries'); setNewTxnType('expense');
-    setNewTxnDate(new Date().toLocaleDateString('en-GB'));
+    setNewTxnDate(new Date().toLocaleDateString('en-GB')); setNewTxnCardId(null);
     setShowAddTxn(false);
   };
 
@@ -305,20 +309,41 @@ export default function HomeScreen() {
     setEditTxnAmt(Math.abs(txn.amount).toString());
     setEditTxnType(txn.type === 'income' ? 'income' : 'expense');
     setEditTxnDate(txn.date || new Date().toLocaleDateString('en-GB'));
+    setEditTxnCardId(txn.cardId || null);
   };
 
   const saveEditTxn = () => {
     if (!editTxn || !editTxnName || !editTxnAmt) return;
     const amt = parseFloat(editTxnAmt);
+    const newSigned = editTxnType === 'expense' ? -Math.abs(amt) : Math.abs(amt);
+    const oldSigned = editTxn.amount;
+
+    // Reverse old card effect, apply new
+    let updatedCards = [...cards];
+    if (editTxn.cardId) {
+      updatedCards = updatedCards.map(card =>
+        card.id === editTxn.cardId
+          ? { ...card, balance: card.balance - oldSigned, positive: (card.balance - oldSigned) >= 0 }
+          : card
+      );
+    }
+    if (editTxnCardId) {
+      updatedCards = updatedCards.map(card =>
+        card.id === editTxnCardId
+          ? { ...card, balance: card.balance + newSigned, positive: (card.balance + newSigned) >= 0 }
+          : card
+      );
+    }
+    setCards(updatedCards);
+
     setTransactions(transactions.map(tx => tx.id === editTxn.id
       ? {
         ...tx,
-        name: editTxnName,
-        cat: editTxnCat,
+        name: editTxnName, cat: editTxnCat,
         icon: CAT_IONICONS[editTxnCat] || tx.icon,
-        amount: editTxnType === 'expense' ? -Math.abs(amt) : Math.abs(amt),
-        type: editTxnType,
+        amount: newSigned, type: editTxnType,
         date: editTxnDate || tx.date,
+        cardId: editTxnCardId,
       }
       : tx
     ));
@@ -861,6 +886,25 @@ export default function HomeScreen() {
                   keyboardType="numbers-and-punctuation"
                 />
               </View>
+              {/* Card picker */}
+              {cards.length > 0 && (
+                <View style={{ marginBottom: 12 }}>
+                  <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 8 }}>Link to Card (optional)</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    <TouchableOpacity onPress={() => setNewTxnCardId(null)}
+                      style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 50, backgroundColor: newTxnCardId === null ? c.accent : c.card2, borderWidth: 1, borderColor: newTxnCardId === null ? c.accent : c.border, marginRight: 8 }}>
+                      <Text style={{ color: newTxnCardId === null ? '#fff' : c.muted, fontSize: 12, fontWeight: '600' }}>None</Text>
+                    </TouchableOpacity>
+                    {cards.map(card => (
+                      <TouchableOpacity key={card.id} onPress={() => setNewTxnCardId(card.id)}
+                        style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 50, backgroundColor: newTxnCardId === card.id ? c.accent : c.card2, borderWidth: 1, borderColor: newTxnCardId === card.id ? c.accent : c.border, marginRight: 8, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Ionicons name="card" size={12} color={newTxnCardId === card.id ? '#fff' : c.muted} />
+                        <Text style={{ color: newTxnCardId === card.id ? '#fff' : c.muted, fontSize: 12, fontWeight: '600' }}>{card.bank} ···· {card.number}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
               <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 8 }}>{t('category')}</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
                 {Object.keys(CAT_IONICONS).map(cat => (
@@ -926,6 +970,25 @@ export default function HomeScreen() {
                   keyboardType="numbers-and-punctuation"
                 />
               </View>
+              {/* Card picker */}
+              {cards.length > 0 && (
+                <View style={{ marginBottom: 12 }}>
+                  <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 8 }}>Link to Card (optional)</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    <TouchableOpacity onPress={() => setEditTxnCardId(null)}
+                      style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 50, backgroundColor: editTxnCardId === null ? c.accent : c.card2, borderWidth: 1, borderColor: editTxnCardId === null ? c.accent : c.border, marginRight: 8 }}>
+                      <Text style={{ color: editTxnCardId === null ? '#fff' : c.muted, fontSize: 12, fontWeight: '600' }}>None</Text>
+                    </TouchableOpacity>
+                    {cards.map(card => (
+                      <TouchableOpacity key={card.id} onPress={() => setEditTxnCardId(card.id)}
+                        style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 50, backgroundColor: editTxnCardId === card.id ? c.accent : c.card2, borderWidth: 1, borderColor: editTxnCardId === card.id ? c.accent : c.border, marginRight: 8, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Ionicons name="card" size={12} color={editTxnCardId === card.id ? '#fff' : c.muted} />
+                        <Text style={{ color: editTxnCardId === card.id ? '#fff' : c.muted, fontSize: 12, fontWeight: '600' }}>{card.bank} ···· {card.number}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
               <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 8 }}>{t('category')}</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
                 {Object.keys(CAT_IONICONS).map(cat => (

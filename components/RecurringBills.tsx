@@ -6,7 +6,27 @@ import { useFinance } from '../context/FinanceContext';
 import { useLocale } from '../context/LocaleContext';
 import { useTheme } from '../context/ThemeContext';
 
-const BILL_ICONS = ['💡', '💧', '🔥', '📱', '🌐', '🏠', '🚗', '🎬', '💪', '🎵', '📺', '🛒', '🏥', '✈️', '🎮'];
+const BILL_ICONS = [
+  { name: 'flash', label: 'Electric' },
+  { name: 'water', label: 'Water' },
+  { name: 'flame', label: 'Gas' },
+  { name: 'phone-portrait', label: 'Phone' },
+  { name: 'wifi', label: 'Internet' },
+  { name: 'home', label: 'Rent' },
+  { name: 'car', label: 'Car' },
+  { name: 'film', label: 'Streaming' },
+  { name: 'barbell', label: 'Gym' },
+  { name: 'musical-notes', label: 'Music' },
+  { name: 'tv', label: 'TV' },
+  { name: 'cart', label: 'Shopping' },
+  { name: 'medkit', label: 'Health' },
+  { name: 'airplane', label: 'Travel' },
+  { name: 'game-controller', label: 'Gaming' },
+  { name: 'card', label: 'Card' },
+  { name: 'school', label: 'Education' },
+  { name: 'cloud', label: 'Cloud' },
+] as const;
+
 const BILL_COLORS = ['#6C63FF', '#00D4AA', '#FF9F43', '#FF6B6B', '#a89fff', '#FFD700'];
 
 const FREQUENCIES: { key: Frequency; label: string }[] = [
@@ -30,7 +50,7 @@ export default function RecurringBills({ visible, onClose }: Props) {
   const [billFreq, setBillFreq] = useState<Frequency>('monthly');
   const [billDue, setBillDue] = useState('');
   const [billCardId, setBillCardId] = useState<string | null>(null);
-  const [billIcon, setBillIcon] = useState('💡');
+  const [billIcon, setBillIcon] = useState('flash');
   const [billColor, setBillColor] = useState('#6C63FF');
 
   const freqLabel = (f: Frequency) => FREQUENCIES.find(x => x.key === f)?.label || f;
@@ -47,9 +67,12 @@ export default function RecurringBills({ visible, onClose }: Props) {
   const handleAdd = async () => {
     if (!billName || !billAmount) return;
     const due = billDue || new Date().toLocaleDateString('en-GB');
-    await addBill({ name: billName, amount: parseFloat(billAmount), frequency: billFreq, nextDue: due, cardId: billCardId, icon: billIcon, color: billColor, active: true });
+    await addBill({
+      name: billName, amount: parseFloat(billAmount), frequency: billFreq,
+      nextDue: due, cardId: billCardId, icon: billIcon, color: billColor, active: true,
+    });
     setBillName(''); setBillAmount(''); setBillFreq('monthly'); setBillDue('');
-    setBillCardId(null); setBillIcon('💡'); setBillColor('#6C63FF');
+    setBillCardId(null); setBillIcon('flash'); setBillColor('#6C63FF');
     setShowAdd(false);
   };
 
@@ -106,11 +129,12 @@ export default function RecurringBills({ visible, onClose }: Props) {
           {/* Bills list */}
           {bills.map(bill => {
             const linkedCard = cards.find(card => card.id === bill.cardId);
+            const iconName = (bill.icon && !bill.icon.includes('emoji') ? bill.icon : 'card') as any;
             return (
               <View key={bill.id} style={{ backgroundColor: c.card, borderRadius: 20, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: c.border }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-                  <View style={{ width: 46, height: 46, borderRadius: 14, backgroundColor: bill.color + '22', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-                    <Text style={{ fontSize: 22 }}>{bill.icon}</Text>
+                  <View style={{ width: 46, height: 46, borderRadius: 14, backgroundColor: (bill.color || '#6C63FF') + '22', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                    <Ionicons name={iconName} size={22} color={bill.color || '#6C63FF'} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: c.text, fontSize: 15, fontWeight: '700' }}>{bill.name}</Text>
@@ -119,7 +143,7 @@ export default function RecurringBills({ visible, onClose }: Props) {
                     </Text>
                     {linkedCard && (
                       <Text style={{ color: c.accent, fontSize: 11, marginTop: 2 }}>
-                        💳 {linkedCard.bank} ···· {linkedCard.number}
+                        {linkedCard.bank} ···· {linkedCard.number}
                       </Text>
                     )}
                   </View>
@@ -193,12 +217,13 @@ export default function RecurringBills({ visible, onClose }: Props) {
                   ))}
                 </ScrollView>
 
-                {/* Icon */}
+                {/* Icon grid */}
                 <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 8 }}>Pick Icon</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
                   {BILL_ICONS.map(ic => (
-                    <TouchableOpacity key={ic} style={{ width: 42, height: 42, borderRadius: 10, backgroundColor: c.card2, justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, borderColor: billIcon === ic ? c.accent : 'transparent' }} onPress={() => setBillIcon(ic)}>
-                      <Text style={{ fontSize: 20 }}>{ic}</Text>
+                    <TouchableOpacity key={ic.name} onPress={() => setBillIcon(ic.name)}
+                      style={{ width: 46, height: 46, borderRadius: 12, backgroundColor: billIcon === ic.name ? billColor + '33' : c.card2, justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, borderColor: billIcon === ic.name ? billColor : 'transparent' }}>
+                      <Ionicons name={ic.name as any} size={22} color={billIcon === ic.name ? billColor : c.muted} />
                     </TouchableOpacity>
                   ))}
                 </View>

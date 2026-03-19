@@ -6,7 +6,6 @@ import {
   Alert, Image, KeyboardAvoidingView, Modal, Platform, ScrollView,
   Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
-import { useBills } from '../context/BillsContext';
 import { usePlan } from '../context/PlanContext';
 import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../lib/supabase';
@@ -19,30 +18,13 @@ const AVATAR_ICONS = [
   'paw', 'pizza', 'rose', 'headset', 'thunderstorm', 'skull',
 ];
 
-const COMMON_SUBS = [
-  { name: 'Netflix', icon: 'play-circle', color: '#E50914' },
-  { name: 'Spotify', icon: 'musical-notes', color: '#1DB954' },
-  { name: 'Amazon Prime', icon: 'cart', color: '#FF9900' },
-  { name: 'Disney+', icon: 'star', color: '#113CCF' },
-  { name: 'Apple TV+', icon: 'tv', color: '#888' },
-  { name: 'YouTube Premium', icon: 'logo-youtube', color: '#FF0000' },
-  { name: 'Sky', icon: 'cloud', color: '#0078D7' },
-  { name: 'Gym', icon: 'barbell', color: '#FF6B6B' },
-  { name: 'iCloud', icon: 'cloud-upload', color: '#007AFF' },
-  { name: 'Microsoft 365', icon: 'grid', color: '#D83B01' },
-  { name: 'Adobe CC', icon: 'color-palette', color: '#FF0000' },
-  { name: 'NOW TV', icon: 'play', color: '#00B140' },
-  { name: 'Headspace', icon: 'leaf', color: '#FF6D00' },
-  { name: 'Deliveroo+', icon: 'bicycle', color: '#00CCBC' },
-  { name: 'BT Sport', icon: 'football', color: '#003087' },
-];
+
 
 type Props = { visible: boolean; onClose: () => void };
 
 export default function ProfileModal({ visible, onClose }: Props) {
   const { theme: c } = useTheme();
   const { plan, trialDaysLeft, upgradeTo } = usePlan();
-  const { bills, addBill, deleteBill } = useBills();
 
   const [selectedIcon, setSelectedIcon] = useState<string | null>(null);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
@@ -157,21 +139,6 @@ export default function ProfileModal({ visible, onClose }: Props) {
     await AsyncStorage.setItem('profile_avatar', iconName);
   };
 
-  // Subscriptions management
-  const activeBillNames = new Set(bills.map(b => b.name));
-
-  const toggleSub = async (sub: typeof COMMON_SUBS[0]) => {
-    const existing = bills.find(b => b.name === sub.name);
-    if (existing) {
-      await deleteBill(existing.id);
-    } else {
-      await addBill({
-        name: sub.name, amount: 9.99, frequency: 'monthly',
-        nextDue: new Date().toLocaleDateString('en-GB'),
-        cardId: null, icon: sub.icon, color: sub.color, active: true,
-      });
-    }
-  };
 
   const planLabel = plan === 'trial' ? `Premium Trial · ${trialDaysLeft}d left`
     : plan === 'pro' ? 'Pro Plan' : plan === 'premium' ? 'Premium Plan' : 'Free Plan';
@@ -257,38 +224,7 @@ export default function ProfileModal({ visible, onClose }: Props) {
               </View>
             </View>
 
-            {/* Subscriptions */}
-            <Text style={{ color: c.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>Subscriptions</Text>
-            <View style={{ backgroundColor: c.card, borderRadius: 18, padding: 16, borderWidth: 1, borderColor: c.border, marginBottom: 24 }}>
-              <Text style={{ color: c.muted, fontSize: 13, marginBottom: 14, lineHeight: 19 }}>Tap to add or remove subscriptions from your recurring bills.</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-                {COMMON_SUBS.map(sub => {
-                  const active = activeBillNames.has(sub.name);
-                  return (
-                    <TouchableOpacity key={sub.name} onPress={() => toggleSub(sub)}
-                      style={{ flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 50, backgroundColor: active ? sub.color + '28' : c.card2, borderWidth: 1.5, borderColor: active ? sub.color : c.border }}>
-                      <Ionicons name={sub.icon as any} size={14} color={active ? sub.color : c.muted} />
-                      <Text style={{ color: active ? sub.color : c.muted, fontSize: 13, fontWeight: '700' }}>{sub.name}</Text>
-                      {active && <Ionicons name="checkmark" size={12} color={sub.color} />}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-              {bills.filter(b => !COMMON_SUBS.find(s => s.name === b.name)).length > 0 && (
-                <View style={{ marginTop: 14, borderTopWidth: 1, borderTopColor: c.border, paddingTop: 14 }}>
-                  <Text style={{ color: c.muted, fontSize: 11, fontWeight: '700', marginBottom: 10 }}>OTHER BILLS</Text>
-                  {bills.filter(b => !COMMON_SUBS.find(s => s.name === b.name)).map(b => (
-                    <View key={b.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                      <Ionicons name={b.icon as any} size={16} color={b.color || c.accent} />
-                      <Text style={{ color: c.text, fontSize: 13, flex: 1 }}>{b.name}</Text>
-                      <TouchableOpacity onPress={() => deleteBill(b.id)}>
-                        <Ionicons name="close-circle" size={18} color="#FF6B6B" />
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                </View>
-              )}
-            </View>
+
 
             {/* Upgrade */}
             {showUpgrade && (

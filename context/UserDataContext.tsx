@@ -127,32 +127,24 @@ export function UserDataProvider({ children }: { children: ReactNode }) {
         .single();
 
       if (!error && data) {
-        let b = data.budgets ?? [];
-        let g = data.goals ?? [];
-        let i = data.income ?? [];
-
-        // Merge onboarding data on first load
-        const merged = await importOnboardingData(uid, b, g, i);
-        b = merged.budgets;
-        g = merged.goals;
-        i = merged.income;
+        const b = data.budgets ?? [];
+        const g = data.goals ?? [];
+        const i = data.income ?? [];
 
         setBudgetsState(b); budgetsRef.current = b;
         setGoalsState(g); goalsRef.current = g;
         setIncomeState(i); incomeRef.current = i;
 
+        // Always update cache so next login is instant
         await AsyncStorage.setItem(cacheKey(uid), JSON.stringify({ budgets: b, goals: g, income: i }));
-        syncToSupabase({ budgets: b, goals: g, income: i });
-      } else {
-        // No row yet — import onboarding data then migrate old keys
-        await migrateOldKeys(uid);
-        const merged = await importOnboardingData(uid, budgetsRef.current, goalsRef.current, incomeRef.current);
-        if (merged.budgets.length || merged.goals.length || merged.income.length) {
-          setBudgetsState(merged.budgets); budgetsRef.current = merged.budgets;
-          setGoalsState(merged.goals); goalsRef.current = merged.goals;
-          setIncomeState(merged.income); incomeRef.current = merged.income;
-          syncToSupabase({ budgets: merged.budgets, goals: merged.goals, income: merged.income });
-        }
+        // Keep legacy income key for tax screen
+        await AsyncStorage.setItem(`polar_income_${uid}`, JSON.stringify(i));
+      } else if (error?.code === 'PGRST116') {
+        // No row yet — create one
+        await supabase.from('user_profile_data').insert({
+          user_id: uid, budgets: [], goals: [], income: [],
+          updated_at: new Date().toISOString(),
+        });
       }
     } catch (e) {
       console.warn('UserDataContext load failed, using cache:', e);

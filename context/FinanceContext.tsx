@@ -171,32 +171,24 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         .single();
 
       if (!error && data) {
-        let c = data.cards ?? [];
+        const c = data.cards ?? [];
         const i = data.investments ?? [];
-        let t = data.transactions ?? [];
+        const t = data.transactions ?? [];
         const a = data.assets ?? [];
-
-        // Merge onboarding data on first load
-        const merged = await importOnboardingData(uid, c, t);
-        c = merged.cards;
-        t = merged.transactions;
 
         setCardsState(c); cardsRef.current = c;
         setInvestmentsState(i); investmentsRef.current = i;
         setTransactionsState(t); transactionsRef.current = t;
         setCustomAssetsState(a); assetsRef.current = a;
 
-        // Sync merged data back to Supabase if anything was imported
+        // Always update cache so next login is instant
         await AsyncStorage.setItem(cacheKey(uid), JSON.stringify({ cards: c, investments: i, transactions: t, assets: a }));
-        syncToSupabase({ cards: c, investments: i, transactions: t, assets: a });
-      } else {
-        // No Supabase row yet — import onboarding data into fresh state
-        const merged = await importOnboardingData(uid, cardsRef.current, transactionsRef.current);
-        if (merged.cards !== cardsRef.current || merged.transactions !== transactionsRef.current) {
-          setCardsState(merged.cards); cardsRef.current = merged.cards;
-          setTransactionsState(merged.transactions); transactionsRef.current = merged.transactions;
-          syncToSupabase({ cards: merged.cards, investments: investmentsRef.current, transactions: merged.transactions, assets: assetsRef.current });
-        }
+      } else if (error?.code === 'PGRST116') {
+        // No row yet — create one so future saves work
+        await supabase.from('user_finance_data').insert({
+          user_id: uid, cards: [], investments: [], transactions: [], assets: [],
+          updated_at: new Date().toISOString(),
+        });
       }
     } catch (e) {
       console.warn('Supabase load failed, using cache:', e);

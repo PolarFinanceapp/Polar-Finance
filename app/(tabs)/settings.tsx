@@ -270,7 +270,7 @@ const TERMS: Record<string, LegalSection[]> = {
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function SettingsScreen() {
   const { themeKey, theme: c, setThemeKey } = useTheme();
-  const { hasFeature, plan, trialDaysLeft } = usePlan();
+  const { hasFeature, plan, trialDaysLeft, upgradeTo } = usePlan();
   const { language, currency, setLanguage, setCurrency, convertPrice, t } = useLocale();
   const { transactions, cards } = useFinance();
   const { budgets, goals, incomeSources } = useUserData();
@@ -478,22 +478,23 @@ export default function SettingsScreen() {
 
         {/* ── Your Plan ── */}
         <Text style={{ color: c.muted, fontSize: 12, fontWeight: '700', letterSpacing: .8, textTransform: 'uppercase', marginBottom: 12 }}>{t('yourPlan')}</Text>
-        <TouchableOpacity
-          onPress={() => (plan === 'free' || plan === 'trial' || plan === 'expired') ? setShowPaywall(true) : null}
-          style={{ backgroundColor: c.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: plan === 'free' || plan === 'expired' ? c.accent + '55' : '#00D4AA44', flexDirection: 'row', alignItems: 'center', marginBottom: 24, gap: 14 }}>
-          <View style={{ width: 46, height: 46, borderRadius: 14, backgroundColor: c.accent + '18', justifyContent: 'center', alignItems: 'center' }}>
-            <Ionicons name={plan === 'premium' ? 'diamond' : plan === 'trial' ? 'star' : plan === 'pro' ? 'flash' : 'person'} size={24} color={c.accent} />
+        <View style={{ backgroundColor: c.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: c.border, marginBottom: 24 }}>
+          <Text style={{ color: c.text, fontSize: 14, fontWeight: '700', marginBottom: 12 }}>Current: <Text style={{ color: c.accent }}>{planLabel}</Text></Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            {([
+              { key: 'free', label: 'Free', icon: 'person', color: c.muted },
+              { key: 'pro', label: 'Pro', icon: 'flash', color: '#6C63FF' },
+              { key: 'premium', label: 'Premium', icon: 'trophy', color: '#FFD700' },
+            ] as const).map(p => (
+              <TouchableOpacity key={p.key} onPress={() => upgradeTo(p.key)}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 50, backgroundColor: plan === p.key ? p.color + '22' : c.card2, borderWidth: 1.5, borderColor: plan === p.key ? p.color : c.border }}>
+                <Ionicons name={p.icon} size={14} color={plan === p.key ? p.color : c.muted} />
+                <Text style={{ color: plan === p.key ? p.color : c.muted, fontSize: 13, fontWeight: '700' }}>{p.label}</Text>
+                {plan === p.key && <Ionicons name="checkmark" size={13} color={p.color} />}
+              </TouchableOpacity>
+            ))}
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: c.text, fontSize: 16, fontWeight: '800' }}>
-              {planLabel}{plan === 'trial' && trialDaysLeft > 0 ? ` · ${trialDaysLeft}d left` : ''}
-            </Text>
-            <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>
-              {(plan === 'free' || plan === 'trial' || plan === 'expired') ? t('tapToUpgrade') : t('allFeaturesUnlocked')}
-            </Text>
-          </View>
-          {(plan === 'free' || plan === 'trial' || plan === 'expired') && <Ionicons name="chevron-forward" size={18} color={c.accent} />}
-        </TouchableOpacity>
+        </View>
 
         {/* ── Theme ── */}
         <Text style={{ color: c.muted, fontSize: 12, fontWeight: '700', letterSpacing: .8, textTransform: 'uppercase', marginBottom: 12 }}>{t('theme')}</Text>

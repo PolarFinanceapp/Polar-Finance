@@ -383,32 +383,27 @@ export default function HomeScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.accent} />}>
 
         {/* Header */}
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 60, marginBottom: 24 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: c.accent, justifyContent: 'center', alignItems: 'center' }}>
-              <Ionicons name="bar-chart" size={20} color="#fff" />
-            </View>
-            <View>
-              <Text style={{ color: c.muted, fontSize: 12 }}>{greeting}</Text>
-              <Text style={{ color: c.text, fontSize: 20, fontWeight: '900' }}>{userName || '...'}</Text>
-            </View>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 64, marginBottom: 28 }}>
+          <View>
+            <Text style={{ color: c.muted, fontSize: 13, fontWeight: '400', letterSpacing: 0.2 }}>{greeting}</Text>
+            <Text style={{ color: c.text, fontSize: 28, fontWeight: '700', letterSpacing: -0.5, marginTop: 1 }}>{userName || '...'}</Text>
           </View>
-          <TouchableOpacity activeOpacity={0.7}
-            style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: c.accent, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }}
+          <TouchableOpacity activeOpacity={0.8}
+            style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: c.accent + '22', borderWidth: 1.5, borderColor: c.accent + '55', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }}
             onPress={() => setShowProfile(true)}>
             {profilePhoto && (profilePhoto.startsWith('data:image') || profilePhoto.startsWith('http') || profilePhoto.startsWith('file'))
-              ? <Image source={{ uri: profilePhoto }} style={{ width: 44, height: 44, borderRadius: 22 }} />
-              : <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>{userInitial}</Text>}
+              ? <Image source={{ uri: profilePhoto }} style={{ width: 46, height: 46, borderRadius: 23 }} />
+              : <Text style={{ color: c.accent, fontSize: 18, fontWeight: '700' }}>{userInitial}</Text>}
           </TouchableOpacity>
         </View>
 
         {/* Balance Card */}
         <TouchableOpacity
-          style={{ backgroundColor: c.card, borderRadius: 24, padding: 24, borderWidth: 1, borderColor: c.border, marginBottom: 16 }}
+          style={{ backgroundColor: c.card, borderRadius: 28, padding: 26, borderWidth: 1, borderColor: c.border, marginBottom: 20 }}
           onPress={() => showCardsOk && setShowCards(!showCards)}
           activeOpacity={showCardsOk ? 0.85 : 1}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Text style={{ color: c.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1.5 }}>
+            <Text style={{ color: c.muted, fontSize: 11, fontWeight: '600', letterSpacing: 1.8, textTransform: 'uppercase' }}>
               {t('netWorth')}  {showCardsOk ? (showCards ? '▲' : '▼') : ''}
             </Text>
             {plan === 'trial' && trialDaysLeft > 0 && (
@@ -426,7 +421,7 @@ export default function HomeScreen() {
               </View>
             )}
           </View>
-          <Text style={{ color: netWorth < 0 ? '#FF6B6B' : c.text, fontSize: 36, fontWeight: '900', marginVertical: 6 }}>
+          <Text style={{ color: netWorth < 0 ? '#FF6B6B' : c.text, fontSize: 42, fontWeight: '700', letterSpacing: -1, marginVertical: 10 }}>
             {netWorth < 0 ? '-' : ''}{formatAmount(Math.abs(netWorth))}
           </Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
@@ -554,26 +549,30 @@ export default function HomeScreen() {
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20, gap: 8 }}>
           {selectedTabs.map(action => (
             <TouchableOpacity key={action.label}
-              style={{ alignItems: 'center', backgroundColor: c.card, borderRadius: 16, padding: 14, flex: 1, borderWidth: 1, borderColor: c.border }}
+              style={{ alignItems: 'center', backgroundColor: c.card, borderRadius: 20, paddingVertical: 16, paddingHorizontal: 8, flex: 1, borderWidth: 1, borderColor: c.border }}
               onPress={() => router.push(action.route as any)}>
-              <Ionicons name={action.icon as any} size={22} color={c.accent} />
-              <Text style={{ color: c.muted, fontSize: 10, marginTop: 6, fontWeight: '600', textAlign: 'center' }}>{action.display}</Text>
+              <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: c.accent + '15', justifyContent: 'center', alignItems: 'center', marginBottom: 7 }}>
+                <Ionicons name={action.icon as any} size={19} color={c.accent} />
+              </View>
+              <Text style={{ color: c.muted, fontSize: 11, fontWeight: '500', textAlign: 'center' }}>{action.display}</Text>
             </TouchableOpacity>
           ))}
           <TouchableOpacity
-            style={{ alignItems: 'center', backgroundColor: c.card, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: c.accent + '55', justifyContent: 'center' }}
+            style={{ alignItems: 'center', backgroundColor: c.card, borderRadius: 20, paddingVertical: 16, paddingHorizontal: 8, borderWidth: 1, borderColor: c.border, justifyContent: 'center', minWidth: 56 }}
             onPress={() => setShowTabPicker(true)}>
-            <Ionicons name="create" size={22} color={c.accent} />
-            <Text style={{ color: c.accent, fontSize: 10, marginTop: 6, fontWeight: '600', textAlign: 'center' }}>Edit</Text>
+            <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: c.accent + '15', justifyContent: 'center', alignItems: 'center', marginBottom: 7 }}>
+              <Ionicons name="create" size={19} color={c.accent} />
+            </View>
+            <Text style={{ color: c.muted, fontSize: 11, fontWeight: '500', textAlign: 'center' }}>Edit</Text>
           </TouchableOpacity>
         </View>
 
         {/* Search */}
         <TouchableOpacity
-          style={{ backgroundColor: c.card, borderRadius: 14, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: showSearch ? c.accent : c.border, flexDirection: 'row', alignItems: 'center', gap: 10 }}
+          style={{ backgroundColor: c.card, borderRadius: 16, paddingHorizontal: 16, paddingVertical: 14, marginBottom: 14, borderWidth: 1, borderColor: showSearch ? c.accent + '60' : c.border, flexDirection: 'row', alignItems: 'center', gap: 10 }}
           onPress={() => setShowSearch(!showSearch)}>
-          <Ionicons name="search" size={18} color={showSearch ? c.accent : c.muted} />
-          <Text style={{ color: showSearch ? c.accent : c.muted, fontSize: 14, fontWeight: '600' }}>{t('searchTransactions')}</Text>
+          <Ionicons name="search" size={16} color={showSearch ? c.accent : c.muted} />
+          <Text style={{ color: showSearch ? c.text : c.muted, fontSize: 14, fontWeight: '400' }}>{t('searchTransactions')}</Text>
         </TouchableOpacity>
 
         {showSearch && (
@@ -602,30 +601,30 @@ export default function HomeScreen() {
         {/* Recurring Bills bar */}
         <TouchableOpacity
           onPress={() => setShowBills(true)}
-          style={{ backgroundColor: c.card, borderRadius: 14, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: c.border, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-          <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: '#FF6B6B18', justifyContent: 'center', alignItems: 'center' }}>
+          style={{ backgroundColor: c.card, borderRadius: 16, paddingHorizontal: 16, paddingVertical: 14, marginBottom: 24, borderWidth: 1, borderColor: c.border, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+          <View style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: '#FF6B6B15', justifyContent: 'center', alignItems: 'center' }}>
             <Ionicons name="repeat" size={18} color="#FF6B6B" />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: c.text, fontSize: 14, fontWeight: '700' }}>Recurring Bills</Text>
-            <Text style={{ color: c.muted, fontSize: 12, marginTop: 1 }}>
+            <Text style={{ color: c.text, fontSize: 15, fontWeight: '600' }}>Recurring Bills</Text>
+            <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>
               {bills.length > 0
                 ? `${bills.length} bill${bills.length !== 1 ? 's' : ''} · ${formatAmount(totalMonthlyBills)}/mo`
-                : 'Tap to manage recurring bills'}
+                : 'Tap to manage'}
             </Text>
           </View>
-          <Ionicons name="chevron-forward" size={18} color={c.muted} />
+          <Ionicons name="chevron-forward" size={16} color={c.muted + '80'} />
         </TouchableOpacity>
 
         {/* Transactions */}
         <View style={{ marginBottom: 30 }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-            <Text style={{ color: c.text, fontSize: 17, fontWeight: '800' }}>{t('recentTransactions')}</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <Text style={{ color: c.text, fontSize: 18, fontWeight: '600', letterSpacing: -0.3 }}>{t('recentTransactions')}</Text>
             <TouchableOpacity
-              style={{ backgroundColor: c.accent + '22', borderRadius: 50, paddingHorizontal: 12, paddingVertical: 5, borderWidth: 1, borderColor: c.accent + '55', flexDirection: 'row', alignItems: 'center', gap: 5 }}
+              style={{ backgroundColor: c.accent, borderRadius: 50, paddingHorizontal: 14, paddingVertical: 7, flexDirection: 'row', alignItems: 'center', gap: 5 }}
               onPress={() => setShowAddTxn(true)}>
-              <Ionicons name="add" size={14} color={c.accent} />
-              <Text style={{ color: c.accent, fontSize: 12, fontWeight: '700' }}>{t('add')}</Text>
+              <Ionicons name="add" size={14} color="#fff" />
+              <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>{t('add')}</Text>
             </TouchableOpacity>
           </View>
 
@@ -906,7 +905,7 @@ export default function HomeScreen() {
                 </View>
               )}
               <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 8 }}>{t('category')}</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
                 {Object.keys(CAT_IONICONS).map(cat => (
                   <TouchableOpacity key={cat}
                     style={{ backgroundColor: newTxnCat === cat ? c.accent : c.card2, borderRadius: 50, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: newTxnCat === cat ? c.accent : c.border, flexDirection: 'row', alignItems: 'center', gap: 5 }}
@@ -916,6 +915,25 @@ export default function HomeScreen() {
                   </TouchableOpacity>
                 ))}
               </View>
+              {cards.length > 0 && (
+                <>
+                  <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 8 }}>Deduct from card (optional)</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
+                    <TouchableOpacity onPress={() => setNewTxnCardId(null)}
+                      style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 50, backgroundColor: newTxnCardId === null ? c.card2 : c.card2, borderWidth: 1, borderColor: newTxnCardId === null ? c.border : c.border, marginRight: 8, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Ionicons name="close-circle-outline" size={14} color={c.muted} />
+                      <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600' }}>None</Text>
+                    </TouchableOpacity>
+                    {cards.map(card => (
+                      <TouchableOpacity key={card.id} onPress={() => setNewTxnCardId(card.id)}
+                        style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 50, backgroundColor: newTxnCardId === card.id ? c.accent + '22' : c.card2, borderWidth: 1, borderColor: newTxnCardId === card.id ? c.accent : c.border, marginRight: 8, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Ionicons name="card-outline" size={14} color={newTxnCardId === card.id ? c.accent : c.muted} />
+                        <Text style={{ color: newTxnCardId === card.id ? c.accent : c.muted, fontSize: 12, fontWeight: '600' }}>{card.bank} ···· {card.number}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </>
+              )}
               <View style={{ flexDirection: 'row', gap: 10 }}>
                 <TouchableOpacity style={{ flex: 1, backgroundColor: c.card2, borderRadius: 14, padding: 16, alignItems: 'center' }} onPress={() => setShowAddTxn(false)}>
                   <Text style={{ color: c.muted, fontWeight: '700' }}>{t('cancel')}</Text>
@@ -990,7 +1008,7 @@ export default function HomeScreen() {
                 </View>
               )}
               <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 8 }}>{t('category')}</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
                 {Object.keys(CAT_IONICONS).map(cat => (
                   <TouchableOpacity key={cat}
                     style={{ backgroundColor: editTxnCat === cat ? c.accent : c.card2, borderRadius: 50, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: editTxnCat === cat ? c.accent : c.border, flexDirection: 'row', alignItems: 'center', gap: 5 }}
@@ -1000,6 +1018,25 @@ export default function HomeScreen() {
                   </TouchableOpacity>
                 ))}
               </View>
+              {cards.length > 0 && (
+                <>
+                  <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', marginBottom: 8 }}>Linked card</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
+                    <TouchableOpacity onPress={() => setEditTxnCardId(null)}
+                      style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 50, backgroundColor: c.card2, borderWidth: 1, borderColor: editTxnCardId === null ? c.accent : c.border, marginRight: 8, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Ionicons name="close-circle-outline" size={14} color={editTxnCardId === null ? c.accent : c.muted} />
+                      <Text style={{ color: editTxnCardId === null ? c.accent : c.muted, fontSize: 12, fontWeight: '600' }}>None</Text>
+                    </TouchableOpacity>
+                    {cards.map(card => (
+                      <TouchableOpacity key={card.id} onPress={() => setEditTxnCardId(card.id)}
+                        style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 50, backgroundColor: editTxnCardId === card.id ? c.accent + '22' : c.card2, borderWidth: 1, borderColor: editTxnCardId === card.id ? c.accent : c.border, marginRight: 8, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Ionicons name="card-outline" size={14} color={editTxnCardId === card.id ? c.accent : c.muted} />
+                        <Text style={{ color: editTxnCardId === card.id ? c.accent : c.muted, fontSize: 12, fontWeight: '600' }}>{card.bank} ···· {card.number}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </>
+              )}
               <View style={{ flexDirection: 'row', gap: 10 }}>
                 <TouchableOpacity style={{ flex: 1, backgroundColor: c.card2, borderRadius: 14, padding: 16, alignItems: 'center' }} onPress={() => setEditTxn(null)}>
                   <Text style={{ color: c.muted, fontWeight: '700' }}>{t('cancel')}</Text>

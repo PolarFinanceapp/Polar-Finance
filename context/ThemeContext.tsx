@@ -17,9 +17,9 @@ export type ThemeColors = {
 export const themes: Record<string, ThemeColors> = {
   default: {
     name: 'Nebula', emoji: '🌌', description: 'Deep space purple — the default',
-    dark: '#0D0D1A', card: '#13132A', card2: '#1A1A35',
-    accent: '#6C63FF', accent2: '#00D4AA', text: '#E8E8F0', muted: '#7B7B9E',
-    border: 'rgba(108,99,255,0.2)',
+    dark: '#06060C', card: '#0E0E1A', card2: '#141420',
+    accent: '#6C63FF', accent2: '#00D4AA', text: '#FFFFFF', muted: '#60607A',
+    border: 'rgba(255,255,255,0.08)',
   },
   cyber: {
     name: 'Cyberpunk', emoji: '⚡', description: 'Neon yellow on black',
@@ -56,12 +56,6 @@ export const themes: Record<string, ThemeColors> = {
     dark: '#0F0800', card: '#1A1000', card2: '#221800',
     accent: '#FF9500', accent2: '#FFD700', text: '#FFF5D6', muted: '#9E7840',
     border: 'rgba(255,149,0,0.2)',
-  },
-  void: {
-    name: 'Void', emoji: '🖤', description: 'Pure black minimal',
-    dark: '#000000', card: '#0A0A0A', card2: '#111111',
-    accent: '#FFFFFF', accent2: '#AAAAAA', text: '#FFFFFF', muted: '#555555',
-    border: 'rgba(255,255,255,0.15)',
   },
 };
 

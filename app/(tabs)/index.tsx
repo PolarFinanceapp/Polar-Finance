@@ -134,9 +134,17 @@ export default function HomeScreen() {
     loadProfilePhoto();
   }, []);
 
-  const handleProfileClose = () => {
+  const handleProfileClose = async () => {
     setShowProfile(false);
-    loadProfilePhoto();
+    // Read AsyncStorage directly — faster and more reliable than waiting for Supabase refresh
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.id) {
+        const cached = await AsyncStorage.getItem(`jf_profile_pic_${user.id}`);
+        if (cached) { setProfilePhoto(cached); return; }
+      }
+    } catch { }
+    setProfilePhoto(null);
   };
 
   // ── Modal state ───────────────────────────────────────────────────────────

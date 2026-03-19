@@ -75,7 +75,7 @@ export default function HomeScreen() {
 
   // ── User info ─────────────────────────────────────────────────────────────
   const [userName, setUserName] = useState('');
-  const [userInitial, setUserInitial] = useState('');
+  const [userInitial, setUserInitial] = useState('?');
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -83,41 +83,39 @@ export default function HomeScreen() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       const uid = user?.id;
+      // AsyncStorage cache is source of truth (ProfileModal writes here first)
+      if (uid) {
+        const cached = await AsyncStorage.getItem(`jf_profile_pic_${uid}`);
+        if (cached) { setProfilePhoto(cached); return; }
+      }
+      // Fall back to Supabase metadata
       const supabasePic = user?.user_metadata?.profile_picture_uri as string | undefined;
       if (supabasePic) {
         setProfilePhoto(supabasePic);
         if (uid) await AsyncStorage.setItem(`jf_profile_pic_${uid}`, supabasePic);
         return;
       }
-      if (uid) {
-        const cached = await AsyncStorage.getItem(`jf_profile_pic_${uid}`);
-        if (cached) { setProfilePhoto(cached); return; }
-      }
-      const pairs = await AsyncStorage.multiGet(['profile_photo', 'profile_avatar']);
-      setProfilePhoto(pairs[0][1] || pairs[1][1] || null);
+      setProfilePhoto(null);
     } catch {
-      const pairs = await AsyncStorage.multiGet(['profile_photo', 'profile_avatar']);
-      setProfilePhoto(pairs[0][1] || pairs[1][1] || null);
+      setProfilePhoto(null);
     }
   };
 
   useEffect(() => {
     const init = async () => {
-      // Name: AsyncStorage first (set during onboarding) — this is the source of truth
+      // Name: AsyncStorage first (set during onboarding), then Supabase
       const storedName = await AsyncStorage.getItem('jf_user_name');
-      if (storedName && storedName.trim().length > 0) {
+      if (storedName) {
         setUserName(storedName.split(' ')[0]);
         setUserInitial(storedName.charAt(0).toUpperCase());
-      } else {
-        // Fallback to Supabase metadata or email prefix
-        try {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user) {
-            const name = user.user_metadata?.full_name || user.email?.split('@')[0] || '';
-            if (name) { setUserName(name.split(' ')[0]); setUserInitial(name.charAt(0).toUpperCase()); }
-          }
-        } catch { }
       }
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const name = user.user_metadata?.full_name || storedName || user.email?.split('@')[0] || '';
+          if (name) { setUserName(name.split(' ')[0]); setUserInitial(name.charAt(0).toUpperCase()); }
+        }
+      } catch { }
 
       // Import subscriptions added during onboarding (one-time only)
       const imported = await AsyncStorage.getItem('jf_onboarding_subs_imported');
@@ -359,7 +357,7 @@ export default function HomeScreen() {
             </View>
             <View>
               <Text style={{ color: c.muted, fontSize: 12 }}>{greeting}</Text>
-              <Text style={{ color: c.text, fontSize: 20, fontWeight: '900' }}>{userName}</Text>
+              <Text style={{ color: c.text, fontSize: 20, fontWeight: '900' }}>{userName || '...'}</Text>
             </View>
           </View>
           <TouchableOpacity activeOpacity={0.7}
@@ -367,7 +365,7 @@ export default function HomeScreen() {
             onPress={() => setShowProfile(true)}>
             {profilePhoto && (profilePhoto.startsWith('data:image') || profilePhoto.startsWith('http') || profilePhoto.startsWith('file'))
               ? <Image source={{ uri: profilePhoto }} style={{ width: 44, height: 44, borderRadius: 22 }} />
-              : userInitial ? <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>{userInitial}</Text> : <Ionicons name="person" size={22} color="#fff" />}
+              : <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>{userInitial}</Text>}
           </TouchableOpacity>
         </View>
 

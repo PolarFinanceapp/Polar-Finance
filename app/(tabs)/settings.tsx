@@ -561,7 +561,7 @@ export default function SettingsScreen() {
           {/* Privacy Policy */}
           <TouchableOpacity
             style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: c.border, gap: 14 }}
-            onPress={() => toggle('privacy')}>
+            onPress={() => Linking.openURL('https://www.jamesfinance.co.uk/privacy.html')}>
             <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: c.accent + '18', justifyContent: 'center', alignItems: 'center' }}>
               <Ionicons name="document-text" size={18} color={c.accent} />
             </View>
@@ -569,27 +569,8 @@ export default function SettingsScreen() {
               <Text style={{ color: c.text, fontSize: 14, fontWeight: '600' }}>{t('privacyPolicy')}</Text>
               <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>{LAST_UPDATED}</Text>
             </View>
-            <Ionicons name={openSection === 'privacy' ? 'chevron-up' : 'chevron-down'} size={18} color={c.muted} />
+            <Ionicons name="open-outline" size={18} color={c.muted} />
           </TouchableOpacity>
-          {openSection === 'privacy' && (
-            <View style={{ backgroundColor: c.card2, padding: 16 }}>
-              {privacySections.map((s, i) => (
-                <TouchableOpacity key={i}
-                  style={{ marginBottom: 8, borderRadius: 12, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, overflow: 'hidden' }}
-                  onPress={() => setOpenPrivacy(openPrivacy === i ? null : i)}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12 }}>
-                    <Text style={{ color: c.text, fontSize: 13, fontWeight: '700', flex: 1 }}>{s.title}</Text>
-                    <Ionicons name={openPrivacy === i ? 'chevron-up' : 'chevron-down'} size={14} color={c.muted} />
-                  </View>
-                  {openPrivacy === i && (
-                    <View style={{ padding: 12, paddingTop: 0 }}>
-                      <Text style={{ color: c.muted, fontSize: 12, lineHeight: 20 }}>{s.body}</Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
 
           {/* Terms of Service */}
           <TouchableOpacity

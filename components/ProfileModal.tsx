@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useState } from 'react';
 import {
-  Alert, Image, Modal, ScrollView,
+  Alert, Image, KeyboardAvoidingView, Modal, Platform, ScrollView,
   Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { useBills } from '../context/BillsContext';
@@ -208,6 +208,7 @@ export default function ProfileModal({ visible, onClose }: Props) {
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={{ flex: 1, backgroundColor: c.dark }}>
 
         {/* Header */}
@@ -398,6 +399,7 @@ export default function ProfileModal({ visible, onClose }: Props) {
           </View>
         </ScrollView>
       </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

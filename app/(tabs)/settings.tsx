@@ -390,8 +390,8 @@ export default function SettingsScreen() {
         {
           text: 'Delete Account', style: 'destructive',
           onPress: () => Alert.alert(
-            'Are you absolutely sure?',
-            'Your transactions, cards, goals, budgets and all personal data will be permanently deleted.',
+            'Final Confirmation',
+            'All your data will be gone forever.',
             [
               { text: 'Cancel', style: 'cancel' },
               {
@@ -399,31 +399,19 @@ export default function SettingsScreen() {
                 onPress: async () => {
                   try {
                     const { data: { session } } = await supabase.auth.getSession();
-
-                    // Best-effort server-side deletion — don't block on failure
-                    if (session?.access_token) {
-                      try {
-                        const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
-                        await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/delete-account`, {
-                          method: 'POST',
-                          headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${session.access_token}`,
-                            'apikey': anonKey,
-                          },
-                        });
-                      } catch { /* server deletion failed — still wipe locally */ }
-                    }
-
-                    // Always wipe local data and navigate out
-                    await AsyncStorage.clear();
-                    try { await supabase.auth.signOut(); } catch { }
-                    router.replace('/login' as any);
-                  } catch (e: any) {
-                    // Even if something goes wrong, try to get them to login screen
-                    try { await AsyncStorage.clear(); } catch { }
-                    try { await supabase.auth.signOut(); } catch { }
-                    router.replace('/login' as any);
+                    const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
+                    await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/delete-account`, {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${session?.access_token}`,
+                        'apikey': anonKey,
+                      },
+                    });
+                    await clearLocalData();
+                    await supabase.auth.signOut();
+                  } catch {
+                    Alert.alert('Error', 'Could not delete account. Please try again.');
                   }
                 },
               },
@@ -485,7 +473,7 @@ export default function SettingsScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: c.dark }}>
       <StarBackground />
-      <ScrollView style={{ flex: 1, paddingHorizontal: 20 }} showsVerticalScrollIndicator={false}>
+      <ScrollView style={{ flex: 1, paddingHorizontal: 20 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
         <Text style={{ color: c.text, fontSize: 26, fontWeight: '900', marginTop: 60, marginBottom: 20 }}>{t('settings')}</Text>
 
         {/* ── Your Plan ── */}
@@ -720,92 +708,96 @@ export default function SettingsScreen() {
           <Text style={{ color: c.muted, fontSize: 11, marginTop: 2 }}>© 2026 James Finance.</Text>
         </View>
 
-        {/* ── Theme Picker ── */}
-        <Modal visible={showThemePicker} transparent animationType="slide">
-          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
-            <View style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, maxHeight: '80%', borderWidth: 1, borderColor: c.border }}>
-              <Text style={{ color: c.text, fontSize: 18, fontWeight: '900', marginBottom: 20 }}>{t('chooseTheme')}</Text>
-              <ScrollView showsVerticalScrollIndicator={false}>
-                {(Object.entries(themes) as [string, ThemeColors][]).map(([key, th]) => {
-                  const isActive = themeKey === key;
-                  return (
-                    <TouchableOpacity key={key}
-                      style={{ flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 14, marginBottom: 8, backgroundColor: isActive ? th.accent + '22' : c.card2, borderWidth: 1, borderColor: isActive ? th.accent : c.border }}
-                      onPress={() => { setThemeKey(key); setShowThemePicker(false); }}>
-                      <Ionicons name="color-palette" size={24} color={th.accent} style={{ marginRight: 12 }} />
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ color: c.text, fontSize: 14, fontWeight: '700' }}>{th.name}</Text>
-                        <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>{th.description}</Text>
-                      </View>
-                      <View style={{ flexDirection: 'row', gap: 4, marginRight: 8 }}>
-                        {[th.accent, th.accent2, th.dark].map((col, i) => <View key={i} style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: col }} />)}
-                      </View>
-                      {isActive && <Ionicons name="checkmark-circle" size={20} color={th.accent} />}
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
-              <TouchableOpacity style={{ backgroundColor: c.accent, borderRadius: 14, padding: 16, alignItems: 'center', marginTop: 12 }} onPress={() => setShowThemePicker(false)}>
-                <Text style={{ color: '#fff', fontWeight: '800' }}>{t('done')}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
 
-        {/* ── Language Picker ── */}
-        <Modal visible={showLanguagePicker} transparent animationType="slide">
-          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
-            <View style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, maxHeight: '80%', borderWidth: 1, borderColor: c.border }}>
-              <Text style={{ color: c.text, fontSize: 18, fontWeight: '900', marginBottom: 20 }}>{t('chooseLanguage')}</Text>
-              <ScrollView showsVerticalScrollIndicator={false}>
-                {(Object.entries(LANGUAGES) as [LanguageKey, any][]).map(([key, lang]) => (
-                  <TouchableOpacity key={key}
-                    style={{ flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 14, marginBottom: 8, backgroundColor: language === key ? c.accent + '22' : c.card2, borderWidth: 1, borderColor: language === key ? c.accent : c.border }}
-                    onPress={() => { setLanguage(key); setShowLanguagePicker(false); }}>
-                    <Text style={{ fontSize: 24, marginRight: 12 }}>{lang.flag}</Text>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ color: c.text, fontSize: 14, fontWeight: '700' }}>{lang.nativeName}</Text>
-                      <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>{lang.name}</Text>
-                    </View>
-                    {language === key && <Ionicons name="checkmark-circle" size={20} color={c.accent} />}
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-              <TouchableOpacity style={{ backgroundColor: c.accent, borderRadius: 14, padding: 16, alignItems: 'center', marginTop: 12 }} onPress={() => setShowLanguagePicker(false)}>
-                <Text style={{ color: '#fff', fontWeight: '800' }}>{t('done')}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
 
-        {/* ── Currency Picker ── */}
-        <Modal visible={showCurrencyPicker} transparent animationType="slide">
-          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
-            <View style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, maxHeight: '80%', borderWidth: 1, borderColor: c.border }}>
-              <Text style={{ color: c.text, fontSize: 18, fontWeight: '900', marginBottom: 20 }}>{t('chooseCurrency')}</Text>
-              <ScrollView showsVerticalScrollIndicator={false}>
-                {(Object.entries(CURRENCIES) as [CurrencyKey, any][]).map(([key, curr]) => (
-                  <TouchableOpacity key={key}
-                    style={{ flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 14, marginBottom: 8, backgroundColor: currency === key ? c.accent + '22' : c.card2, borderWidth: 1, borderColor: currency === key ? c.accent : c.border }}
-                    onPress={() => { setCurrency(key); setShowCurrencyPicker(false); }}>
-                    <Text style={{ fontSize: 24, marginRight: 12 }}>{curr.flag}</Text>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ color: c.text, fontSize: 14, fontWeight: '700' }}>{curr.name}</Text>
-                      <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>{key} · {curr.symbol}</Text>
-                    </View>
-                    {currency === key && <Ionicons name="checkmark-circle" size={20} color={c.accent} />}
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-              <TouchableOpacity style={{ backgroundColor: c.accent, borderRadius: 14, padding: 16, alignItems: 'center', marginTop: 12 }} onPress={() => setShowCurrencyPicker(false)}>
-                <Text style={{ color: '#fff', fontWeight: '800' }}>{t('done')}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
 
-        <Paywall visible={showPaywall} onClose={() => setShowPaywall(false)} />
       </ScrollView>
+
+      {/* ── Theme Picker ── */}
+      <Modal visible={showThemePicker} transparent animationType="slide">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, maxHeight: '80%', borderWidth: 1, borderColor: c.border }}>
+            <Text style={{ color: c.text, fontSize: 18, fontWeight: '900', marginBottom: 20 }}>{t('chooseTheme')}</Text>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {(Object.entries(themes) as [string, ThemeColors][]).map(([key, th]) => {
+                const isActive = themeKey === key;
+                return (
+                  <TouchableOpacity key={key}
+                    style={{ flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 14, marginBottom: 8, backgroundColor: isActive ? th.accent + '22' : c.card2, borderWidth: 1, borderColor: isActive ? th.accent : c.border }}
+                    onPress={() => { setThemeKey(key); setShowThemePicker(false); }}>
+                    <Ionicons name="color-palette" size={24} color={th.accent} style={{ marginRight: 12 }} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: c.text, fontSize: 14, fontWeight: '700' }}>{th.name}</Text>
+                      <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>{th.description}</Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', gap: 4, marginRight: 8 }}>
+                      {[th.accent, th.accent2, th.dark].map((col, i) => <View key={i} style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: col }} />)}
+                    </View>
+                    {isActive && <Ionicons name="checkmark-circle" size={20} color={th.accent} />}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+            <TouchableOpacity style={{ backgroundColor: c.accent, borderRadius: 14, padding: 16, alignItems: 'center', marginTop: 12 }} onPress={() => setShowThemePicker(false)}>
+              <Text style={{ color: '#fff', fontWeight: '800' }}>{t('done')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Language Picker ── */}
+      <Modal visible={showLanguagePicker} transparent animationType="slide">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, maxHeight: '80%', borderWidth: 1, borderColor: c.border }}>
+            <Text style={{ color: c.text, fontSize: 18, fontWeight: '900', marginBottom: 20 }}>{t('chooseLanguage')}</Text>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {(Object.entries(LANGUAGES) as [LanguageKey, any][]).map(([key, lang]) => (
+                <TouchableOpacity key={key}
+                  style={{ flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 14, marginBottom: 8, backgroundColor: language === key ? c.accent + '22' : c.card2, borderWidth: 1, borderColor: language === key ? c.accent : c.border }}
+                  onPress={() => { setLanguage(key); setShowLanguagePicker(false); }}>
+                  <Text style={{ fontSize: 24, marginRight: 12 }}>{lang.flag}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: c.text, fontSize: 14, fontWeight: '700' }}>{lang.nativeName}</Text>
+                    <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>{lang.name}</Text>
+                  </View>
+                  {language === key && <Ionicons name="checkmark-circle" size={20} color={c.accent} />}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <TouchableOpacity style={{ backgroundColor: c.accent, borderRadius: 14, padding: 16, alignItems: 'center', marginTop: 12 }} onPress={() => setShowLanguagePicker(false)}>
+              <Text style={{ color: '#fff', fontWeight: '800' }}>{t('done')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Currency Picker ── */}
+      <Modal visible={showCurrencyPicker} transparent animationType="slide">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, maxHeight: '80%', borderWidth: 1, borderColor: c.border }}>
+            <Text style={{ color: c.text, fontSize: 18, fontWeight: '900', marginBottom: 20 }}>{t('chooseCurrency')}</Text>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {(Object.entries(CURRENCIES) as [CurrencyKey, any][]).map(([key, curr]) => (
+                <TouchableOpacity key={key}
+                  style={{ flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 14, marginBottom: 8, backgroundColor: currency === key ? c.accent + '22' : c.card2, borderWidth: 1, borderColor: currency === key ? c.accent : c.border }}
+                  onPress={() => { setCurrency(key); setShowCurrencyPicker(false); }}>
+                  <Text style={{ fontSize: 24, marginRight: 12 }}>{curr.flag}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: c.text, fontSize: 14, fontWeight: '700' }}>{curr.name}</Text>
+                    <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>{key} · {curr.symbol}</Text>
+                  </View>
+                  {currency === key && <Ionicons name="checkmark-circle" size={20} color={c.accent} />}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <TouchableOpacity style={{ backgroundColor: c.accent, borderRadius: 14, padding: 16, alignItems: 'center', marginTop: 12 }} onPress={() => setShowCurrencyPicker(false)}>
+              <Text style={{ color: '#fff', fontWeight: '800' }}>{t('done')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Paywall visible={showPaywall} onClose={() => setShowPaywall(false)} />
     </View>
   );
 }

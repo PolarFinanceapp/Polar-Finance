@@ -107,11 +107,14 @@ export default function OnboardingScreen() {
     },
     onPanResponderRelease: () => {
       if (dragXNum.current >= MAX_DRAG * 0.82) {
-        Animated.timing(dragX, { toValue: MAX_DRAG, duration: 120, useNativeDriver: true }).start(async () => {
+        Animated.timing(dragX, { toValue: MAX_DRAG, duration: 120, useNativeDriver: true }).start(() => {
           setSliderTriggered(true);
-          await AsyncStorage.setItem('onboarding_complete', 'true');
-          try { await supabase.auth.updateUser({ data: { onboarding_complete: 'true' } }); } catch { }
-          router.replace('/(tabs)' as any);
+          // Write synchronously first, THEN navigate
+          AsyncStorage.setItem('onboarding_complete', 'true').then(() => {
+            router.replace('/(tabs)' as any);
+            // Update Supabase in background after navigation
+            supabase.auth.updateUser({ data: { onboarding_complete: 'true' } }).catch(() => {});
+          });
         });
       } else {
         Animated.spring(dragX, { toValue: 0, useNativeDriver: true, tension: 80, friction: 8 }).start();
@@ -169,10 +172,11 @@ export default function OnboardingScreen() {
 
       {/* Skip */}
       {!isLast && (
-        <TouchableOpacity onPress={async () => {
-          await AsyncStorage.setItem('onboarding_complete', 'true');
-          try { await supabase.auth.updateUser({ data: { onboarding_complete: 'true' } }); } catch { }
-          router.replace('/(tabs)' as any);
+        <TouchableOpacity onPress={() => {
+          AsyncStorage.setItem('onboarding_complete', 'true').then(() => {
+            router.replace('/(tabs)' as any);
+            supabase.auth.updateUser({ data: { onboarding_complete: 'true' } }).catch(() => {});
+          });
         }}
           style={{ position: 'absolute', top: 54, right: 24, zIndex: 30, backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 50, paddingHorizontal: 18, paddingVertical: 9, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' }}>
           <Text style={{ color: 'rgba(255,255,255,0.45)', fontSize: 13, fontWeight: '600', letterSpacing: 0.3 }}>Skip</Text>

@@ -12,6 +12,7 @@ import ProfileModal from '../../components/ProfileModal';
 import RecurringBills from '../../components/RecurringBills';
 import TrialPrompt from '../../components/TrialPrompt';
 import { useBills } from '../../context/BillsContext';
+import FinanceTips from '../../components/FinanceTips';
 import { useTheme } from '../../context/ThemeContext';
 
 const ALL_TABS = [
@@ -147,7 +148,6 @@ export default function HomeScreen() {
   const [showAddTxn, setShowAddTxn] = useState(false);
   const [showCards, setShowCards] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
-  const [showTabPicker, setShowTabPicker] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [showBills, setShowBills] = useState(false);
 
@@ -194,7 +194,6 @@ export default function HomeScreen() {
   const [editTxnCardId, setEditTxnCardId] = useState<string | null>(null);
 
   // ── Quick actions ─────────────────────────────────────────────────────────
-  const [selectedTabs, setSelectedTabs] = useState<typeof ALL_TABS[number][]>([ALL_TABS[0], ALL_TABS[1], ALL_TABS[2]]);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | 'income' | 'expense'>('all');
 
@@ -222,14 +221,6 @@ export default function HomeScreen() {
       case 'yearly': return s + b.amount / 12;
     }
   }, 0);
-
-  const toggleTab = (tab: typeof ALL_TABS[number]) => {
-    setSelectedTabs((prev: typeof ALL_TABS[number][]) => {
-      if (prev.find(t => t.label === tab.label)) return prev.filter(t => t.label !== tab.label);
-      if (prev.length >= 3) return prev;
-      return [...prev, tab];
-    });
-  };
 
   const filtered = transactions.filter(tx => {
     const mS = tx.name.toLowerCase().includes(search.toLowerCase()) || tx.cat.toLowerCase().includes(search.toLowerCase());
@@ -545,27 +536,11 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* Quick Actions */}
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20, gap: 8 }}>
-          {selectedTabs.map(action => (
-            <TouchableOpacity key={action.label}
-              style={{ alignItems: 'center', backgroundColor: c.card, borderRadius: 20, paddingVertical: 16, paddingHorizontal: 8, flex: 1, borderWidth: 1, borderColor: c.border }}
-              onPress={() => router.push(action.route as any)}>
-              <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: c.accent + '15', justifyContent: 'center', alignItems: 'center', marginBottom: 7 }}>
-                <Ionicons name={action.icon as any} size={19} color={c.accent} />
-              </View>
-              <Text style={{ color: c.muted, fontSize: 11, fontWeight: '500', textAlign: 'center' }}>{action.display}</Text>
-            </TouchableOpacity>
-          ))}
-          <TouchableOpacity
-            style={{ alignItems: 'center', backgroundColor: c.card, borderRadius: 20, paddingVertical: 16, paddingHorizontal: 8, borderWidth: 1, borderColor: c.border, justifyContent: 'center', minWidth: 56 }}
-            onPress={() => setShowTabPicker(true)}>
-            <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: c.accent + '15', justifyContent: 'center', alignItems: 'center', marginBottom: 7 }}>
-              <Ionicons name="create" size={19} color={c.accent} />
-            </View>
-            <Text style={{ color: c.muted, fontSize: 11, fontWeight: '500', textAlign: 'center' }}>Edit</Text>
-          </TouchableOpacity>
-        </View>
+        {/* Finance Tips */}
+        <FinanceTips
+          isLocked={!hasFeature('advancedFiltering')}
+          onUpgrade={() => setShowPaywall(true)}
+        />
 
         {/* Search */}
         <TouchableOpacity
@@ -684,33 +659,7 @@ export default function HomeScreen() {
 
         {/* ── Modals ── */}
 
-        {/* Tab Picker */}
-        <Modal visible={showTabPicker} transparent animationType="slide">
-          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
-            <View style={{ backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, borderWidth: 1, borderColor: c.border }}>
-              <Text style={{ color: c.text, fontSize: 18, fontWeight: '900', marginBottom: 6 }}>{t('customiseQuickActions')}</Text>
-              <Text style={{ color: c.muted, fontSize: 13, marginBottom: 20 }}>{t('chooseShortcuts')} ({selectedTabs.length}/3)</Text>
-              {ALL_TABS.map(tab => {
-                const isSel = !!selectedTabs.find(t => t.label === tab.label);
-                const isDis = !isSel && selectedTabs.length >= 3;
-                return (
-                  <TouchableOpacity key={tab.label}
-                    style={{ flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 14, marginBottom: 8, backgroundColor: isSel ? c.accent + '22' : c.card2, borderWidth: 1, borderColor: isSel ? c.accent : c.border, opacity: isDis ? 0.4 : 1 }}
-                    onPress={() => !isDis && toggleTab(tab)} disabled={isDis}>
-                    <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: isSel ? c.accent + '33' : c.card, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-                      <Ionicons name={tab.icon as any} size={18} color={isSel ? c.accent : c.muted} />
-                    </View>
-                    <Text style={{ color: c.text, fontSize: 14, fontWeight: '600', flex: 1 }}>{tab.display}</Text>
-                    {isSel && <Ionicons name="checkmark-circle" size={20} color={c.accent} />}
-                  </TouchableOpacity>
-                );
-              })}
-              <TouchableOpacity style={{ backgroundColor: c.accent, borderRadius: 14, padding: 16, alignItems: 'center', marginTop: 8 }} onPress={() => setShowTabPicker(false)}>
-                <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15 }}>{t('done')}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
+
 
         {/* Add Card */}
         <Modal visible={showAddCard} transparent animationType="slide">

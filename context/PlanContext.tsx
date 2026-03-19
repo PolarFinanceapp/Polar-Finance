@@ -11,24 +11,24 @@ export type Plan = 'free' | 'trial' | 'pro' | 'premium' | 'expired';
 //          asset tracking, tax helper
 export const planFeatures = {
   free: {
-    unlimitedTransactions: false,
-    yearlyBudget: false,
-    unlimitedGoals: false,
-    receiptPhoto: false,
-    advancedCharts: false,
-    calendarView: false,
-    themes: false,
-    customTheme: false,
-    investmentTracking: false,
-    assetGraph: false,
-    doubleEntry: false,
-    cardTracking: false,
-    bankLinking: false,
-    advancedFiltering: false,
-    adFree: false,
-    taxHelper: false,
-    liveMarkets: false,
-    unlimitedBills: false,
+    unlimitedTransactions: true,
+    yearlyBudget: true,
+    unlimitedGoals: true,
+    receiptPhoto: true,
+    advancedCharts: true,
+    calendarView: true,
+    themes: true,
+    customTheme: true,
+    investmentTracking: true,
+    assetGraph: true,
+    doubleEntry: true,
+    cardTracking: true,
+    bankLinking: true,
+    advancedFiltering: true,
+    adFree: true,
+    taxHelper: true,
+    liveMarkets: true,
+    unlimitedBills: true,
   },
   trial: {
     unlimitedTransactions: true,
@@ -212,10 +212,10 @@ export const PlanProvider = ({ children }: { children: React.ReactNode }) => {
   // Premium/Trial: unlimited everything
   // Free: 20 transactions per week. Pro/Premium/Trial: unlimited
   const maxTransactions = Infinity; // kept for compatibility
-  const maxWeeklyTransactions = plan === 'free' ? 20 : Infinity;
-  const maxGoals = plan === 'free' ? 1 : plan === 'pro' ? 5 : Infinity;
-  const maxBudgets = plan === 'free' ? 1 : plan === 'pro' ? 5 : Infinity;
-  const maxBills = plan === 'free' ? 3 : Infinity;
+  const maxWeeklyTransactions = Infinity; // demo: unlimited
+  const maxGoals = Infinity; // demo: unlimited
+  const maxBudgets = Infinity; // demo: unlimited
+  const maxBills = Infinity; // demo: unlimited
 
   const startTrial = async () => {
     await AsyncStorage.setItem('trial_start', new Date().toISOString());

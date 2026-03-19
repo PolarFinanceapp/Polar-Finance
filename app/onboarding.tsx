@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  Keyboard, KeyboardAvoidingView, Platform, ScrollView,
+  Keyboard, KeyboardAvoidingView, Modal, Platform, ScrollView,
   Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import StarBackground from '../components/StarBackground';
@@ -85,6 +85,7 @@ export default function OnboardingScreen() {
   const [budgetCat, setBudgetCat] = useState('Groceries');
   const [budgetLimit, setBudgetLimit] = useState('');
   const [mainGoal, setMainGoal] = useState('');
+  const [showSubsPopup, setShowSubsPopup] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -205,12 +206,16 @@ export default function OnboardingScreen() {
   const next = () => {
     Keyboard.dismiss();
     if (isLastSlide) {
-      finish().finally(() => {
-        router.replace('/(tabs)' as any);
-      });
+      setShowSubsPopup(true);
     } else {
       setCur(c => c + 1);
     }
+  };
+
+  const completeOnboarding = () => {
+    setShowSubsPopup(false);
+    finish();
+    router.replace('/(tabs)' as any);
   };
   const back = () => setCur(c => Math.max(c - 1, 0));
 
@@ -460,6 +465,36 @@ export default function OnboardingScreen() {
           </Text>
         )}
       </View>
+
+      {/* Subscriptions popup */}
+      <Modal visible={showSubsPopup} transparent animationType="slide">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: '#13132A', borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 28, borderWidth: 1, borderColor: 'rgba(108,99,255,0.3)' }}>
+            <View style={{ width: 40, height: 4, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 2, alignSelf: 'center', marginBottom: 24 }} />
+            <Text style={{ color: '#E8E8F0', fontSize: 22, fontWeight: '900', marginBottom: 6 }}>Any subscriptions?</Text>
+            <Text style={{ color: '#7B7B9E', fontSize: 14, marginBottom: 20, lineHeight: 21 }}>Tap any you pay for — we'll track them as recurring bills.</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 24 }}>
+              {COMMON_SUBS.filter(s => s.name !== 'Other').map(sub => {
+                const sel = subPrices[sub.name] !== undefined;
+                return (
+                  <TouchableOpacity key={sub.name} onPress={() => toggleSub(sub.name)}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 14, paddingVertical: 11, borderRadius: 50, backgroundColor: sel ? sub.color + '28' : '#0D0D1A', borderWidth: 1.5, borderColor: sel ? sub.color : 'rgba(108,99,255,0.15)' }}>
+                    <Ionicons name={sub.icon as any} size={15} color={sel ? sub.color : '#7B7B9E'} />
+                    <Text style={{ color: sel ? sub.color : '#7B7B9E', fontSize: 13, fontWeight: '700' }}>{sub.name}</Text>
+                    {sel && <Ionicons name="checkmark" size={13} color={sub.color} />}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <TouchableOpacity onPress={completeOnboarding}
+              style={{ backgroundColor: ACCENT, borderRadius: 16, padding: 18, alignItems: 'center' }}>
+              <Text style={{ color: '#fff', fontSize: 16, fontWeight: '900' }}>
+                {selectedSubs.filter(s => s !== 'Other').length > 0 ? `Add ${selectedSubs.filter(s => s !== 'Other').length} subscription${selectedSubs.filter(s => s !== 'Other').length > 1 ? 's' : ''} & Continue` : "Skip for now"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
     </View>
   );

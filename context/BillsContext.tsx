@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 
 export type Frequency = 'weekly' | 'fortnightly' | 'monthly' | 'yearly';
 
@@ -40,19 +40,19 @@ export function advanceDueDate(dateStr: string, freq: Frequency): string {
 
 export function BillsProvider({ children }: { children: React.ReactNode }) {
   const [bills, setBillsState] = useState<Bill[]>([]);
-  const [storageKey, setStorageKey] = useState<string | null>(null);
+  const storageKeyRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    const load = async () => {
+  const loadBills = async () => {
+    try {
       const { data: { user } } = await supabase.auth.getUser();
       const uid = user?.id || 'local';
       const key = `polar_bills_${uid}`;
-      setStorageKey(key);
+      storageKeyRef.current = key;
 
       const raw = await AsyncStorage.getItem(key);
       const existing: Bill[] = raw ? JSON.parse(raw) : [];
 
-      // One-time import of onboarding bills — key is deleted after so it never repeats
+      // One-time import — key is deleted after so it never repeats
       const onboardingKey = `jf_onboarding_bills_${uid}`;
       const onboardingRaw = await AsyncStorage.getItem(onboardingKey);
       if (onboardingRaw) {
@@ -72,13 +72,25 @@ export function BillsProvider({ children }: { children: React.ReactNode }) {
       }
 
       setBillsState(existing);
-    };
-    load();
+    } catch { }
+  };
+
+  useEffect(() => {
+    loadBills();
+
+    // Re-run whenever auth state changes (e.g. after onboarding navigates to tabs)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+      loadBills();
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   const save = async (data: Bill[]) => {
     setBillsState(data);
-    if (storageKey) await AsyncStorage.setItem(storageKey, JSON.stringify(data));
+    if (storageKeyRef.current) {
+      await AsyncStorage.setItem(storageKeyRef.current, JSON.stringify(data));
+    }
   };
 
   const addBill = async (b: Omit<Bill, 'id'>) => {

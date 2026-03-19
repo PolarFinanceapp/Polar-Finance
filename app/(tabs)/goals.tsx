@@ -104,7 +104,7 @@ export default function GoalsScreen() {
       <ScrollView style={{ flex: 1, paddingHorizontal: 20 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
 
         <TouchableOpacity onPress={() => router.push('/(tabs)/more' as any)}
-          style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 56, marginBottom: 4, alignSelf: 'flex-start' }}>
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 60, marginBottom: 8, alignSelf: 'flex-start' }}>
           <Ionicons name="chevron-back" size={20} color={c.accent} />
           <Text style={{ color: c.accent, fontSize: 15, fontWeight: '600' }}>Back</Text>
         </TouchableOpacity>
@@ -159,8 +159,8 @@ export default function GoalsScreen() {
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 {[10, 50, 100].map(amt => (
                   <TouchableOpacity key={amt} onPress={() => addToSaved(g.id, amt)} disabled={g.saved >= g.target}
-                    style={{ flex: 1, backgroundColor: g.color + '22', borderRadius: 10, paddingVertical: 8, alignItems: 'center', borderWidth: 1, borderColor: g.color + '44', opacity: g.saved >= g.target ? 0.4 : 1 }}>
-                    <Text style={{ color: g.color, fontSize: 12, fontWeight: '700' }}>+{currencySymbol}{amt}</Text>
+                    style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 10, paddingVertical: 9, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', opacity: g.saved >= g.target ? 0.4 : 1 }}>
+                    <Text style={{ color: g.color, fontSize: 12, fontWeight: '600' }}>+{currencySymbol}{amt}</Text>
                   </TouchableOpacity>
                 ))}
                 <TouchableOpacity onPress={() => addToSaved(g.id, -10)} disabled={g.saved <= 0}

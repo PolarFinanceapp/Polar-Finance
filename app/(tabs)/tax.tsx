@@ -1,7 +1,7 @@
 import { useFinance } from '@/context/FinanceContext';
 import { useLocale } from '@/context/LocaleContext';
+import { useUserData } from '@/context/UserDataContext';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, ScrollView, Share, Text, TouchableOpacity, View } from 'react-native';
@@ -226,37 +226,29 @@ export default function TaxScreen() {
   const { transactions } = useFinance();
   const { formatAmount, currency } = useLocale();
 
+  const { incomeSources } = useUserData();
   const cfg = TAX_CONFIGS[currency] ?? TAX_CONFIGS['GBP'];
 
-  const [annualIncome, setAnnualIncome] = useState(0);
   const [openSection, setOpenSection] = useState<string | null>('estimate');
   const [checked, setChecked] = useState<Record<number, boolean>>({});
-  const [ckKey, setCkKey] = useState('polar_tax_checklist_local');
+
+  // Always live from context
+  const annualIncome = Math.round(incomeSources.reduce((s, src) => {
+    const m = src.frequency === 'weekly' ? src.amount * 4.33
+      : src.frequency === 'fortnightly' ? src.amount * 2.17
+      : src.frequency === 'yearly' ? src.amount / 12
+      : src.amount;
+    return s + m;
+  }, 0) * 12);
 
   useEffect(() => {
     (async () => {
       try {
+        const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
         const { supabase } = await import('../../lib/supabase');
         const { data: { user } } = await supabase.auth.getUser();
         const uid = user?.id ?? 'local';
-        const incomeKey = `polar_income_${uid}`;
-        const checkKey = `polar_tax_checklist_${uid}`;
-        setCkKey(checkKey);
-        const [rawIncome, rawChecked] = await Promise.all([
-          AsyncStorage.getItem(incomeKey),
-          AsyncStorage.getItem(checkKey),
-        ]);
-        if (rawIncome) {
-          const sources = JSON.parse(rawIncome);
-          const monthly = sources.reduce((s: number, src: any) => {
-            const m = src.frequency === 'weekly' ? src.amount * 4.33
-              : src.frequency === 'fortnightly' ? src.amount * 2.17
-                : src.frequency === 'yearly' ? src.amount / 12
-                  : src.amount;
-            return s + m;
-          }, 0);
-          setAnnualIncome(Math.round(monthly * 12));
-        }
+        const rawChecked = await AsyncStorage.getItem(`polar_tax_checklist_${uid}`);
         if (rawChecked) setChecked(JSON.parse(rawChecked));
       } catch { }
     })();
@@ -265,7 +257,13 @@ export default function TaxScreen() {
   const toggleCheck = async (i: number) => {
     const next = { ...checked, [i]: !checked[i] };
     setChecked(next);
-    await AsyncStorage.setItem(ckKey, JSON.stringify(next));
+    try {
+      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+      const { supabase } = await import('../../lib/supabase');
+      const { data: { user } } = await supabase.auth.getUser();
+      const uid = user?.id ?? 'local';
+      await AsyncStorage.setItem(`polar_tax_checklist_${uid}`, JSON.stringify(next));
+    } catch { }
   };
 
   const toggle = (key: string) => setOpenSection(p => p === key ? null : key);

@@ -126,6 +126,9 @@ export default function OnboardingScreen() {
         if (user?.id) uid = user.id;
       } catch { }
 
+      // Set onboarding_complete FIRST so _layout.tsx doesn't redirect back
+      await AsyncStorage.setItem('onboarding_complete', 'true');
+
       // Save all settings to AsyncStorage
       await AsyncStorage.multiSet([
         ['onboarding_complete', 'true'],

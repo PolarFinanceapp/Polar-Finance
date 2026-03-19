@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Animated, Dimensions, Keyboard, KeyboardAvoidingView, Modal,
+  Animated, Dimensions, Image, Keyboard, KeyboardAvoidingView, Modal,
   Platform, ScrollView, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import StarBackground from '../components/StarBackground';
@@ -661,9 +661,16 @@ export default function OnboardingScreen() {
           <Text style={{ color: '#7B7B9E', fontSize: 12, marginTop: 20, textAlign: 'center' }}>Tap a goal to select it, then continue</Text>
         </View>
 
-        {/* ── 10: Choose Plan ── */}
-        <View style={{ width, flex: 1, backgroundColor: '#0D0D1A' }}>
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 22, paddingTop: 80, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
+        {/* Plan slide placeholder — rendered outside horizontal ScrollView below */}
+        <View style={{ width, flex: 1 }} />
+
+      </ScrollView>
+
+      {/* ── Plan slide — rendered outside horizontal ScrollView to fix touch issues ── */}
+      {isLastSlide && (
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#0D0D1A' }}>
+          <StarBackground />
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 22, paddingTop: 80, paddingBottom: 60 }}>
             <Text style={{ color: '#E8E8F0', fontSize: 28, fontWeight: '900', textAlign: 'center', marginBottom: 6 }}>Choose your plan</Text>
             <Text style={{ color: '#7B7B9E', fontSize: 14, textAlign: 'center', marginBottom: 24, lineHeight: 20 }}>
               Start free or unlock everything with a 3-day trial.
@@ -723,8 +730,8 @@ export default function OnboardingScreen() {
               <TouchableOpacity activeOpacity={0.8} onPress={() => saveAndNavigate('trial')}
                 style={{ backgroundColor: '#13132A', borderRadius: 18, padding: 16, borderWidth: 2, borderColor: '#FFD700AA' }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                  <View style={{ width: 38, height: 38, borderRadius: 10, backgroundColor: '#FFD70022', justifyContent: 'center', alignItems: 'center' }}>
-                    <Ionicons name="trophy" size={20} color="#FFD700" />
+                  <View style={{ width: 38, height: 38, borderRadius: 10, backgroundColor: '#FFD70022', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }}>
+                    <Image source={require('../assets/images/logo.png')} style={{ width: 28, height: 28, resizeMode: 'contain' }} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: '#E8E8F0', fontSize: 15, fontWeight: '800' }}>Premium</Text>
@@ -748,9 +755,18 @@ export default function OnboardingScreen() {
               Subscriptions managed in Settings
             </Text>
           </ScrollView>
-        </View>
 
-      </ScrollView>
+          {/* Back button */}
+          <TouchableOpacity onPress={back} style={{ position: 'absolute', top: 52, left: 24, zIndex: 10, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 50, padding: 10 }}>
+            <Ionicons name="chevron-back" size={18} color="#7B7B9E" />
+          </TouchableOpacity>
+
+          {/* Progress bar */}
+          <View style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, backgroundColor: 'rgba(255,255,255,0.06)' }}>
+            <View style={{ height: 3, backgroundColor: ACCENT, width: '100%', borderRadius: 3 }} />
+          </View>
+        </View>
+      )}
 
       {/* Bottom controls */}
       {!isLastSlide && (

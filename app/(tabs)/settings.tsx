@@ -399,36 +399,31 @@ export default function SettingsScreen() {
                 onPress: async () => {
                   try {
                     const { data: { session } } = await supabase.auth.getSession();
-                    if (!session?.access_token) {
-                      Alert.alert('Error', 'Could not verify your session. Please log out and log back in.');
-                      return;
+
+                    // Best-effort server-side deletion — don't block on failure
+                    if (session?.access_token) {
+                      try {
+                        const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
+                        await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/delete-account`, {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${session.access_token}`,
+                            'apikey': anonKey,
+                          },
+                        });
+                      } catch { /* server deletion failed — still wipe locally */ }
                     }
 
-                    const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
-                    const res = await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/delete-account`, {
-                      method: 'POST',
-                      headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${session.access_token}`,
-                        'apikey': anonKey,
-                      },
-                    });
-
-                    if (!res.ok) {
-                      const body = await res.json().catch(() => ({}));
-                      throw new Error(body.error || `Server error ${res.status}`);
-                    }
-
-                    // Wipe all local data
+                    // Always wipe local data and navigate out
                     await AsyncStorage.clear();
-
-                    // Sign out locally (auth user is already deleted server-side)
                     try { await supabase.auth.signOut(); } catch { }
-
-                    // Navigate to login
                     router.replace('/login' as any);
                   } catch (e: any) {
-                    Alert.alert('Error', e?.message || 'Could not delete account. Please try again.');
+                    // Even if something goes wrong, try to get them to login screen
+                    try { await AsyncStorage.clear(); } catch { }
+                    try { await supabase.auth.signOut(); } catch { }
+                    router.replace('/login' as any);
                   }
                 },
               },

@@ -3,11 +3,9 @@ import { useLocale } from '@/context/LocaleContext';
 import { usePlan } from '@/context/PlanContext';
 import { IncomeSource, useUserData } from '@/context/UserDataContext';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { Alert, Image, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Paywall from '../../components/Paywall';
 import StarBackground from '../../components/StarBackground';
 import { useTheme } from '../../context/ThemeContext';
@@ -75,9 +73,6 @@ export default function MoreScreen() {
 
   const { incomeSources: sources, setIncomeSources: setSources } = useUserData();
 
-  // Profile picture — stored in Supabase user metadata so it survives OTA updates
-  const [profileUri, setProfileUri] = useState<string | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
 
   const [showPaywall, setShowPaywall] = useState(false);
   const [comingSoonOpen, setComingSoonOpen] = useState(false);
@@ -92,52 +87,7 @@ export default function MoreScreen() {
   const [fEmoji, setFEmoji] = useState<string>('briefcase');
   const [fSaved, setFSaved] = useState(false);
 
-  // ── Load profile pic ──────────────────────────────────────────────────────
-  React.useEffect(() => {
-    (async () => {
-      try {
-        const { supabase } = await import('../../lib/supabase');
-        const { data: { user } } = await supabase.auth.getUser();
-        const uid = user?.id;
-        setUserId(uid || null);
-        if (uid) {
-          const metaPic = user?.user_metadata?.profile_picture_uri as string | undefined;
-          if (metaPic) {
-            setProfileUri(metaPic);
-          }
-        }
-      } catch { }
-    })();
-  }, []);
-
   const saveSources = (data: IncomeSource[]) => setSources(data);
-
-  // ── Profile picture picker ───────────────────────────────────────────────
-  const handlePickProfilePic = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Please allow access to your photo library to set a profile picture.');
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.4,
-      base64: true,
-    });
-    if (result.canceled || !result.assets[0]) return;
-
-    const dataUri = `data:image/jpeg;base64,${result.assets[0].base64}`;
-    setProfileUri(dataUri);
-
-    // Save to Supabase user metadata — persists across OTA updates and reinstalls
-    try {
-      const { supabase } = await import('../../lib/supabase');
-      await supabase.auth.updateUser({ data: { profile_picture_uri: dataUri } });
-      if (userId) await AsyncStorage.setItem(`jf_profile_pic_${userId}`, dataUri);
-    } catch { }
-  };
 
   const resetForm = () => { setFLabel(''); setFAmount(''); setFFreq('monthly'); setFDay('25'); setFEmoji('briefcase'); setFSaved(false); setEditingIncome(null); };
   const openAdd = () => { resetForm(); setShowAddIncome(true); };
@@ -194,19 +144,6 @@ export default function MoreScreen() {
             <Text style={{ color: c.muted, fontSize: 14, marginTop: 4 }}>{t('allFeatures')}</Text>
           </View>
 
-          {/* Profile picture — stored in Supabase, survives OTA updates */}
-          <TouchableOpacity onPress={handlePickProfilePic} style={{ position: 'relative' }}>
-            {profileUri ? (
-              <Image source={{ uri: profileUri }} style={{ width: 52, height: 52, borderRadius: 26, borderWidth: 2, borderColor: c.accent }} />
-            ) : (
-              <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: c.accent + '22', borderWidth: 2, borderColor: c.accent + '44', justifyContent: 'center', alignItems: 'center' }}>
-                <Ionicons name="person" size={26} color={c.accent} />
-              </View>
-            )}
-            <View style={{ position: 'absolute', bottom: 0, right: 0, width: 18, height: 18, borderRadius: 9, backgroundColor: c.accent, justifyContent: 'center', alignItems: 'center' }}>
-              <Ionicons name="camera" size={10} color="#fff" />
-            </View>
-          </TouchableOpacity>
         </View>
 
         {/* Features */}

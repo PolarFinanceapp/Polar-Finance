@@ -197,12 +197,21 @@ export default function OnboardingScreen() {
           }]));
         } catch { }
       }
-    } catch { }
-
-    router.replace('/(tabs)' as any);
+    } catch (e) {
+      console.warn('Onboarding save error:', e);
+    }
   };
 
-  const next = () => { Keyboard.dismiss(); if (isLastSlide) { finish(); } else { setCur(c => c + 1); } };
+  const next = () => {
+    Keyboard.dismiss();
+    if (isLastSlide) {
+      finish().finally(() => {
+        router.replace('/(tabs)' as any);
+      });
+    } else {
+      setCur(c => c + 1);
+    }
+  };
   const back = () => setCur(c => Math.max(c - 1, 0));
 
   const progressPct = Math.round((cur / (TOTAL - 1)) * 100);
@@ -443,7 +452,7 @@ export default function OnboardingScreen() {
           ))}
         </View>
         <TouchableOpacity style={{ backgroundColor: canContinue ? ACCENT : '#2a2a4a', borderRadius: 18, padding: 18, alignItems: 'center' }} onPress={next} disabled={!canContinue}>
-          <Text style={{ color: canContinue ? '#fff' : '#7B7B9E', fontSize: 17, fontWeight: '900' }}>{isLastSlide ? 'Get Started 🚀' : 'Continue'}</Text>
+          <Text style={{ color: canContinue ? '#fff' : '#7B7B9E', fontSize: 17, fontWeight: '900' }}>{isLastSlide ? 'Get Started' : 'Continue'}</Text>
         </TouchableOpacity>
         {!canContinue && (
           <Text style={{ color: '#7B7B9E', fontSize: 13, textAlign: 'center', marginTop: 12 }}>

@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Animated, Dimensions, Image, Keyboard, KeyboardAvoidingView, Modal,
+  Animated, Dimensions, Keyboard, Modal,
   Platform, ScrollView, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import StarBackground from '../components/StarBackground';
@@ -293,7 +293,7 @@ export default function OnboardingScreen() {
   })();
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: '#0D0D1A' }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <View style={{ flex: 1, backgroundColor: '#0D0D1A' }}>
       <StarBackground />
 
       {/* Progress bar */}
@@ -408,7 +408,7 @@ export default function OnboardingScreen() {
           </View>
           <Text style={{ color: '#E8E8F0', fontSize: 28, fontWeight: '900', marginBottom: 6 }}>Your subscriptions</Text>
           <Text style={{ color: '#7B7B9E', fontSize: 14, marginBottom: 20, lineHeight: 21 }}>Select active subscriptions and enter the cost. Added as recurring bills.</Text>
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 120 }}>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
               {COMMON_SUBS.map(sub => {
                 const sel = subPrices[sub.name] !== undefined;
@@ -730,8 +730,8 @@ export default function OnboardingScreen() {
               <TouchableOpacity activeOpacity={0.8} onPress={() => saveAndNavigate('trial')}
                 style={{ backgroundColor: '#13132A', borderRadius: 18, padding: 16, borderWidth: 2, borderColor: '#FFD700AA' }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                  <View style={{ width: 38, height: 38, borderRadius: 10, backgroundColor: '#FFD70022', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }}>
-                    <Image source={require('../assets/images/icon.png')} style={{ width: 28, height: 28, resizeMode: 'contain' }} />
+                  <View style={{ width: 38, height: 38, borderRadius: 10, backgroundColor: '#FFD70022', justifyContent: 'center', alignItems: 'center' }}>
+                    <Ionicons name="star" size={20} color="#FFD700" />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: '#E8E8F0', fontSize: 15, fontWeight: '800' }}>Premium</Text>
@@ -797,7 +797,7 @@ export default function OnboardingScreen() {
           <View style={{ backgroundColor: '#13132A', borderRadius: 24, padding: 28, width: '100%', borderWidth: 1.5, borderColor: '#FFD700AA' }}>
             <View style={{ alignItems: 'center', marginBottom: 20 }}>
               <View style={{ width: 64, height: 64, borderRadius: 20, backgroundColor: '#FFD70022', justifyContent: 'center', alignItems: 'center', marginBottom: 14 }}>
-                <Image source={require('../assets/images/icon.png')} style={{ width: 52, height: 52, resizeMode: 'contain' }} />
+                <Ionicons name="star" size={36} color="#FFD700" />
               </View>
               <Text style={{ color: '#E8E8F0', fontSize: 20, fontWeight: '900', textAlign: 'center', marginBottom: 8 }}>Before you go free…</Text>
               <Text style={{ color: '#7B7B9E', fontSize: 14, textAlign: 'center', lineHeight: 21 }}>
@@ -826,6 +826,6 @@ export default function OnboardingScreen() {
         </View>
       </Modal>
 
-    </KeyboardAvoidingView>
+    </View>
   );
 }

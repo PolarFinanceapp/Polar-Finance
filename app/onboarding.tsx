@@ -731,7 +731,7 @@ export default function OnboardingScreen() {
                 style={{ backgroundColor: '#13132A', borderRadius: 18, padding: 16, borderWidth: 2, borderColor: '#FFD700AA' }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 }}>
                   <View style={{ width: 38, height: 38, borderRadius: 10, backgroundColor: '#FFD70022', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }}>
-                    <Image source={require('../assets/images/jf-logo.png')} style={{ width: 28, height: 28, resizeMode: 'contain' }} />
+                    <Image source={require('../assets/images/icon.png')} style={{ width: 28, height: 28, resizeMode: 'contain' }} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: '#E8E8F0', fontSize: 15, fontWeight: '800' }}>Premium</Text>
@@ -797,7 +797,7 @@ export default function OnboardingScreen() {
           <View style={{ backgroundColor: '#13132A', borderRadius: 24, padding: 28, width: '100%', borderWidth: 1.5, borderColor: '#FFD700AA' }}>
             <View style={{ alignItems: 'center', marginBottom: 20 }}>
               <View style={{ width: 64, height: 64, borderRadius: 20, backgroundColor: '#FFD70022', justifyContent: 'center', alignItems: 'center', marginBottom: 14 }}>
-                <Image source={require('../assets/images/jf-logo.png')} style={{ width: 52, height: 52, resizeMode: 'contain' }} />
+                <Image source={require('../assets/images/icon.png')} style={{ width: 52, height: 52, resizeMode: 'contain' }} />
               </View>
               <Text style={{ color: '#E8E8F0', fontSize: 20, fontWeight: '900', textAlign: 'center', marginBottom: 8 }}>Before you go free…</Text>
               <Text style={{ color: '#7B7B9E', fontSize: 14, textAlign: 'center', lineHeight: 21 }}>

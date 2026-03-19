@@ -126,6 +126,7 @@ export default function OnboardingScreen() {
         if (user?.id) uid = user.id;
       } catch { }
 
+      // Save all settings to AsyncStorage
       await AsyncStorage.multiSet([
         ['onboarding_complete', 'true'],
         ['jf_currency', currency],
@@ -138,6 +139,7 @@ export default function OnboardingScreen() {
         ['trial_prompt_seen', 'true'],
       ]);
 
+      // Save to Supabase metadata so onboarding doesn't repeat on re-login
       try {
         await supabase.auth.updateUser({ data: {
           full_name: name,
@@ -145,59 +147,92 @@ export default function OnboardingScreen() {
         }});
       } catch { }
 
-      if (income && parseFloat(income) > 0) {
-        try {
-          await AsyncStorage.setItem(`polar_income_${uid}`, JSON.stringify([{
-            id: Date.now().toString(), label: 'Main Income',
-            amount: parseFloat(income), frequency: 'monthly', paydayDay: 25, emoji: 'briefcase',
-          }]));
-        } catch { }
-      }
-
+      // ── Build all data arrays ─────────────────────────────────────────────
       const filtered = selectedSubs.filter(s => s !== 'Other');
-      if (filtered.length > 0) {
-        try {
-          const bills = filtered.map(subName => {
-            const sub = COMMON_SUBS.find(s => s.name === subName)!;
-            const price = parseFloat(subPrices[subName] || '0') || 9.99;
-            return {
-              id: Date.now().toString() + Math.random().toString(36).slice(2),
-              name: subName, amount: price, frequency: 'monthly',
-              nextDue: new Date().toLocaleDateString('en-GB'),
-              cardId: null, icon: sub.icon, color: sub.color, active: true,
-            };
-          });
-          await AsyncStorage.setItem(`jf_onboarding_bills_${uid}`, JSON.stringify(bills));
-          const subTxns = filtered.map(subName => {
-            const sub = COMMON_SUBS.find(s => s.name === subName)!;
-            const price = parseFloat(subPrices[subName] || '0') || 9.99;
-            return {
-              id: Date.now().toString() + Math.random().toString(36).slice(2),
-              icon: sub.icon, name: subName, cat: 'Subscriptions',
-              amount: -Math.abs(price), type: 'expense',
-              date: new Date().toLocaleDateString('en-GB'), recurring: true,
-            };
-          });
-          await AsyncStorage.setItem('jf_onboarding_subs', JSON.stringify(subTxns));
-        } catch { }
-      }
 
-      if (goalName && goalTarget) {
-        try {
-          await AsyncStorage.setItem(`jf_onboarding_goal_${uid}`, JSON.stringify([{
-            id: Date.now().toString(), name: goalName,
-            target: parseFloat(goalTarget) || 0, saved: 0, color: ACCENT, icon: 'wallet',
-          }]));
-        } catch { }
-      }
+      const bills = filtered.map(subName => {
+        const sub = COMMON_SUBS.find(s => s.name === subName)!;
+        const price = parseFloat(subPrices[subName] || '0') || 9.99;
+        return {
+          id: Date.now().toString() + Math.random().toString(36).slice(2),
+          name: subName, amount: price, frequency: 'monthly',
+          nextDue: new Date().toLocaleDateString('en-GB'),
+          cardId: null, icon: sub.icon, color: sub.color, active: true,
+        };
+      });
 
-      if (budgetLimit) {
+      const transactions = filtered.map(subName => {
+        const sub = COMMON_SUBS.find(s => s.name === subName)!;
+        const price = parseFloat(subPrices[subName] || '0') || 9.99;
+        return {
+          id: Date.now().toString() + Math.random().toString(36).slice(2),
+          icon: sub.icon, name: subName, cat: 'Subscriptions',
+          amount: -Math.abs(price), type: 'expense',
+          date: new Date().toLocaleDateString('en-GB'), recurring: true,
+        };
+      });
+
+      const goals = goalName && goalTarget ? [{
+        id: Date.now().toString(), icon: 'wallet', name: goalName,
+        target: parseFloat(goalTarget) || 0, saved: 0, color: ACCENT,
+      }] : [];
+
+      const budgets = budgetLimit ? [{
+        id: Date.now().toString(),
+        cat: budgetCat,
+        limit: parseFloat(budgetLimit) || 0,
+        icon: BUDGET_CATS.find(c => c.key === budgetCat)!.icon,
+        color: BUDGET_CATS.find(c => c.key === budgetCat)!.color,
+      }] : [];
+
+      const incomeSources = income && parseFloat(income) > 0 ? [{
+        id: Date.now().toString(), label: 'Main Income',
+        amount: parseFloat(income), frequency: 'monthly', paydayDay: 25, emoji: 'briefcase',
+      }] : [];
+
+      // ── Write directly to Supabase (bypass context import timing issues) ──
+      if (uid !== 'local') {
         try {
-          const cat = BUDGET_CATS.find(c => c.key === budgetCat)!;
-          await AsyncStorage.setItem(`jf_onboarding_budget_${uid}`, JSON.stringify([{
-            id: Date.now().toString(), cat: budgetCat,
-            limit: parseFloat(budgetLimit) || 0, icon: cat.icon, color: cat.color,
-          }]));
+          // Finance data (cards + transactions)
+          await supabase.from('user_finance_data').upsert({
+            user_id: uid,
+            cards: [],
+            investments: [],
+            transactions,
+            assets: [],
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'user_id' });
+        } catch (e) { console.warn('Finance upsert failed:', e); }
+
+        try {
+          // Profile data (goals + budgets + income)
+          await supabase.from('user_profile_data').upsert({
+            user_id: uid,
+            budgets,
+            goals,
+            income: incomeSources,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'user_id' });
+        } catch (e) { console.warn('Profile upsert failed:', e); }
+
+        // Bills go to AsyncStorage (BillsContext reads from there)
+        if (bills.length > 0) {
+          try {
+            await AsyncStorage.setItem(`polar_bills_${uid}`, JSON.stringify(bills));
+          } catch { }
+        }
+
+        // Also cache locally so contexts show data immediately
+        try {
+          await AsyncStorage.setItem(`jf_finance_${uid}`, JSON.stringify({
+            cards: [], investments: [], transactions, assets: [],
+          }));
+          await AsyncStorage.setItem(`jf_profile_${uid}`, JSON.stringify({
+            budgets, goals, income: incomeSources,
+          }));
+          if (incomeSources.length > 0) {
+            await AsyncStorage.setItem(`polar_income_${uid}`, JSON.stringify(incomeSources));
+          }
         } catch { }
       }
     } catch (e) {

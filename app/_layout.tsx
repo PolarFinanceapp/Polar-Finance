@@ -13,7 +13,6 @@ import { UserDataProvider } from '../context/UserDataContext';
 import { requestNotificationPermission, scheduleBillReminders, scheduleDailySpendingSummary } from '../lib/notifications';
 import { supabase } from '../lib/supabase';
 
-// ── Inner component that has access to context ────────────────────────────────
 function AppWithNotifications({ session }: { session: Session | null }) {
   const { bills } = useBills();
   const { formatAmount } = useLocale();
@@ -27,25 +26,19 @@ function AppWithNotifications({ session }: { session: Session | null }) {
     const setup = async () => {
       const granted = await requestNotificationPermission();
       if (!granted) return;
-
-      // Schedule bill reminders whenever bills change
       await scheduleBillReminders(
         bills.map(b => ({ id: b.id, name: b.name, amount: b.amount, nextDue: b.nextDue, icon: b.icon })),
         formatAmount,
       );
-
-      // Schedule daily spending summary at 8pm
       await scheduleDailySpendingSummary(true);
     };
 
     setup();
 
-    // Listen for foreground notifications
     notifListener.current = Notifications.addNotificationReceivedListener(notification => {
       console.log('Notification received in foreground:', notification);
     });
 
-    // Listen for notification taps
     responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
       const data = response.notification.request.content.data as any;
       console.log('Notification tapped:', data?.tag);
@@ -57,10 +50,9 @@ function AppWithNotifications({ session }: { session: Session | null }) {
     };
   }, [session, bills.length]);
 
-  return null; // renders nothing — just side effects
+  return null;
 }
 
-// ── Root layout ───────────────────────────────────────────────────────────────
 export default function RootLayout() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
@@ -82,9 +74,13 @@ export default function RootLayout() {
     if (loading) return;
     const inTabsGroup = segments[0] === '(tabs)';
     const inOnboarding = segments[0] === 'onboarding';
+    const inLogin = segments[0] === 'login';
+
     if (session && !inTabsGroup && !inOnboarding) {
       router.replace('/(tabs)' as any);
-    } else if (!session) {
+    } else if (!session && !inLogin && !inOnboarding) {
+      // Only redirect to login if not already there and not in onboarding
+      // This prevents token refresh flickers from wiping onboarding state
       router.replace('/login' as any);
     }
   }, [session, loading, segments]);

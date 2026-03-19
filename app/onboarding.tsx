@@ -138,7 +138,12 @@ export default function OnboardingScreen() {
         ['trial_prompt_seen', 'true'],
       ]);
 
-      try { await supabase.auth.updateUser({ data: { full_name: name } }); } catch { }
+      try {
+        await supabase.auth.updateUser({ data: {
+          full_name: name,
+          onboarding_complete: 'true',
+        }});
+      } catch { }
 
       if (income && parseFloat(income) > 0) {
         try {

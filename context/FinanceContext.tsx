@@ -113,19 +113,19 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // ── Import onboarding data (one-time, on first load) ─────────────────────
+  // ── Import onboarding data (one-time — deletes keys after import) ──────────
   const importOnboardingData = async (uid: string, currentCards: Card[], currentTxns: Transaction[]) => {
     try {
-
       let cards = [...currentCards];
       let transactions = [...currentTxns];
+      let didImport = false;
 
       // Import card
       const rawCard = await AsyncStorage.getItem(`jf_onboarding_card_${uid}`);
       if (rawCard) {
         const onboardingCards: Card[] = JSON.parse(rawCard);
-        // Only add if no cards exist yet
-        if (cards.length === 0) cards = onboardingCards;
+        if (cards.length === 0) { cards = onboardingCards; didImport = true; }
+        await AsyncStorage.removeItem(`jf_onboarding_card_${uid}`);
       }
 
       // Import transactions (subscriptions + manual)
@@ -134,13 +134,14 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         const onboardingTxns: Transaction[] = JSON.parse(rawTxns);
         const existingIds = new Set(transactions.map(t => t.id));
         const newTxns = onboardingTxns.filter(t => !existingIds.has(t.id));
-        transactions = [...newTxns, ...transactions];
+        if (newTxns.length > 0) { transactions = [...newTxns, ...transactions]; didImport = true; }
+        await AsyncStorage.removeItem('jf_onboarding_subs');
       }
 
-      return { cards, transactions };
+      return { cards, transactions, didImport };
     } catch (e) {
       console.warn('Onboarding import failed:', e);
-      return { cards: currentCards, transactions: currentTxns };
+      return { cards: currentCards, transactions: currentTxns, didImport: false };
     }
   };
 

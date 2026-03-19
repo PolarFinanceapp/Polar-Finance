@@ -67,29 +67,30 @@ export function UserDataProvider({ children }: { children: ReactNode }) {
   const goalsRef = useRef<Goal[]>([]);
   const incomeRef = useRef<IncomeSource[]>([]);
 
-  // ── Import onboarding data (one-time) ─────────────────────────────────────
+  // ── Import onboarding data (one-time — deletes keys after import) ──────────
   const importOnboardingData = async (uid: string, currentBudgets: Budget[], currentGoals: Goal[], currentIncome: IncomeSource[]) => {
     try {
-
       let budgets = [...currentBudgets];
       let goals = [...currentGoals];
       let income = [...currentIncome];
 
-      // Import saving goal
+      // Import saving goal — delete key after
       const rawGoal = await AsyncStorage.getItem(`jf_onboarding_goal_${uid}`);
       if (rawGoal) {
         const onboardingGoals: Goal[] = JSON.parse(rawGoal);
         if (goals.length === 0) goals = onboardingGoals;
+        await AsyncStorage.removeItem(`jf_onboarding_goal_${uid}`);
       }
 
-      // Import budget
+      // Import budget — delete key after
       const rawBudget = await AsyncStorage.getItem(`jf_onboarding_budget_${uid}`);
       if (rawBudget) {
         const onboardingBudgets: Budget[] = JSON.parse(rawBudget);
         if (budgets.length === 0) budgets = onboardingBudgets;
+        await AsyncStorage.removeItem(`jf_onboarding_budget_${uid}`);
       }
 
-      // Import income source (already saved as polar_income_${uid} in onboarding)
+      // Import income source
       const rawIncome = await AsyncStorage.getItem(`polar_income_${uid}`);
       if (rawIncome && income.length === 0) {
         income = JSON.parse(rawIncome);

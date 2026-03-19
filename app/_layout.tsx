@@ -1,5 +1,6 @@
 import { Session } from '@supabase/supabase-js';
 import * as Notifications from 'expo-notifications';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
@@ -77,10 +78,25 @@ export default function RootLayout() {
     const inLogin = segments[0] === 'login';
 
     if (session && !inTabsGroup && !inOnboarding) {
-      router.replace('/(tabs)' as any);
+      // Check if onboarding is complete — AsyncStorage OR Supabase metadata
+      const checkOnboarding = async () => {
+        const local = await AsyncStorage.getItem('onboarding_complete');
+        if (local === 'true') {
+          router.replace('/(tabs)' as any);
+          return;
+        }
+        // Check Supabase metadata as fallback (survives logout)
+        const meta = session.user?.user_metadata?.onboarding_complete;
+        if (meta === 'true') {
+          await AsyncStorage.setItem('onboarding_complete', 'true');
+          router.replace('/(tabs)' as any);
+          return;
+        }
+        // Not done — go to onboarding
+        router.replace('/onboarding' as any);
+      };
+      checkOnboarding();
     } else if (!session && !inLogin && !inOnboarding) {
-      // Only redirect to login if not already there and not in onboarding
-      // This prevents token refresh flickers from wiping onboarding state
       router.replace('/login' as any);
     }
   }, [session, loading, segments]);

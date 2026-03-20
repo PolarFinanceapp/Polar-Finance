@@ -37,6 +37,7 @@ const TAX_CONFIGS: Record<string, TaxConfig> = {
       'Gather P60 / P45 from your employer',
       'Record all self-employment income and expenses',
       'Check Gift Aid donations for tax relief',
+      'Claim Gift Aid on faith and charity donations — sign a declaration with your place of worship or charity to boost donations by 25% at no cost. Higher rate taxpayers can claim back the extra via self assessment',
       'Note any rental income or capital gains',
       'Claim work-from-home allowance if eligible (£6/week)',
       'Submit return by 31 Jan (online) or 31 Oct (paper)',

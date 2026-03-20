@@ -72,7 +72,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const userIdRef = useRef<string | null>(null);
   const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Keep latest state in refs so syncToSupabase always has fresh values
   const cardsRef = useRef<Card[]>([]);
   const investmentsRef = useRef<Investment[]>([]);
   const transactionsRef = useRef<Transaction[]>([]);
@@ -113,56 +112,13 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // ── Import onboarding data (one-time — deletes keys after import) ──────────
-  const importOnboardingData = async (uid: string, currentCards: Card[], currentTxns: Transaction[]) => {
-    try {
-      let cards = [...currentCards];
-      let transactions = [...currentTxns];
-      let didImport = false;
-
-      // Import card
-      const rawCard = await AsyncStorage.getItem(`jf_onboarding_card_${uid}`);
-      if (rawCard) {
-        const onboardingCards: Card[] = JSON.parse(rawCard);
-        if (cards.length === 0) { cards = onboardingCards; didImport = true; }
-        await AsyncStorage.removeItem(`jf_onboarding_card_${uid}`);
-      }
-
-      // Import transactions (subscriptions + manual)
-      const rawTxns = await AsyncStorage.getItem('jf_onboarding_subs');
-      if (rawTxns) {
-        const onboardingTxns: Transaction[] = JSON.parse(rawTxns);
-        const existingIds = new Set(transactions.map(t => t.id));
-        const newTxns = onboardingTxns.filter(t => !existingIds.has(t.id));
-        if (newTxns.length > 0) { transactions = [...newTxns, ...transactions]; didImport = true; }
-        await AsyncStorage.removeItem('jf_onboarding_subs');
-      }
-
-      return { cards, transactions, didImport };
-    } catch (e) {
-      console.warn('Onboarding import failed:', e);
-      return { cards: currentCards, transactions: currentTxns, didImport: false };
-    }
-  };
-
-  // ── Load: cache first, then Supabase ──────────────────────────────────────
+  // ── Load: Supabase FIRST (source of truth), then cache as fallback ────────
   const loadData = async (uid: string) => {
     userIdRef.current = uid;
     await migrateOldData(uid);
 
-    // Show cached data instantly
-    try {
-      const cached = await AsyncStorage.getItem(cacheKey(uid));
-      if (cached) {
-        const d: FinanceData = JSON.parse(cached);
-        if (d.cards) { setCardsState(d.cards); cardsRef.current = d.cards; }
-        if (d.investments) { setInvestmentsState(d.investments); investmentsRef.current = d.investments; }
-        if (d.transactions) { setTransactionsState(d.transactions); transactionsRef.current = d.transactions; }
-        if (d.assets) { setCustomAssetsState(d.assets); assetsRef.current = d.assets; }
-      }
-    } catch { }
-
-    // Then fetch from Supabase — source of truth
+    // Always fetch from Supabase first — fixes Expo Go wiping AsyncStorage
+    let loadedFromSupabase = false;
     try {
       const { data, error } = await supabase
         .from('user_finance_data')
@@ -181,17 +137,33 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         setTransactionsState(t); transactionsRef.current = t;
         setCustomAssetsState(a); assetsRef.current = a;
 
-        // Always update cache so next login is instant
+        // Update cache after Supabase load
         await AsyncStorage.setItem(cacheKey(uid), JSON.stringify({ cards: c, investments: i, transactions: t, assets: a }));
+        loadedFromSupabase = true;
       } else if (error?.code === 'PGRST116') {
-        // No row yet — create one so future saves work
+        // No row yet — create one
         await supabase.from('user_finance_data').insert({
           user_id: uid, cards: [], investments: [], transactions: [], assets: [],
           updated_at: new Date().toISOString(),
         });
+        loadedFromSupabase = true;
       }
     } catch (e) {
-      console.warn('Supabase load failed, using cache:', e);
+      console.warn('Supabase load failed, falling back to cache:', e);
+    }
+
+    // Only use cache if Supabase failed
+    if (!loadedFromSupabase) {
+      try {
+        const cached = await AsyncStorage.getItem(cacheKey(uid));
+        if (cached) {
+          const d: FinanceData = JSON.parse(cached);
+          if (d.cards) { setCardsState(d.cards); cardsRef.current = d.cards; }
+          if (d.investments) { setInvestmentsState(d.investments); investmentsRef.current = d.investments; }
+          if (d.transactions) { setTransactionsState(d.transactions); transactionsRef.current = d.transactions; }
+          if (d.assets) { setCustomAssetsState(d.assets); assetsRef.current = d.assets; }
+        }
+      } catch { }
     }
 
     setLoading(false);

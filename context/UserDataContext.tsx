@@ -1,13 +1,3 @@
-/**
- * UserDataContext
- *
- * Syncs budgets, goals, and income sources to Supabase so data
- * persists across devices and logins. Uses AsyncStorage as an
- * instant-read cache; Supabase is the source of truth.
- *
- * Pattern mirrors FinanceContext (cache-first load, debounced write).
- */
-
 import { supabase } from '@/lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, ReactNode, useContext, useEffect, useRef, useState } from 'react';
@@ -67,58 +57,12 @@ export function UserDataProvider({ children }: { children: ReactNode }) {
   const goalsRef = useRef<Goal[]>([]);
   const incomeRef = useRef<IncomeSource[]>([]);
 
-  // ── Import onboarding data (one-time — deletes keys after import) ──────────
-  const importOnboardingData = async (uid: string, currentBudgets: Budget[], currentGoals: Goal[], currentIncome: IncomeSource[]) => {
-    try {
-      let budgets = [...currentBudgets];
-      let goals = [...currentGoals];
-      let income = [...currentIncome];
-
-      // Import saving goal — delete key after
-      const rawGoal = await AsyncStorage.getItem(`jf_onboarding_goal_${uid}`);
-      if (rawGoal) {
-        const onboardingGoals: Goal[] = JSON.parse(rawGoal);
-        if (goals.length === 0) goals = onboardingGoals;
-        await AsyncStorage.removeItem(`jf_onboarding_goal_${uid}`);
-      }
-
-      // Import budget — delete key after
-      const rawBudget = await AsyncStorage.getItem(`jf_onboarding_budget_${uid}`);
-      if (rawBudget) {
-        const onboardingBudgets: Budget[] = JSON.parse(rawBudget);
-        if (budgets.length === 0) budgets = onboardingBudgets;
-        await AsyncStorage.removeItem(`jf_onboarding_budget_${uid}`);
-      }
-
-      // Import income source
-      const rawIncome = await AsyncStorage.getItem(`polar_income_${uid}`);
-      if (rawIncome && income.length === 0) {
-        income = JSON.parse(rawIncome);
-      }
-
-      return { budgets, goals, income };
-    } catch (e) {
-      console.warn('Profile onboarding import failed:', e);
-      return { budgets: currentBudgets, goals: currentGoals, income: currentIncome };
-    }
-  };
-
-  // ── Load: cache first, then Supabase ──────────────────────────────────────
+  // ── Load: Supabase FIRST (source of truth), cache as fallback ─────────────
   const loadData = async (uid: string) => {
     uidRef.current = uid;
 
-    // Instant cache read
-    try {
-      const cached = await AsyncStorage.getItem(cacheKey(uid));
-      if (cached) {
-        const d: ProfileData = JSON.parse(cached);
-        if (d.budgets) { setBudgetsState(d.budgets); budgetsRef.current = d.budgets; }
-        if (d.goals) { setGoalsState(d.goals); goalsRef.current = d.goals; }
-        if (d.income) { setIncomeState(d.income); incomeRef.current = d.income; }
-      }
-    } catch { }
-
-    // Pull from Supabase — source of truth
+    // Always fetch from Supabase first — fixes Expo Go wiping AsyncStorage
+    let loadedFromSupabase = false;
     try {
       const { data, error } = await supabase
         .from('user_profile_data')
@@ -135,19 +79,33 @@ export function UserDataProvider({ children }: { children: ReactNode }) {
         setGoalsState(g); goalsRef.current = g;
         setIncomeState(i); incomeRef.current = i;
 
-        // Always update cache so next login is instant
+        // Update cache after Supabase load
         await AsyncStorage.setItem(cacheKey(uid), JSON.stringify({ budgets: b, goals: g, income: i }));
-        // Keep legacy income key for tax screen
         await AsyncStorage.setItem(`polar_income_${uid}`, JSON.stringify(i));
+        loadedFromSupabase = true;
       } else if (error?.code === 'PGRST116') {
         // No row yet — create one
         await supabase.from('user_profile_data').insert({
           user_id: uid, budgets: [], goals: [], income: [],
           updated_at: new Date().toISOString(),
         });
+        loadedFromSupabase = true;
       }
     } catch (e) {
-      console.warn('UserDataContext load failed, using cache:', e);
+      console.warn('UserDataContext Supabase load failed, falling back to cache:', e);
+    }
+
+    // Only use cache if Supabase failed
+    if (!loadedFromSupabase) {
+      try {
+        const cached = await AsyncStorage.getItem(cacheKey(uid));
+        if (cached) {
+          const d: ProfileData = JSON.parse(cached);
+          if (d.budgets) { setBudgetsState(d.budgets); budgetsRef.current = d.budgets; }
+          if (d.goals) { setGoalsState(d.goals); goalsRef.current = d.goals; }
+          if (d.income) { setIncomeState(d.income); incomeRef.current = d.income; }
+        }
+      } catch { }
     }
 
     setProfileLoading(false);
@@ -171,7 +129,6 @@ export function UserDataProvider({ children }: { children: ReactNode }) {
         setGoalsState(g); goalsRef.current = g;
         setIncomeState(i); incomeRef.current = i;
 
-        // Write migrated data to Supabase
         await supabase.from('user_profile_data').upsert({
           user_id: uid, budgets: b, goals: g, income: i,
           updated_at: new Date().toISOString(),
@@ -221,13 +178,9 @@ export function UserDataProvider({ children }: { children: ReactNode }) {
     const uid = uidRef.current;
     if (!uid) return;
 
-    // Write cache instantly
     AsyncStorage.setItem(cacheKey(uid), JSON.stringify(data)).catch(() => { });
-
-    // Also keep legacy keys so tax.tsx / old code still works
     AsyncStorage.setItem(`polar_income_${uid}`, JSON.stringify(data.income)).catch(() => { });
 
-    // Debounce Supabase write
     if (syncTimer.current) clearTimeout(syncTimer.current);
     syncTimer.current = setTimeout(async () => {
       try {
@@ -250,7 +203,6 @@ export function UserDataProvider({ children }: { children: ReactNode }) {
     budgetsRef.current = data;
     syncToSupabase({ budgets: data, goals: goalsRef.current, income: incomeRef.current });
 
-    // Fire notifications for budgets near or over limit
     if (spendMap) {
       data.forEach(budget => {
         const spent = spendMap[budget.cat] || 0;

@@ -412,7 +412,7 @@ export default function HomeScreen() {
               </View>
             )}
           </View>
-          <Text style={{ color: netWorth < 0 ? '#FF6B6B' : c.text, fontSize: 42, fontWeight: '700', letterSpacing: -1, marginVertical: 10 }}>
+          <Text style={{ color: netWorth < 0 ? '#FF6B6B' : c.text, fontSize: 36, fontWeight: '900', marginVertical: 6 }}>
             {netWorth < 0 ? '-' : ''}{formatAmount(Math.abs(netWorth))}
           </Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>

@@ -18,8 +18,6 @@ const AVATAR_ICONS = [
   'paw', 'pizza', 'rose', 'headset', 'thunderstorm', 'skull',
 ];
 
-
-
 type Props = { visible: boolean; onClose: () => void };
 
 export default function ProfileModal({ visible, onClose }: Props) {
@@ -44,7 +42,6 @@ export default function ProfileModal({ visible, onClose }: Props) {
 
   const loadProfile = async () => {
     try {
-      // Force fresh session to get latest metadata
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         setUid(user.id);
@@ -55,7 +52,7 @@ export default function ProfileModal({ visible, onClose }: Props) {
         setUserName(name);
         setUserInitial((name.charAt(0) || '?').toUpperCase());
 
-        // Photo: check AsyncStorage cache first (more reliable than metadata for large base64)
+        // Photo: check AsyncStorage cache first
         const cached = await AsyncStorage.getItem(`jf_profile_pic_${user.id}`);
         if (cached) {
           setPhotoUri(cached);
@@ -80,14 +77,17 @@ export default function ProfileModal({ visible, onClose }: Props) {
     }
   };
 
+  // ── KEY FIX: AsyncStorage write is awaited BEFORE Supabase ──────────────
   const savePhotoToSupabase = async (dataUri: string) => {
     setPhotoUri(dataUri);
     setSelectedIcon(null);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
+        // Must await this — home screen reads AsyncStorage immediately on modal close
         await AsyncStorage.setItem(`jf_profile_pic_${user.id}`, dataUri);
-        await supabase.auth.updateUser({ data: { profile_picture_uri: dataUri } });
+        // Supabase update runs in background, no need to await
+        supabase.auth.updateUser({ data: { profile_picture_uri: dataUri } }).catch(() => {});
       }
     } catch { }
   };
@@ -138,7 +138,6 @@ export default function ProfileModal({ visible, onClose }: Props) {
     } catch { }
     await AsyncStorage.setItem('profile_avatar', iconName);
   };
-
 
   const planLabel = plan === 'trial' ? `Premium Trial · ${trialDaysLeft}d left`
     : plan === 'pro' ? 'Pro Plan' : plan === 'premium' ? 'Premium Plan' : 'Free Plan';
@@ -223,8 +222,6 @@ export default function ProfileModal({ visible, onClose }: Props) {
                 </Text>
               </View>
             </View>
-
-
 
             {/* Upgrade */}
             {showUpgrade && (

@@ -1,5 +1,5 @@
 import { Ionicons } from'@expo/vector-icons';
-import { useEffect, useRef, useState } from'react';
+import { useRef, useState } from'react';
 import { Animated, TouchableOpacity, View, Text } from'react-native';
 import { useTheme } from'../context/ThemeContext';
 
@@ -9,11 +9,11 @@ const TIPS = [
  { cat:'Saving', icon:'wallet', color:'#00D4AA', title:'Pay yourself first', body:'Set up an automatic transfer to savings on payday - before you have a chance to spend it. Even £50/month adds up to £600 a year, plus interest.' },
  { cat:'Saving', icon:'wallet', color:'#00D4AA', title:'Use a high-interest easy-access account', body:'Many banks offer 4-5% interest on easy-access savings. Check MoneySavingExpert regularly - rates change often and you could be missing out.' },
  { cat:'Saving', icon:'wallet', color:'#00D4AA', title:'Round-up saving adds up fast', body:'Apps that round up purchases to the nearest pound can save £30-50/month passively. Small amounts compound significantly over time.' },
- { cat:'Saving', icon:'wallet', color:'#00D4AA', title: "The 24-hour rule for impulse buys", body:'Before any non-essential purchase over £30, wait 24 hours. Most impulse urges disappear. This alone can save hundreds per year.' },
+ { cat:'Saving', icon:'wallet', color:'#00D4AA', title:'The 24-hour rule for impulse buys', body:'Before any non-essential purchase over £30, wait 24 hours. Most impulse urges disappear. This alone can save hundreds per year.' },
  { cat:'Saving', icon:'wallet', color:'#00D4AA', title:'Automate savings increases yearly', body:'Every time you get a pay rise, increase your savings rate by half the raise. You still take home more money but your savings accelerate dramatically.' },
  { cat:'Saving', icon:'wallet', color:'#00D4AA', title:'Keep savings in a separate bank', body:'Keeping savings in a different bank to your current account creates friction that prevents impulse withdrawals. Out of sight, out of mind.' },
  { cat:'Saving', icon:'wallet', color:'#00D4AA', title:'Track your net worth monthly', body:'What gets measured gets managed. Tracking your net worth monthly - assets minus debts - keeps you motivated and shows real progress over time.' },
- { cat:'Saving', icon:'wallet', color:'#00D4AA', title: "Don't save what's left - spend what's left", body:'Reverse the order: allocate money to savings, bills, and goals first. Only spend what remains. This single habit transforms financial behaviour.' },
+ { cat:'Saving', icon:'wallet', color:'#00D4AA', title:'Spend what is left, not save what is left', body:'Reverse the order: allocate money to savings, bills, and goals first. Only spend what remains. This single habit transforms financial behaviour.' },
  { cat:'Saving', icon:'wallet', color:'#00D4AA', title:'Audit subscriptions every 6 months', body:'The average person pays for 4-5 subscriptions they rarely use. A quick audit could free up £30-80/month - that\'s £360-960/year.' },
 
  // Budgeting
@@ -26,7 +26,7 @@ const TIPS = [
  { cat:'Budgeting', icon:'pie-chart', color:'#6C63FF', title:'Compare unit prices, not shelf prices', body:'Supermarkets display cost per 100g/litre. The cheaper-looking product is often more expensive per unit. Always check the small print.' },
  { cat:'Budgeting', icon:'pie-chart', color:'#6C63FF', title:'Cancel and renegotiate every year', body:'Insurance, broadband, mobile - companies save best deals for new customers. Threaten to cancel and you\'ll often get a significant discount.' },
  { cat:'Budgeting', icon:'pie-chart', color:'#6C63FF', title:'Your biggest expense is probably housing', body:'If rent or mortgage exceeds 35% of take-home pay, that\'s a red flag. Consider house-sharing, moving, or increasing income as a priority.' },
- { cat:'Budgeting', icon:'pie-chart', color:'#6C63FF', title:'Track "cost per use" not just price', body:'A £100 jacket worn 200 times costs 50p/use. A £20 jacket worn twice costs £10/use. Quality items often work out cheaper long-term.' },
+ { cat:'Budgeting', icon:'pie-chart', color:'#6C63FF', title:'Track cost per use, not just price', body:'A £100 jacket worn 200 times costs 50p/use. A £20 jacket worn twice costs £10/use. Quality items often work out cheaper long-term.' },
 
  // Investing
  { cat:'Investing', icon:'trending-up', color:'#FFD700', title:'Max your ISA allowance first', body:'The UK ISA allowance is £20,000/year - completely tax-free growth and withdrawals. Use it before taxable accounts. It\'s one of the best wealth-building tools available.' },
@@ -36,9 +36,9 @@ const TIPS = [
  { cat:'Investing', icon:'trending-up', color:'#FFD700', title:'Diversify across geographies', body:'A global index fund like FTSE All-World covers 3,000+ companies across 50+ countries. Single-country portfolios carry unnecessary concentration risk.' },
  { cat:'Investing', icon:'trending-up', color:'#FFD700', title:'Invest regularly, not as a lump sum', body:'Pound-cost averaging - investing the same amount monthly - removes the pressure of "buying at the right time." You buy more shares when prices are low automatically.' },
  { cat:'Investing', icon:'trending-up', color:'#FFD700', title:'Understand what you\'re buying', body:'Never invest in something you can\'t explain simply. Cryptocurrency, meme stocks, and complex products often carry hidden risks that aren\'t obvious at first.' },
- { cat:'Investing', icon:'trending-up', color:'#FFD700', title:'Reinvest dividends automatically', body:'Dividend reinvestment (DRIP) compounds returns significantly. A fund returning 7%/year with dividends reinvested grows far faster than one paying them out as cash.' },
+ { cat:'Investing', icon:'trending-up', color:'#FFD700', title:'Reinvest dividends automatically', body:'Dividend reinvestment compounds returns significantly. A fund returning 7%/year with dividends reinvested grows far faster than one paying them out as cash.' },
  { cat:'Investing', icon:'trending-up', color:'#FFD700', title:'Your employer pension is free money', body:'If your employer matches pension contributions, not contributing is turning down part of your salary. Always contribute at least enough to get the full match.' },
- { cat:'Investing', icon:'trending-up', color:'#FFD700', title:'Beware investment "influencers"', body:'People promoting specific stocks, crypto, or schemes on social media often profit from you buying. If the returns sound extraordinary, they usually aren\'t real.' },
+ { cat:'Investing', icon:'trending-up', color:'#FFD700', title:'Beware investment influencers', body:'People promoting specific stocks, crypto, or schemes on social media often profit from you buying. If the returns sound extraordinary, they usually are not real.' },
  { cat:'Investing', icon:'trending-up', color:'#FFD700', title:'Fees destroy long-term returns', body:'A 1% vs 0.1% annual fee difference on £100k over 30 years = £70,000+ less in your pocket. Platform and fund fees deserve serious attention.' },
  { cat:'Investing', icon:'trending-up', color:'#FFD700', title:'Rebalance your portfolio annually', body:'If stocks rise and bonds fall, your 80/20 split becomes 90/10 - more risk than intended. Annual rebalancing keeps your risk level consistent.' },
 
@@ -73,7 +73,7 @@ const TIPS = [
  { cat:'Property', icon:'home', color:'#a89fff', title:'Overpaying mortgage beats most investments', body:'Paying £100/month extra on a £200k mortgage at 4.5% saves around £25,000 in interest and cuts 4 years off your term. Guaranteed tax-free return.' },
  { cat:'Property', icon:'home', color:'#a89fff', title:'Leasehold vs freehold matters enormously', body:'Leasehold properties come with service charges, ground rent, and major works bills. Understand what you\'re buying - leasehold can be an expensive surprise.' },
  { cat:'Property', icon:'home', color:'#a89fff', title:'Fix your mortgage rate before it expires', body:'When your fixed-rate deal ends, you move to the Standard Variable Rate - often 2-3% higher. Start shopping for a new deal 6 months before expiry.' },
- { cat:'Property', icon:'home', color:'#a89fff', title:'Shared ownership isn\'t always cheaper', body:'Buying 25-75% of a property sounds affordable but you still pay rent on the rest plus service charges. Model the total monthly cost carefully.' },
+ { cat:'Property', icon:'home', color:'#a89fff', title:'Shared ownership is not always cheaper', body:'Buying 25-75% of a property sounds affordable but you still pay rent on the rest plus service charges. Model the total monthly cost carefully.' },
  { cat:'Property', icon:'home', color:'#a89fff', title:'Location affects resale more than the house', body:'School catchment areas, transport links, and local development plans affect future value more than the property itself. Research the area thoroughly.' },
 
  // Career & Income
@@ -87,7 +87,7 @@ const TIPS = [
 
  // Debt
  { cat:'Debt', icon:'trending-down', color:'#FF6B6B', title:'Pay highest-interest debt first', body:'The "avalanche" method - clearing highest APR debt first - saves the most money mathematically. Credit cards at 25% should come before personal loans at 6%.' },
- { cat:'Debt', icon:'trending-down', color:'#FF6B6B', title:'Student loan isn\'t really a debt', body:'Plan 2 student loans are written off after 30 years and only repaid at 9% above £27,295. For lower earners, you may never repay it fully - treat it like a graduate tax.' },
+ { cat:'Debt', icon:'trending-down', color:'#FF6B6B', title:'Student loan is not really a debt', body:'Plan 2 student loans are written off after 30 years and only repaid at 9% above £27,295. For lower earners, you may never repay it fully - treat it like a graduate tax.' },
  { cat:'Debt', icon:'trending-down', color:'#FF6B6B', title:'Never miss a minimum payment', body:'Missing a minimum payment triggers fees, damages your credit score, and can lead to default. Automate minimum payments to avoid this even if cash is tight.' },
  { cat:'Debt', icon:'trending-down', color:'#FF6B6B', title:'Overdrafts are expensive - avoid them', body:'Unarranged overdrafts can cost 40%+ APR. Even arranged overdrafts are expensive. Keep a small buffer in your current account and use a savings account for emergencies.' },
  { cat:'Debt', icon:'trending-down', color:'#FF6B6B', title:'Debt consolidation can help but watch the term', body:'Consolidating at a lower rate makes sense, but extending from 3 years to 7 years often means paying more overall. Check the total amount repayable.' },
@@ -102,7 +102,7 @@ const TIPS = [
  { cat:'General', icon:'bulb', color:'#6C63FF', title:'Lifestyle inflation is the enemy of wealth', body:'Every time income rises, spending tends to rise with it. Consciously keeping expenses stable when income grows is how ordinary earners build extraordinary wealth.' },
  { cat:'General', icon:'bulb', color:'#6C63FF', title:'Talking about money removes the taboo', body:'British culture avoids money conversations, but discussing salaries with colleagues, friends, and partners leads to better decisions and reduces exploitation.' },
  { cat:'General', icon:'bulb', color:'#6C63FF', title:'Small fees matter at scale', body:'A bank charging £10/month in fees costs £1,200 over 10 years. Free alternatives exist for almost every financial product. Review what you\'re paying for.' },
- { cat:'General', icon:'bulb', color:'#6C63FF', title:'The best financial plan is the one you follow', body:'A perfect strategy you abandon beats a brilliant strategy you can\'t stick to. Build systems that fit your actual behaviour, not your ideal self.' },
+ { cat:'General', icon:'bulb', color:'#6C63FF', title:'The best financial plan is the one you follow', body:'A perfect strategy you abandon beats a brilliant strategy you cannot stick to. Build systems that fit your actual behaviour, not your ideal self.' },
  { cat:'General', icon:'bulb', color:'#6C63FF', title:'Know your numbers', body:'Most people don\'t know their monthly income, expenses, or net worth off the top of their head. Knowing these three numbers is the foundation of financial control.' },
 ];
 
@@ -122,23 +122,12 @@ type Props = { onUpgrade: () => void; isLocked: boolean };
 
 export default function FinanceTips({ onUpgrade, isLocked }: Props) {
  const { theme: c } = useTheme();
- const [idx, setIdx] = useState(getDailyIndex());
  const [expanded, setExpanded] = useState(false);
- const fadeAnim = useRef(new Animated.Value(1)).current;
 
+ // Always the same tip for the whole day — no navigation
+ const idx = getDailyIndex();
  const tip = TIPS[idx];
  const catColor = CAT_COLORS[tip.cat] || c.accent;
-
- const changeTip = (newIdx: number) => {
- Animated.timing(fadeAnim, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => {
- setIdx(newIdx);
- setExpanded(false);
- Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true }).start();
- });
- };
-
- const next = () => changeTip((idx + 1) % TIPS.length);
- const prev = () => changeTip((idx - 1 + TIPS.length) % TIPS.length);
 
  if (isLocked) {
  return (
@@ -166,8 +155,9 @@ export default function FinanceTips({ onUpgrade, isLocked }: Props) {
  }
 
  return (
- <Animated.View style={{ opacity: fadeAnim, marginBottom: 20 }}>
+ <View style={{ marginBottom: 20 }}>
  <View style={{ backgroundColor: c.card, borderRadius: 20, borderWidth: 1, borderColor: c.border, overflow:'hidden' }}>
+
  {/* Header */}
  <View style={{ flexDirection:'row', alignItems:'center', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: c.border, gap: 10 }}>
  <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: catColor +'20', justifyContent:'center', alignItems:'center' }}>
@@ -191,27 +181,20 @@ export default function FinanceTips({ onUpgrade, isLocked }: Props) {
  )}
  <View style={{ flexDirection:'row', alignItems:'center', gap: 4, marginTop: 8 }}>
  <Text style={{ color: catColor, fontSize: 12, fontWeight:'600' }}>
- {expanded ?'Show less' :'Read more'}
+ {expanded ? 'Show less' : 'Read more'}
  </Text>
- <Ionicons name={expanded ?'chevron-up' :'chevron-down'} size={12} color={catColor} />
+ <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={12} color={catColor} />
  </View>
  </TouchableOpacity>
 
- {/* Navigation */}
- <View style={{ flexDirection:'row', alignItems:'center', paddingHorizontal: 16, paddingBottom: 14, paddingTop: 4, borderTopWidth: 1, borderTopColor: c.border, gap: 8 }}>
- <TouchableOpacity onPress={prev}
- style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: c.card2, justifyContent:'center', alignItems:'center', borderWidth: 1, borderColor: c.border }}>
- <Ionicons name="chevron-back" size={16} color={c.muted} />
- </TouchableOpacity>
- <Text style={{ color: c.muted, fontSize: 11, flex: 1, textAlign:'center' }}>
- {idx + 1} of {TIPS.length}
+ {/* Footer — shows day info, no navigation */}
+ <View style={{ paddingHorizontal: 16, paddingBottom: 14, paddingTop: 4, borderTopWidth: 1, borderTopColor: c.border }}>
+ <Text style={{ color: c.muted, fontSize: 11, textAlign:'center' }}>
+ New tip tomorrow
  </Text>
- <TouchableOpacity onPress={next}
- style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: c.card2, justifyContent:'center', alignItems:'center', borderWidth: 1, borderColor: c.border }}>
- <Ionicons name="chevron-forward" size={16} color={c.muted} />
- </TouchableOpacity>
+ </View>
+
  </View>
  </View>
- </Animated.View>
  );
 }

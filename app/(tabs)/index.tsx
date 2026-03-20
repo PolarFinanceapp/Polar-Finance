@@ -85,18 +85,24 @@ export default function HomeScreen() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       const uid = user?.id;
-      // AsyncStorage cache is source of truth (ProfileModal writes here first)
-      if (uid) {
-        const cached = await AsyncStorage.getItem(`jf_profile_pic_${uid}`);
-        if (cached) { setProfilePhoto(cached); return; }
-      }
-      // Fall back to Supabase metadata
-      const supabasePic = user?.user_metadata?.profile_picture_uri as string | undefined;
-      if (supabasePic) {
-        setProfilePhoto(supabasePic);
-        if (uid) await AsyncStorage.setItem(`jf_profile_pic_${uid}`, supabasePic);
+      if (!uid) { setProfilePhoto(null); return; }
+
+      // Always read fresh from AsyncStorage — ProfileModal writes here before closing
+      const cached = await AsyncStorage.getItem(`jf_profile_pic_${uid}`);
+      if (cached) {
+        setProfilePhoto(cached);
         return;
       }
+
+      // No cache — try Supabase metadata (force fresh session)
+      const { data: { user: freshUser } } = await supabase.auth.getUser();
+      const supabasePic = freshUser?.user_metadata?.profile_picture_uri as string | undefined;
+      if (supabasePic) {
+        setProfilePhoto(supabasePic);
+        await AsyncStorage.setItem(`jf_profile_pic_${uid}`, supabasePic);
+        return;
+      }
+
       setProfilePhoto(null);
     } catch {
       setProfilePhoto(null);

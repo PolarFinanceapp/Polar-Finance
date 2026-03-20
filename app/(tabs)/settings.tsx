@@ -625,29 +625,32 @@ export default function SettingsScreen() {
           <Row icon="phone-portrait-outline" label={t('version')} sub="1.0.0 (Beta)" />
           <Row icon="star" label={t('rateApp')} sub={t('leaveReview')} onPress={handleRateApp} />
           <Row icon="chatbubble" label={t('feedback')} sub="contact@jamesfinance.app" onPress={handleFeedback} />
-          <TouchableOpacity onPress={() => Linking.openURL('https://www.instagram.com/jamesfinance.app?igsh=bGZpY241ZWlkbGVr').catch(() => { })}
+          {/* ── CORRECTED: Instagram ── */}
+          <TouchableOpacity onPress={() => Linking.openURL('https://www.instagram.com/jamesfinanceapp?igsh=d3htNXlxd2Q1M2M=').catch(() => { })}
             style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderTopWidth: 1, borderTopColor: c.border, gap: 14 }}>
             <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: '#E1306C18', justifyContent: 'center', alignItems: 'center' }}>
               <Ionicons name="logo-instagram" size={18} color="#E1306C" />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={{ color: c.text, fontSize: 14, fontWeight: '600' }}>Instagram</Text>
-              <Text style={{ color: '#E1306C', fontSize: 12, marginTop: 2, fontWeight: '600' }}>@jamesfinance.app</Text>
+              <Text style={{ color: '#E1306C', fontSize: 12, marginTop: 2, fontWeight: '600' }}>@jamesfinanceapp</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={c.muted} />
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => Linking.openURL('https://www.tiktok.com/@jamesfinance.app?_r=1&_t=ZN-94NjuWv6IvW').catch(() => { })}
+          {/* ── CORRECTED: TikTok ── */}
+          <TouchableOpacity onPress={() => Linking.openURL('https://www.tiktok.com/@jamesfinanceapp?_r=1&_t=ZN-94pemnztHr4').catch(() => { })}
             style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderTopWidth: 1, borderTopColor: c.border, gap: 14 }}>
             <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: '#69C9D018', justifyContent: 'center', alignItems: 'center' }}>
               <Ionicons name="logo-tiktok" size={18} color="#69C9D0" />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={{ color: c.text, fontSize: 14, fontWeight: '600' }}>TikTok</Text>
-              <Text style={{ color: '#69C9D0', fontSize: 12, marginTop: 2, fontWeight: '600' }}>@jamesfinance.app</Text>
+              <Text style={{ color: '#69C9D0', fontSize: 12, marginTop: 2, fontWeight: '600' }}>@jamesfinanceapp</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={c.muted} />
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => Linking.openURL('https://x.com/jamesfinanceapp').catch(() => { })}
+          {/* ── CORRECTED: X ── */}
+          <TouchableOpacity onPress={() => Linking.openURL('https://x.com/jamesfinanceapp?s=21&t=6MLXzsUFO0HYhevUrJI7xQ').catch(() => { })}
             style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderTopWidth: 1, borderTopColor: c.border, gap: 14 }}>
             <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.08)', justifyContent: 'center', alignItems: 'center' }}>
               <Ionicons name="logo-twitter" size={18} color={c.text} />
@@ -689,9 +692,6 @@ export default function SettingsScreen() {
           <Text style={{ color: c.muted, fontSize: 12 }}>James Finance v1.0.0 (Beta)</Text>
           <Text style={{ color: c.muted, fontSize: 11, marginTop: 2 }}>© 2026 James Finance.</Text>
         </View>
-
-
-
 
       </ScrollView>
 

@@ -10,6 +10,7 @@ import { Image, Modal, RefreshControl, ScrollView, Text, TextInput, TouchableOpa
 import Paywall from '../../components/Paywall';
 import ProfileModal from '../../components/ProfileModal';
 import RecurringBills from '../../components/RecurringBills';
+import StarBackground from '../../components/StarBackground';
 import TrialPrompt from '../../components/TrialPrompt';
 import { useBills } from '../../context/BillsContext';
 import FinanceTips from '../../components/FinanceTips';
@@ -369,6 +370,7 @@ export default function HomeScreen() {
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <View style={{ flex: 1, backgroundColor: c.dark }}>
+      <StarBackground />
       <ScrollView style={{ flex: 1, paddingHorizontal: 20 }} showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 120 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.accent} />}>
@@ -658,8 +660,6 @@ export default function HomeScreen() {
         </View>
 
         {/* ── Modals ── */}
-
-
 
         {/* Add Card */}
         <Modal visible={showAddCard} transparent animationType="slide">

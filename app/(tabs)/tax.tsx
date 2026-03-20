@@ -5,22 +5,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, ScrollView, Share, Text, TouchableOpacity, View } from 'react-native';
+import StarBackground from '../../components/StarBackground';
 import { useTheme } from '../../context/ThemeContext';
 
-// ── Types ─────────────────────────────────────────────────────────────────────
 type TaxBand = { label: string; from: number; to: number | null; rate: number };
 type TaxConfig = {
-  region: string;
-  flag: string;
-  currency: string;
-  personalAllowance: number;
-  bands: TaxBand[];
+  region: string; flag: string; currency: string;
+  personalAllowance: number; bands: TaxBand[];
   ni?: { label: string; rate: number; threshold: number };
-  taxYear: string;
-  checklist: string[];
+  taxYear: string; checklist: string[];
 };
 
-// ── Tax data (all amounts in local currency) ──────────────────────────────────
 const TAX_CONFIGS: Record<string, TaxConfig> = {
   GBP: {
     region: 'United Kingdom', flag: '🇬🇧', currency: 'GBP',
@@ -179,9 +174,7 @@ const TAX_CONFIGS: Record<string, TaxConfig> = {
   AED: {
     region: 'UAE', flag: '🇦🇪', currency: 'AED',
     personalAllowance: 0, taxYear: '2024',
-    bands: [
-      { label: 'Personal Income Tax', from: 0, to: null, rate: 0 },
-    ],
+    bands: [{ label: 'Personal Income Tax', from: 0, to: null, rate: 0 }],
     checklist: [
       'No personal income tax in the UAE — individuals pay 0%',
       'Corporate Tax of 9% applies to business profits over AED 375,000',
@@ -194,11 +187,9 @@ const TAX_CONFIGS: Record<string, TaxConfig> = {
   },
 };
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
 function calcTax(annual: number, cfg: TaxConfig) {
   const taxable = Math.max(0, annual - cfg.personalAllowance);
-  let remaining = taxable;
-  let total = 0;
+  let remaining = taxable; let total = 0;
   const breakdown: { label: string; amount: number; rate: number }[] = [];
   for (const band of cfg.bands) {
     if (band.rate === 0) continue;
@@ -220,27 +211,27 @@ function bandColor(rate: number) {
   return '#FF6B6B';
 }
 
-// ── Component ─────────────────────────────────────────────────────────────────
 export default function TaxScreen() {
   const { theme: c } = useTheme();
   const router = useRouter();
   const { transactions } = useFinance();
   const { formatAmount, currency } = useLocale();
-
   const { incomeSources } = useUserData();
-  const cfg = TAX_CONFIGS[currency] ?? TAX_CONFIGS['GBP'];
 
+  const cfg = TAX_CONFIGS[currency] ?? TAX_CONFIGS['GBP'];
   const [openSection, setOpenSection] = useState<string | null>('estimate');
   const [checked, setChecked] = useState<Record<number, boolean>>({});
 
-  // Always live from context
-  const annualIncome = Math.round(incomeSources.reduce((s, src) => {
-    const m = src.frequency === 'weekly' ? src.amount * 4.33
-      : src.frequency === 'fortnightly' ? src.amount * 2.17
-      : src.frequency === 'yearly' ? src.amount / 12
-      : src.amount;
-    return s + m;
-  }, 0) * 12);
+  // ── Live from context — no stale AsyncStorage reads ───────────────────────
+  const annualIncome = Math.round(
+    incomeSources.reduce((s, src) => {
+      const m = src.frequency === 'weekly' ? src.amount * 4.33
+        : src.frequency === 'fortnightly' ? src.amount * 2.17
+        : src.frequency === 'yearly' ? src.amount / 12
+        : src.amount;
+      return s + m;
+    }, 0) * 12
+  );
 
   useEffect(() => {
     (async () => {
@@ -249,8 +240,8 @@ export default function TaxScreen() {
         const { supabase } = await import('../../lib/supabase');
         const { data: { user } } = await supabase.auth.getUser();
         const uid = user?.id ?? 'local';
-        const rawChecked = await AsyncStorage.getItem(`polar_tax_checklist_${uid}`);
-        if (rawChecked) setChecked(JSON.parse(rawChecked));
+        const raw = await AsyncStorage.getItem(`polar_tax_checklist_${uid}`);
+        if (raw) setChecked(JSON.parse(raw));
       } catch { }
     })();
   }, []);
@@ -269,20 +260,14 @@ export default function TaxScreen() {
 
   const toggle = (key: string) => setOpenSection(p => p === key ? null : key);
 
-  // Transaction data
   const totalIncomeTxn = transactions.filter(t => t.type === 'income').reduce((s, t) => s + Math.abs(t.amount), 0);
   const totalExpenseTxn = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + Math.abs(t.amount), 0);
   const catMap: Record<string, number> = {};
-  transactions.filter(t => t.type === 'expense').forEach(t => {
-    catMap[t.cat] = (catMap[t.cat] || 0) + Math.abs(t.amount);
-  });
+  transactions.filter(t => t.type === 'expense').forEach(t => { catMap[t.cat] = (catMap[t.cat] || 0) + Math.abs(t.amount); });
   const topCats = Object.entries(catMap).sort((a, b) => b[1] - a[1]).slice(0, 5);
 
-  // Tax calc
   const { tax, effective, breakdown } = calcTax(annualIncome, cfg);
-  const niTax = cfg.ni && annualIncome > cfg.ni.threshold
-    ? ((annualIncome - cfg.ni.threshold) * cfg.ni.rate) / 100
-    : 0;
+  const niTax = cfg.ni && annualIncome > cfg.ni.threshold ? ((annualIncome - cfg.ni.threshold) * cfg.ni.rate) / 100 : 0;
   const totalDed = tax + niTax;
   const takeHome = annualIncome - totalDed;
   const checkedCount = Object.values(checked).filter(Boolean).length;
@@ -290,45 +275,28 @@ export default function TaxScreen() {
   const handleExport = async () => {
     const sep = '----------------------------';
     const lines = [
-      'James Finance',
-      `Tax Summary - ${cfg.taxYear}`,
-      cfg.region,
-      '',
-      sep,
-      'INCOME',
-      sep,
+      'James Finance', `Tax Summary - ${cfg.taxYear}`, cfg.region, '',
+      sep, 'INCOME', sep,
       `Annual Income:    ${formatAmount(annualIncome)}`,
-      `Recorded Income:  ${formatAmount(totalIncomeTxn)}`,
-      '',
-      sep,
-      'TAX ESTIMATE',
-      sep,
+      `Recorded Income:  ${formatAmount(totalIncomeTxn)}`, '',
+      sep, 'TAX ESTIMATE', sep,
       `Estimated Tax:    ${formatAmount(tax)}`,
       cfg.ni && niTax > 0 ? `${cfg.ni.label}: ${formatAmount(niTax)}` : '',
       `Total Deductions: ${formatAmount(totalDed)}`,
       `Take-Home (est.): ${formatAmount(takeHome)}`,
-      `Effective Rate:   ${effective.toFixed(1)}%`,
-      '',
-      sep,
-      'TOP EXPENSES',
-      sep,
+      `Effective Rate:   ${effective.toFixed(1)}%`, '',
+      sep, 'TOP EXPENSES', sep,
       ...topCats.map(([cat, amt]) => `${cat}: ${formatAmount(amt)}`),
-      `Total Expenses:   ${formatAmount(totalExpenseTxn)}`,
-      '',
-      sep,
-      'Estimate only. Consult a qualified tax professional.',
+      `Total Expenses:   ${formatAmount(totalExpenseTxn)}`, '',
+      sep, 'Estimate only. Consult a qualified tax professional.',
     ].filter(Boolean);
     try {
       await Share.share({ message: lines.join('\n'), title: 'Tax Summary' });
-    } catch {
-      Alert.alert('Export', 'Could not share. Try again.');
-    }
+    } catch { Alert.alert('Export', 'Could not share. Try again.'); }
   };
 
-  // ── Section header ─────────────────────────────────────────────────────────
   const SectionHeader = ({ sKey, icon, label, sub }: { sKey: string; icon: string; label: string; sub?: string }) => (
-    <TouchableOpacity onPress={() => toggle(sKey)}
-      style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 14 }}>
+    <TouchableOpacity onPress={() => toggle(sKey)} style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 14 }}>
       <View style={{ width: 46, height: 46, borderRadius: 14, backgroundColor: c.accent + '18', justifyContent: 'center', alignItems: 'center' }}>
         <Ionicons name={icon as any} size={22} color={c.accent} />
       </View>
@@ -341,226 +309,207 @@ export default function TaxScreen() {
   );
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: c.dark, paddingHorizontal: 20 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
+    <View style={{ flex: 1, backgroundColor: c.dark }}>
+      <StarBackground />
+      <ScrollView style={{ flex: 1, paddingHorizontal: 20 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
 
-      {/* Back button */}
-      <TouchableOpacity onPress={() => router.push('/(tabs)/more' as any)}
-        style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 56, marginBottom: 4, alignSelf: 'flex-start' }}>
-        <Ionicons name="chevron-back" size={20} color={c.accent} />
-        <Text style={{ color: c.accent, fontSize: 15, fontWeight: '600' }}>Back</Text>
-      </TouchableOpacity>
-
-      {/* Header */}
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-        <Text style={{ color: c.text, fontSize: 26, fontWeight: '900' }}>Tax Helper</Text>
-        <TouchableOpacity onPress={handleExport}
-          style={{ backgroundColor: c.accent + '22', borderRadius: 50, paddingHorizontal: 14, paddingVertical: 7, borderWidth: 1, borderColor: c.accent + '55', flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <Ionicons name="share-outline" size={15} color={c.accent} />
-          <Text style={{ color: c.accent, fontSize: 13, fontWeight: '700' }}>Export</Text>
+        <TouchableOpacity onPress={() => router.push('/(tabs)/more' as any)}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 56, marginBottom: 4, alignSelf: 'flex-start' }}>
+          <Ionicons name="chevron-back" size={20} color={c.accent} />
+          <Text style={{ color: c.accent, fontSize: 15, fontWeight: '600' }}>Back</Text>
         </TouchableOpacity>
-      </View>
-      <Text style={{ color: c.muted, fontSize: 13, marginBottom: 20 }}>{cfg.flag} {cfg.region} · Tax Year {cfg.taxYear}</Text>
 
-      {/* Disclaimer */}
-      <View style={{ backgroundColor: '#FFD70018', borderRadius: 14, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: '#FFD70044', flexDirection: 'row', gap: 10 }}>
-        <Ionicons name="warning" size={18} color="#FFD700" style={{ marginTop: 1 }} />
-        <Text style={{ color: c.muted, fontSize: 12, flex: 1, lineHeight: 18 }}>
-          <Text style={{ color: '#FFD700', fontWeight: '700' }}>Estimate only. </Text>
-          Always consult a qualified tax professional for your personal situation.
-        </Text>
-      </View>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+          <Text style={{ color: c.text, fontSize: 26, fontWeight: '900' }}>Tax Helper</Text>
+          <TouchableOpacity onPress={handleExport}
+            style={{ backgroundColor: c.accent + '22', borderRadius: 50, paddingHorizontal: 14, paddingVertical: 7, borderWidth: 1, borderColor: c.accent + '55', flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Ionicons name="share-outline" size={15} color={c.accent} />
+            <Text style={{ color: c.accent, fontSize: 13, fontWeight: '700' }}>Export</Text>
+          </TouchableOpacity>
+        </View>
+        <Text style={{ color: c.muted, fontSize: 13, marginBottom: 20 }}>{cfg.flag} {cfg.region} · Tax Year {cfg.taxYear}</Text>
 
-      {/* ── Tax Estimate ── */}
-      <View style={{ backgroundColor: c.card, borderRadius: 20, borderWidth: 1, borderColor: c.border, overflow: 'hidden', marginBottom: 14 }}>
-        <SectionHeader sKey="estimate" icon="calculator"
-          label="Tax Estimate"
-          sub={annualIncome > 0 ? `Based on ${formatAmount(annualIncome)}/yr` : 'Set income in More → My Income'} />
+        <View style={{ backgroundColor: '#FFD70018', borderRadius: 14, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: '#FFD70044', flexDirection: 'row', gap: 10 }}>
+          <Ionicons name="warning" size={18} color="#FFD700" style={{ marginTop: 1 }} />
+          <Text style={{ color: c.muted, fontSize: 12, flex: 1, lineHeight: 18 }}>
+            <Text style={{ color: '#FFD700', fontWeight: '700' }}>Estimate only. </Text>
+            Always consult a qualified tax professional for your personal situation.
+          </Text>
+        </View>
 
-        {openSection === 'estimate' && (
-          <View style={{ borderTopWidth: 1, borderTopColor: c.border, padding: 16 }}>
-            {annualIncome === 0 ? (
-              <View style={{ alignItems: 'center', paddingVertical: 24 }}>
-                <Ionicons name="wallet-outline" size={40} color={c.muted} style={{ marginBottom: 10 }} />
-                <Text style={{ color: c.muted, fontSize: 13, textAlign: 'center', lineHeight: 20 }}>
-                  No income set up yet.{'\n'}
-                  Go to <Text style={{ color: c.accent, fontWeight: '700' }}>More → My Income</Text> to add your salary.
-                </Text>
-              </View>
-            ) : (
-              <>
-                {/* Summary cards */}
-                <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
-                  {[
-                    { label: 'Annual Income', value: formatAmount(annualIncome), color: '#00D4AA' },
-                    { label: 'Est. Tax', value: formatAmount(tax), color: '#FF6B6B' },
-                    { label: 'Take-Home', value: formatAmount(takeHome), color: c.accent },
-                  ].map((item, i) => (
-                    <View key={i} style={{ flex: 1, backgroundColor: c.card2, borderRadius: 14, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: c.border }}>
-                      <Text style={{ color: c.muted, fontSize: 10, fontWeight: '600', marginBottom: 4, textAlign: 'center' }}>{item.label}</Text>
-                      <Text style={{ color: item.color, fontSize: 13, fontWeight: '800', textAlign: 'center' }}>{item.value}</Text>
+        {/* Tax Estimate */}
+        <View style={{ backgroundColor: c.card, borderRadius: 20, borderWidth: 1, borderColor: c.border, overflow: 'hidden', marginBottom: 14 }}>
+          <SectionHeader sKey="estimate" icon="calculator" label="Tax Estimate"
+            sub={annualIncome > 0 ? `Based on ${formatAmount(annualIncome)}/yr` : 'Set income in More → My Income'} />
+          {openSection === 'estimate' && (
+            <View style={{ borderTopWidth: 1, borderTopColor: c.border, padding: 16 }}>
+              {annualIncome === 0 ? (
+                <View style={{ alignItems: 'center', paddingVertical: 24 }}>
+                  <Ionicons name="wallet-outline" size={40} color={c.muted} style={{ marginBottom: 10 }} />
+                  <Text style={{ color: c.muted, fontSize: 13, textAlign: 'center', lineHeight: 20 }}>
+                    No income set up yet.{'\n'}
+                    Go to <Text style={{ color: c.accent, fontWeight: '700' }}>More → My Income</Text> to add your salary.
+                  </Text>
+                </View>
+              ) : (
+                <>
+                  <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
+                    {[
+                      { label: 'Annual Income', value: formatAmount(annualIncome), color: '#00D4AA' },
+                      { label: 'Est. Tax', value: formatAmount(tax), color: '#FF6B6B' },
+                      { label: 'Take-Home', value: formatAmount(takeHome), color: c.accent },
+                    ].map((item, i) => (
+                      <View key={i} style={{ flex: 1, backgroundColor: c.card2, borderRadius: 14, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: c.border }}>
+                        <Text style={{ color: c.muted, fontSize: 10, fontWeight: '600', marginBottom: 4, textAlign: 'center' }}>{item.label}</Text>
+                        <Text style={{ color: item.color, fontSize: 13, fontWeight: '800', textAlign: 'center' }}>{item.value}</Text>
+                      </View>
+                    ))}
+                  </View>
+                  <View style={{ backgroundColor: c.card2, borderRadius: 14, padding: 14, marginBottom: 14, borderWidth: 1, borderColor: c.border }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                      <Text style={{ color: c.text, fontSize: 13, fontWeight: '700' }}>Effective Tax Rate</Text>
+                      <Text style={{ color: '#FF6B6B', fontSize: 13, fontWeight: '800' }}>{effective.toFixed(1)}%</Text>
+                    </View>
+                    <View style={{ backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 50, height: 8, overflow: 'hidden' }}>
+                      <View style={{ height: '100%', width: `${Math.min(effective, 100)}%`, borderRadius: 50, backgroundColor: '#FF6B6B' }} />
+                    </View>
+                  </View>
+                  <Text style={{ color: c.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 }}>Band Breakdown</Text>
+                  {breakdown.map((b, i) => (
+                    <View key={i} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: i < breakdown.length - 1 ? 1 : 0, borderBottomColor: c.border }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: c.text, fontSize: 13, fontWeight: '600' }}>{b.label}</Text>
+                        <Text style={{ color: c.muted, fontSize: 11 }}>{b.rate}% rate</Text>
+                      </View>
+                      <Text style={{ color: '#FF6B6B', fontSize: 13, fontWeight: '700' }}>{formatAmount(b.amount)}</Text>
                     </View>
                   ))}
-                </View>
-
-                {/* Effective rate */}
-                <View style={{ backgroundColor: c.card2, borderRadius: 14, padding: 14, marginBottom: 14, borderWidth: 1, borderColor: c.border }}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                    <Text style={{ color: c.text, fontSize: 13, fontWeight: '700' }}>Effective Tax Rate</Text>
-                    <Text style={{ color: '#FF6B6B', fontSize: 13, fontWeight: '800' }}>{effective.toFixed(1)}%</Text>
-                  </View>
-                  <View style={{ backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 50, height: 8, overflow: 'hidden' }}>
-                    <View style={{ height: '100%', width: `${Math.min(effective, 100)}%`, borderRadius: 50, backgroundColor: '#FF6B6B' }} />
-                  </View>
-                </View>
-
-                {/* Band breakdown */}
-                <Text style={{ color: c.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 }}>Band Breakdown</Text>
-                {breakdown.map((b, i) => (
-                  <View key={i} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: i < breakdown.length - 1 ? 1 : 0, borderBottomColor: c.border }}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ color: c.text, fontSize: 13, fontWeight: '600' }}>{b.label}</Text>
-                      <Text style={{ color: c.muted, fontSize: 11 }}>{b.rate}% rate</Text>
+                  {cfg.ni && niTax > 0 && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, backgroundColor: c.card2, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: c.border }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: c.text, fontSize: 13, fontWeight: '600' }}>{cfg.ni.label}</Text>
+                        <Text style={{ color: c.muted, fontSize: 11 }}>{cfg.ni.rate}% rate</Text>
+                      </View>
+                      <Text style={{ color: '#FF9F43', fontSize: 13, fontWeight: '700' }}>{formatAmount(niTax)}</Text>
                     </View>
-                    <Text style={{ color: '#FF6B6B', fontSize: 13, fontWeight: '700' }}>{formatAmount(b.amount)}</Text>
-                  </View>
-                ))}
-
-                {/* NI / Social */}
-                {cfg.ni && niTax > 0 && (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, backgroundColor: c.card2, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: c.border }}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ color: c.text, fontSize: 13, fontWeight: '600' }}>{cfg.ni.label}</Text>
-                      <Text style={{ color: c.muted, fontSize: 11 }}>{cfg.ni.rate}% rate</Text>
+                  )}
+                  <View style={{ marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: c.border, gap: 8 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                      <Text style={{ color: c.text, fontSize: 14, fontWeight: '800' }}>Total Est. Deductions</Text>
+                      <Text style={{ color: '#FF6B6B', fontSize: 16, fontWeight: '900' }}>{formatAmount(totalDed)}</Text>
                     </View>
-                    <Text style={{ color: '#FF9F43', fontSize: 13, fontWeight: '700' }}>{formatAmount(niTax)}</Text>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                      <Text style={{ color: c.text, fontSize: 14, fontWeight: '800' }}>Est. Annual Take-Home</Text>
+                      <Text style={{ color: '#00D4AA', fontSize: 16, fontWeight: '900' }}>{formatAmount(takeHome)}</Text>
+                    </View>
                   </View>
-                )}
+                </>
+              )}
+            </View>
+          )}
+        </View>
 
-                {/* Totals */}
-                <View style={{ marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: c.border, gap: 8 }}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                    <Text style={{ color: c.text, fontSize: 14, fontWeight: '800' }}>Total Est. Deductions</Text>
-                    <Text style={{ color: '#FF6B6B', fontSize: 16, fontWeight: '900' }}>{formatAmount(totalDed)}</Text>
+        {/* Tax Bands */}
+        <View style={{ backgroundColor: c.card, borderRadius: 20, borderWidth: 1, borderColor: c.border, overflow: 'hidden', marginBottom: 14 }}>
+          <SectionHeader sKey="bands" icon="podium" label="Tax Bands" sub={`${cfg.region} · ${cfg.taxYear}`} />
+          {openSection === 'bands' && (
+            <View style={{ borderTopWidth: 1, borderTopColor: c.border, padding: 16 }}>
+              <Text style={{ color: c.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>
+                Personal Allowance: {formatAmount(cfg.personalAllowance)}
+              </Text>
+              {cfg.bands.map((band, i) => {
+                const col = bandColor(band.rate);
+                return (
+                  <View key={i} style={{ marginBottom: 14 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <Text style={{ color: c.text, fontSize: 13, fontWeight: '600' }}>{band.label}</Text>
+                      <Text style={{ color: col, fontSize: 13, fontWeight: '700' }}>{band.rate}%</Text>
+                    </View>
+                    <Text style={{ color: c.muted, fontSize: 11, marginBottom: 5 }}>
+                      {formatAmount(band.from)} – {band.to ? formatAmount(band.to) : '∞'}
+                    </Text>
+                    <View style={{ backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 50, height: 6, overflow: 'hidden' }}>
+                      <View style={{ height: '100%', width: `${Math.min(band.rate + 5, 100)}%`, borderRadius: 50, backgroundColor: col }} />
+                    </View>
                   </View>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                    <Text style={{ color: c.text, fontSize: 14, fontWeight: '800' }}>Est. Annual Take-Home</Text>
-                    <Text style={{ color: '#00D4AA', fontSize: 16, fontWeight: '900' }}>{formatAmount(takeHome)}</Text>
-                  </View>
+                );
+              })}
+              {cfg.ni && (
+                <View style={{ marginTop: 4, backgroundColor: c.card2, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: c.border }}>
+                  <Text style={{ color: '#FF9F43', fontSize: 13, fontWeight: '700', marginBottom: 2 }}>{cfg.ni.label}</Text>
+                  <Text style={{ color: c.muted, fontSize: 12 }}>{cfg.ni.rate}% on earnings above {formatAmount(cfg.ni.threshold)}</Text>
                 </View>
-              </>
-            )}
-          </View>
-        )}
-      </View>
+              )}
+            </View>
+          )}
+        </View>
 
-      {/* ── Tax Bands ── */}
-      <View style={{ backgroundColor: c.card, borderRadius: 20, borderWidth: 1, borderColor: c.border, overflow: 'hidden', marginBottom: 14 }}>
-        <SectionHeader sKey="bands" icon="podium"
-          label="Tax Bands"
-          sub={`${cfg.region} · ${cfg.taxYear}`} />
+        {/* Income & Expense Summary */}
+        <View style={{ backgroundColor: c.card, borderRadius: 20, borderWidth: 1, borderColor: c.border, overflow: 'hidden', marginBottom: 14 }}>
+          <SectionHeader sKey="summary" icon="receipt" label="Income & Expense Summary" sub={`${transactions.length} recorded transactions`} />
+          {openSection === 'summary' && (
+            <View style={{ borderTopWidth: 1, borderTopColor: c.border, padding: 16 }}>
+              <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
+                <View style={{ flex: 1, backgroundColor: '#00D4AA18', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#00D4AA33' }}>
+                  <Text style={{ color: c.muted, fontSize: 11, fontWeight: '600' }}>Recorded Income</Text>
+                  <Text style={{ color: '#00D4AA', fontSize: 18, fontWeight: '900', marginTop: 4 }}>{formatAmount(totalIncomeTxn)}</Text>
+                </View>
+                <View style={{ flex: 1, backgroundColor: '#FF6B6B18', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#FF6B6B33' }}>
+                  <Text style={{ color: c.muted, fontSize: 11, fontWeight: '600' }}>Recorded Expenses</Text>
+                  <Text style={{ color: '#FF6B6B', fontSize: 18, fontWeight: '900', marginTop: 4 }}>{formatAmount(totalExpenseTxn)}</Text>
+                </View>
+              </View>
+              {topCats.length > 0 ? (
+                <>
+                  <Text style={{ color: c.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 }}>Top Expense Categories</Text>
+                  {topCats.map(([cat, amt], i) => (
+                    <View key={i} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: i < topCats.length - 1 ? 1 : 0, borderBottomColor: c.border }}>
+                      <Text style={{ color: c.text, fontSize: 13, flex: 1, fontWeight: '600' }}>{cat}</Text>
+                      <Text style={{ color: '#FF6B6B', fontSize: 13, fontWeight: '700' }}>{formatAmount(amt)}</Text>
+                    </View>
+                  ))}
+                </>
+              ) : (
+                <View style={{ alignItems: 'center', paddingVertical: 20 }}>
+                  <Ionicons name="receipt-outline" size={36} color={c.muted} style={{ marginBottom: 8 }} />
+                  <Text style={{ color: c.muted, fontSize: 13, textAlign: 'center' }}>No transactions recorded yet.</Text>
+                </View>
+              )}
+            </View>
+          )}
+        </View>
 
-        {openSection === 'bands' && (
-          <View style={{ borderTopWidth: 1, borderTopColor: c.border, padding: 16 }}>
-            <Text style={{ color: c.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>
-              Personal Allowance: {formatAmount(cfg.personalAllowance)}
-            </Text>
-            {cfg.bands.map((band, i) => {
-              const col = bandColor(band.rate);
-              return (
-                <View key={i} style={{ marginBottom: 14 }}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <Text style={{ color: c.text, fontSize: 13, fontWeight: '600' }}>{band.label}</Text>
-                    <Text style={{ color: col, fontSize: 13, fontWeight: '700' }}>{band.rate}%</Text>
+        {/* Checklist */}
+        <View style={{ backgroundColor: c.card, borderRadius: 20, borderWidth: 1, borderColor: c.border, overflow: 'hidden', marginBottom: 14 }}>
+          <SectionHeader sKey="checklist" icon="checkbox" label="Tax Checklist"
+            sub={`${checkedCount}/${cfg.checklist.length} completed · ${cfg.region}`} />
+          {openSection === 'checklist' && (
+            <View style={{ borderTopWidth: 1, borderTopColor: c.border, padding: 16 }}>
+              <View style={{ backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 50, height: 6, overflow: 'hidden', marginBottom: 16 }}>
+                <View style={{ height: '100%', borderRadius: 50, backgroundColor: '#00D4AA', width: `${cfg.checklist.length > 0 ? (checkedCount / cfg.checklist.length) * 100 : 0}%` }} />
+              </View>
+              {cfg.checklist.map((item, i) => (
+                <TouchableOpacity key={i} onPress={() => toggleCheck(i)}
+                  style={{ flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 10, borderBottomWidth: i < cfg.checklist.length - 1 ? 1 : 0, borderBottomColor: c.border, gap: 12 }}>
+                  <View style={{ width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: checked[i] ? '#00D4AA' : c.muted, backgroundColor: checked[i] ? '#00D4AA' : 'transparent', justifyContent: 'center', alignItems: 'center', marginTop: 1 }}>
+                    {checked[i] && <Ionicons name="checkmark" size={14} color="#fff" />}
                   </View>
-                  <Text style={{ color: c.muted, fontSize: 11, marginBottom: 5 }}>
-                    {formatAmount(band.from)} – {band.to ? formatAmount(band.to) : '∞'}
+                  <Text style={{ color: checked[i] ? c.muted : c.text, fontSize: 13, flex: 1, lineHeight: 20, textDecorationLine: checked[i] ? 'line-through' : 'none' }}>
+                    {item}
                   </Text>
-                  <View style={{ backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 50, height: 6, overflow: 'hidden' }}>
-                    <View style={{ height: '100%', width: `${Math.min(band.rate + 5, 100)}%`, borderRadius: 50, backgroundColor: col }} />
-                  </View>
+                </TouchableOpacity>
+              ))}
+              {checkedCount === cfg.checklist.length && cfg.checklist.length > 0 && (
+                <View style={{ backgroundColor: '#00D4AA22', borderRadius: 12, padding: 12, marginTop: 12, alignItems: 'center', borderWidth: 1, borderColor: '#00D4AA44' }}>
+                  <Text style={{ color: '#00D4AA', fontSize: 13, fontWeight: '700' }}>Checklist complete!</Text>
                 </View>
-              );
-            })}
-            {cfg.ni && (
-              <View style={{ marginTop: 4, backgroundColor: c.card2, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: c.border }}>
-                <Text style={{ color: '#FF9F43', fontSize: 13, fontWeight: '700', marginBottom: 2 }}>{cfg.ni.label}</Text>
-                <Text style={{ color: c.muted, fontSize: 12 }}>{cfg.ni.rate}% on earnings above {formatAmount(cfg.ni.threshold)}</Text>
-              </View>
-            )}
-          </View>
-        )}
-      </View>
-
-      {/* ── Income & Expense Summary ── */}
-      <View style={{ backgroundColor: c.card, borderRadius: 20, borderWidth: 1, borderColor: c.border, overflow: 'hidden', marginBottom: 14 }}>
-        <SectionHeader sKey="summary" icon="receipt"
-          label="Income & Expense Summary"
-          sub={`${transactions.length} recorded transactions`} />
-
-        {openSection === 'summary' && (
-          <View style={{ borderTopWidth: 1, borderTopColor: c.border, padding: 16 }}>
-            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
-              <View style={{ flex: 1, backgroundColor: '#00D4AA18', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#00D4AA33' }}>
-                <Text style={{ color: c.muted, fontSize: 11, fontWeight: '600' }}>Recorded Income</Text>
-                <Text style={{ color: '#00D4AA', fontSize: 18, fontWeight: '900', marginTop: 4 }}>{formatAmount(totalIncomeTxn)}</Text>
-              </View>
-              <View style={{ flex: 1, backgroundColor: '#FF6B6B18', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#FF6B6B33' }}>
-                <Text style={{ color: c.muted, fontSize: 11, fontWeight: '600' }}>Recorded Expenses</Text>
-                <Text style={{ color: '#FF6B6B', fontSize: 18, fontWeight: '900', marginTop: 4 }}>{formatAmount(totalExpenseTxn)}</Text>
-              </View>
+              )}
             </View>
-            {topCats.length > 0 ? (
-              <>
-                <Text style={{ color: c.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 }}>Top Expense Categories</Text>
-                {topCats.map(([cat, amt], i) => (
-                  <View key={i} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: i < topCats.length - 1 ? 1 : 0, borderBottomColor: c.border }}>
-                    <Text style={{ color: c.text, fontSize: 13, flex: 1, fontWeight: '600' }}>{cat}</Text>
-                    <Text style={{ color: '#FF6B6B', fontSize: 13, fontWeight: '700' }}>{formatAmount(amt)}</Text>
-                  </View>
-                ))}
-              </>
-            ) : (
-              <View style={{ alignItems: 'center', paddingVertical: 20 }}>
-                <Ionicons name="receipt-outline" size={36} color={c.muted} style={{ marginBottom: 8 }} />
-                <Text style={{ color: c.muted, fontSize: 13, textAlign: 'center' }}>No transactions recorded yet.</Text>
-              </View>
-            )}
-          </View>
-        )}
-      </View>
+          )}
+        </View>
 
-      {/* ── Checklist ── */}
-      <View style={{ backgroundColor: c.card, borderRadius: 20, borderWidth: 1, borderColor: c.border, overflow: 'hidden', marginBottom: 14 }}>
-        <SectionHeader sKey="checklist" icon="checkbox"
-          label="Tax Checklist"
-          sub={`${checkedCount}/${cfg.checklist.length} completed · ${cfg.region}`} />
-
-        {openSection === 'checklist' && (
-          <View style={{ borderTopWidth: 1, borderTopColor: c.border, padding: 16 }}>
-            <View style={{ backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 50, height: 6, overflow: 'hidden', marginBottom: 16 }}>
-              <View style={{ height: '100%', borderRadius: 50, backgroundColor: '#00D4AA', width: `${cfg.checklist.length > 0 ? (checkedCount / cfg.checklist.length) * 100 : 0}%` }} />
-            </View>
-            {cfg.checklist.map((item, i) => (
-              <TouchableOpacity key={i} onPress={() => toggleCheck(i)}
-                style={{ flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 10, borderBottomWidth: i < cfg.checklist.length - 1 ? 1 : 0, borderBottomColor: c.border, gap: 12 }}>
-                <View style={{ width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: checked[i] ? '#00D4AA' : c.muted, backgroundColor: checked[i] ? '#00D4AA' : 'transparent', justifyContent: 'center', alignItems: 'center', marginTop: 1 }}>
-                  {checked[i] && <Ionicons name="checkmark" size={14} color="#fff" />}
-                </View>
-                <Text style={{ color: checked[i] ? c.muted : c.text, fontSize: 13, flex: 1, lineHeight: 20, textDecorationLine: checked[i] ? 'line-through' : 'none' }}>
-                  {item}
-                </Text>
-              </TouchableOpacity>
-            ))}
-            {checkedCount === cfg.checklist.length && cfg.checklist.length > 0 && (
-              <View style={{ backgroundColor: '#00D4AA22', borderRadius: 12, padding: 12, marginTop: 12, alignItems: 'center', borderWidth: 1, borderColor: '#00D4AA44' }}>
-                <Text style={{ color: '#00D4AA', fontSize: 13, fontWeight: '700' }}>Checklist complete!</Text>
-              </View>
-            )}
-          </View>
-        )}
-      </View>
-
-      <View style={{ height: 40 }} />
-    </ScrollView>
+        <View style={{ height: 40 }} />
+      </ScrollView>
+    </View>
   );
 }

@@ -20,6 +20,15 @@ const AVATAR_ICONS = [
 
 type Props = { visible: boolean; onClose: () => void };
 
+// ── Convert base64 data URI to Uint8Array for Supabase Storage upload ────────
+function base64ToUint8Array(dataUri: string): Uint8Array {
+  const base64 = dataUri.split(',')[1];
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
 export default function ProfileModal({ visible, onClose }: Props) {
   const { theme: c } = useTheme();
   const { plan, trialDaysLeft, upgradeTo } = usePlan();
@@ -30,6 +39,7 @@ export default function ProfileModal({ visible, onClose }: Props) {
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
   const [uid, setUid] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [promoCode, setPromoCode] = useState('');
   const [promoError, setPromoError] = useState('');
   const [promoSuccess, setPromoSuccess] = useState('');
@@ -52,18 +62,17 @@ export default function ProfileModal({ visible, onClose }: Props) {
         setUserName(name);
         setUserInitial((name.charAt(0) || '?').toUpperCase());
 
-        // Photo: check AsyncStorage cache first
+        // Check AsyncStorage cache first (fastest)
         const cached = await AsyncStorage.getItem(`jf_profile_pic_${user.id}`);
-        if (cached) {
-          setPhotoUri(cached);
-          setSelectedIcon(null);
-          return;
-        }
+        if (cached) { setPhotoUri(cached); setSelectedIcon(null); return; }
 
-        const metaPic = user.user_metadata?.profile_picture_uri as string | undefined;
-        if (metaPic) {
-          setPhotoUri(metaPic);
-          await AsyncStorage.setItem(`jf_profile_pic_${user.id}`, metaPic);
+        // Try Supabase Storage public URL
+        const { data } = supabase.storage.from('profile-pictures').getPublicUrl(`${user.id}/avatar.jpg`);
+        if (data?.publicUrl) {
+          // Append cache-buster so React Native re-fetches on update
+          const url = `${data.publicUrl}?t=${Date.now()}`;
+          setPhotoUri(url);
+          await AsyncStorage.setItem(`jf_profile_pic_${user.id}`, url);
           setSelectedIcon(null);
           return;
         }
@@ -77,19 +86,56 @@ export default function ProfileModal({ visible, onClose }: Props) {
     }
   };
 
-  // ── KEY FIX: AsyncStorage write is awaited BEFORE Supabase ──────────────
-  const savePhotoToSupabase = async (dataUri: string) => {
-    setPhotoUri(dataUri);
-    setSelectedIcon(null);
+  // ── KEY FIX: upload to Supabase Storage bucket, cache URL locally ─────────
+  const uploadPhotoToStorage = async (dataUri: string) => {
+    setUploading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        // Must await this — home screen reads AsyncStorage immediately on modal close
+      if (!user) return;
+
+      const bytes = base64ToUint8Array(dataUri);
+      const path = `${user.id}/avatar.jpg`;
+
+      // Upload to Supabase Storage (upsert = overwrite existing)
+      const { error } = await supabase.storage
+        .from('profile-pictures')
+        .upload(path, bytes, {
+          contentType: 'image/jpeg',
+          upsert: true,
+        });
+
+      if (error) {
+        // If bucket doesn't exist yet, fall back to AsyncStorage only
+        console.warn('Storage upload failed, using local cache:', error.message);
         await AsyncStorage.setItem(`jf_profile_pic_${user.id}`, dataUri);
-        // Supabase update runs in background, no need to await
-        supabase.auth.updateUser({ data: { profile_picture_uri: dataUri } }).catch(() => {});
+        setPhotoUri(dataUri);
+        setSelectedIcon(null);
+        return;
       }
-    } catch { }
+
+      // Get public URL with cache-buster
+      const { data } = supabase.storage.from('profile-pictures').getPublicUrl(path);
+      const publicUrl = `${data.publicUrl}?t=${Date.now()}`;
+
+      // Write to AsyncStorage so home screen reads it instantly on modal close
+      await AsyncStorage.setItem(`jf_profile_pic_${user.id}`, publicUrl);
+      setPhotoUri(publicUrl);
+      setSelectedIcon(null);
+
+      // Also store URL in user metadata as a small string reference (not the full base64)
+      supabase.auth.updateUser({ data: { profile_picture_url: publicUrl } }).catch(() => {});
+    } catch (e) {
+      console.warn('Photo upload error:', e);
+      // Fallback: store base64 locally if everything fails
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await AsyncStorage.setItem(`jf_profile_pic_${user.id}`, dataUri);
+        setPhotoUri(dataUri);
+        setSelectedIcon(null);
+      }
+    } finally {
+      setUploading(false);
+    }
   };
 
   const pickFromGallery = async () => {
@@ -97,10 +143,12 @@ export default function ProfileModal({ visible, onClose }: Props) {
     if (status !== 'granted') { Alert.alert('Permission needed', 'Allow photo access in Settings.'); return; }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true, aspect: [1, 1], quality: 0.5, base64: true,
+      allowsEditing: true, aspect: [1, 1],
+      quality: 0.4,  // Lower quality = smaller file for faster upload
+      base64: true,
     });
     if (!result.canceled && result.assets[0]?.base64) {
-      await savePhotoToSupabase(`data:image/jpeg;base64,${result.assets[0].base64}`);
+      await uploadPhotoToStorage(`data:image/jpeg;base64,${result.assets[0].base64}`);
     }
   };
 
@@ -108,10 +156,12 @@ export default function ProfileModal({ visible, onClose }: Props) {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') { Alert.alert('Permission needed', 'Allow camera access in Settings.'); return; }
     const result = await ImagePicker.launchCameraAsync({
-      allowsEditing: true, aspect: [1, 1], quality: 0.5, base64: true,
+      allowsEditing: true, aspect: [1, 1],
+      quality: 0.4,
+      base64: true,
     });
     if (!result.canceled && result.assets[0]?.base64) {
-      await savePhotoToSupabase(`data:image/jpeg;base64,${result.assets[0].base64}`);
+      await uploadPhotoToStorage(`data:image/jpeg;base64,${result.assets[0].base64}`);
     }
   };
 
@@ -121,7 +171,9 @@ export default function ProfileModal({ visible, onClose }: Props) {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         await AsyncStorage.removeItem(`jf_profile_pic_${user.id}`);
-        await supabase.auth.updateUser({ data: { profile_picture_uri: null } });
+        // Delete from storage too
+        supabase.storage.from('profile-pictures').remove([`${user.id}/avatar.jpg`]).catch(() => {});
+        supabase.auth.updateUser({ data: { profile_picture_url: null } }).catch(() => {});
       }
     } catch { }
     await AsyncStorage.multiRemove(['profile_photo', 'profile_avatar']);
@@ -133,7 +185,7 @@ export default function ProfileModal({ visible, onClose }: Props) {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         await AsyncStorage.removeItem(`jf_profile_pic_${user.id}`);
-        await supabase.auth.updateUser({ data: { profile_picture_uri: null } });
+        supabase.auth.updateUser({ data: { profile_picture_url: null } }).catch(() => {});
       }
     } catch { }
     await AsyncStorage.setItem('profile_avatar', iconName);
@@ -193,7 +245,9 @@ export default function ProfileModal({ visible, onClose }: Props) {
           {/* Avatar */}
           <View style={{ alignItems: 'center', paddingVertical: 28 }}>
             <View style={{ width: 96, height: 96, borderRadius: 48, backgroundColor: c.accent, justifyContent: 'center', alignItems: 'center', borderWidth: 3, borderColor: c.accent + '66', overflow: 'hidden' }}>
-              {hasPhoto ? (
+              {uploading ? (
+                <Ionicons name="cloud-upload-outline" size={36} color="#fff" />
+              ) : hasPhoto ? (
                 <Image source={{ uri: photoUri! }} style={{ width: 96, height: 96, borderRadius: 48 }} />
               ) : selectedIcon ? (
                 <Ionicons name={selectedIcon as any} size={50} color="#fff" />
@@ -201,6 +255,7 @@ export default function ProfileModal({ visible, onClose }: Props) {
                 <Text style={{ color: '#fff', fontSize: 42, fontWeight: '900' }}>{userInitial}</Text>
               )}
             </View>
+            {uploading && <Text style={{ color: c.muted, fontSize: 12, marginTop: 8 }}>Uploading photo...</Text>}
             {!!userName && <Text style={{ color: c.text, fontSize: 20, fontWeight: '800', marginTop: 14 }}>{userName}</Text>}
             {!!userEmail && <Text style={{ color: c.muted, fontSize: 13, marginTop: 4 }}>{userEmail}</Text>}
           </View>
@@ -301,15 +356,18 @@ export default function ProfileModal({ visible, onClose }: Props) {
             {/* Photo */}
             <Text style={{ color: c.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>Profile Photo</Text>
             <View style={{ flexDirection: 'row', gap: 10, marginBottom: 28 }}>
-              <TouchableOpacity onPress={pickFromGallery} style={{ flex: 1, backgroundColor: c.accent + '18', borderRadius: 14, padding: 14, alignItems: 'center', gap: 6, borderWidth: 1, borderColor: c.accent + '44' }}>
+              <TouchableOpacity onPress={pickFromGallery} disabled={uploading}
+                style={{ flex: 1, backgroundColor: c.accent + '18', borderRadius: 14, padding: 14, alignItems: 'center', gap: 6, borderWidth: 1, borderColor: c.accent + '44', opacity: uploading ? 0.5 : 1 }}>
                 <Ionicons name="image" size={22} color={c.accent} />
                 <Text style={{ color: c.accent, fontSize: 12, fontWeight: '700' }}>Gallery</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={pickFromCamera} style={{ flex: 1, backgroundColor: '#00D4AA18', borderRadius: 14, padding: 14, alignItems: 'center', gap: 6, borderWidth: 1, borderColor: '#00D4AA44' }}>
+              <TouchableOpacity onPress={pickFromCamera} disabled={uploading}
+                style={{ flex: 1, backgroundColor: '#00D4AA18', borderRadius: 14, padding: 14, alignItems: 'center', gap: 6, borderWidth: 1, borderColor: '#00D4AA44', opacity: uploading ? 0.5 : 1 }}>
                 <Ionicons name="camera" size={22} color="#00D4AA" />
                 <Text style={{ color: '#00D4AA', fontSize: 12, fontWeight: '700' }}>Camera</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={removePhoto} style={{ flex: 1, backgroundColor: '#FF6B6B18', borderRadius: 14, padding: 14, alignItems: 'center', gap: 6, borderWidth: 1, borderColor: '#FF6B6B44' }}>
+              <TouchableOpacity onPress={removePhoto} disabled={uploading}
+                style={{ flex: 1, backgroundColor: '#FF6B6B18', borderRadius: 14, padding: 14, alignItems: 'center', gap: 6, borderWidth: 1, borderColor: '#FF6B6B44', opacity: uploading ? 0.5 : 1 }}>
                 <Ionicons name="trash" size={22} color="#FF6B6B" />
                 <Text style={{ color: '#FF6B6B', fontSize: 12, fontWeight: '700' }}>Remove</Text>
               </TouchableOpacity>

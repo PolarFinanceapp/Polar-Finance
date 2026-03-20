@@ -135,9 +135,9 @@ export default function LoginScreen() {
       email: email.trim().toLowerCase(),
       password,
     });
-    setLoading(false);
 
     if (error) {
+      setLoading(false);
       if (error.message.toLowerCase().includes('invalid login credentials') ||
         error.message.toLowerCase().includes('invalid credentials')) {
         Alert.alert('Login Failed', 'Incorrect email or password. Please try again.');
@@ -151,6 +151,19 @@ export default function LoginScreen() {
       }
       return;
     }
+
+    // ── KEY FIX: fetch user and save name to AsyncStorage on every login ──
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const name = user.user_metadata?.full_name as string | undefined;
+        if (name) {
+          await AsyncStorage.setItem('jf_user_name', name);
+        }
+      }
+    } catch { }
+
+    setLoading(false);
 
     // Check if onboarding has been completed
     const done = await AsyncStorage.getItem('onboarding_complete');
@@ -176,13 +189,11 @@ export default function LoginScreen() {
 
     setLoading(true);
 
-    // Sign up
     const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
       email: email.trim().toLowerCase(),
       password,
       options: {
         data: { full_name: trimmedName },
-        // Skip email confirmation — user goes straight in
         emailRedirectTo: undefined,
       },
     });
@@ -207,7 +218,6 @@ export default function LoginScreen() {
     setLoading(false);
 
     if (loginError) {
-      // If email confirmation is required, tell the user clearly
       if (loginError.message.toLowerCase().includes('email not confirmed')) {
         Alert.alert(
           'Almost There',
